@@ -13,8 +13,8 @@ dist/
 .DS_Store
 .env
 
-deploy/
-deploy-*/
+/deploy/
+/deploy-*/
 tmp/
 tmp-*/
 run/
