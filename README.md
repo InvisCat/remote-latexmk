@@ -62,6 +62,32 @@ xelatex -interaction=nonstopmode main.tex
 The CLI selects its engine from its executable name. It validates common flags
 and never passes unknown command-line arguments through to the server shell.
 
+## Use the CLI from Bash
+
+After building the CLI, place a symlink in a directory on Bash's `PATH`. The
+following example uses `~/.local/bin`, keeps the command updated as you rebuild
+the repository, and applies to subsequent Bash sessions:
+
+```sh
+cd /absolute/path/to/latexmk
+pnpm --filter @latexmk/cli build
+
+mkdir -p "$HOME/.local/bin"
+ln -sf "$PWD/packages/cli/dist/latexmk" "$HOME/.local/bin/latexmk"
+touch "$HOME/.bashrc"
+grep -qxF 'export PATH="$HOME/.local/bin:$PATH"' "$HOME/.bashrc" || \
+  printf '\n%s\n' 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+source "$HOME/.bashrc"
+
+command -v latexmk
+latexmk version
+```
+
+Add the `PATH` line only once. If your Bash startup files use `~/.bash_profile`
+instead of `~/.bashrc`, add it there (or source `~/.bashrc` from that file).
+The CLI name intentionally shadows a locally installed TeX Live `latexmk`; use
+the absolute CLI path if you need both in the same shell.
+
 ## Client configuration
 
 The CLI searches upward for `.latexmk.json`:
