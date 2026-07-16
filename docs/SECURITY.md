@@ -1,0 +1,57 @@
+# Security model
+
+TeX is a complex programmable typesetting system. Even with shell escape
+disabled, this service is not a high-assurance sandbox for hostile code. Its
+intended boundary is a controlled research group, with ordinary path traversal,
+resource exhaustion, configuration execution, and secret-leakage risks reduced
+at the application and deployment layers.
+
+## Implemented controls
+
+- Commands are executed directly, never composed through a shell.
+- `latexmk -norc` prevents system, user, and project latexmk rc files from
+  executing Perl configuration.
+- Shell escape is disabled by default.
+- Every compile has a fresh temporary directory, private HOME/TEXMF trees, and
+  a small environment whitelist. Host credentials, proxy configuration, and
+  arbitrary TeX path overrides are not inherited.
+- Archives and v2 manifests validate paths, types, hashes, sizes, duplicate
+  paths, compression expansion, and file counts.
+- Upload blobs, logs, artifacts, concurrent compiles, queued jobs, state bytes,
+  and upload sessions have hard limits.
+- A state sweeper expires results, project snapshots, and orphaned blobs. It
+  never removes data referenced by a live upload or current snapshot.
+- Compile commands run in their own process group; timeout kills the process
+  tree.
+- Docker images run as an unprivileged user. Generated Compose files use a
+  read-only root filesystem, tmpfs, `no-new-privileges`, dropped capabilities,
+  PID limits, and memory limits.
+- Static and database bearer tokens use constant-time comparison; database
+  tokens are stored only as SHA-256 hashes.
+- Administrative endpoints require the administrator role. User and token
+  labels are length-limited and reject control characters.
+- CORS accepts only explicit HTTP(S) origins. Wildcards are rejected at startup.
+- Result artifacts come from `.fls`, are constrained to the workspace and an
+  allowlist, and result downloads are authorized by job owner.
+
+## Deployment responsibilities
+
+- Use TLS and place the service behind a private network, VPN, or an
+  identity-aware proxy.
+- Use token or PostgreSQL authentication in every deployment. `none` is only
+  suitable for a deliberately isolated local development instance.
+- Do not inject cloud-control-plane credentials into the compile container.
+- Restrict outbound network access, especially if shell escape is ever enabled.
+- Keep the root filesystem read-only and retain equivalent seccomp/AppArmor or
+  PaaS isolation controls.
+- Enforce request-size and timeout limits at the edge as well as in the server.
+- Pin and scan base images; regularly update TeX Live, fonts, Go, and OS
+  packages.
+- Keep PostgreSQL private to the service. Use TLS or the provider's private
+  network for a standalone database service.
+
+## Out of scope
+
+Do not offer this image as an anonymous public TeX compiler without additional
+microVM/container isolation, strict egress control, abuse prevention, and a
+separate threat-model review.
