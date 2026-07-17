@@ -10,6 +10,9 @@ not expose a persistent remote workspace, ignores `latexmkrc` files, disables
 shell escape by default, and limits upload size, expansion, concurrency, queued
 jobs, logs, artifacts, and state storage.
 
+Each queued job is bound to an immutable content-addressed source snapshot, so
+later uploads to the same project cannot change what an existing job compiles.
+
 ## Self-hosted server quick start
 
 Requirements: Docker with Docker Compose. No local Go, Node.js, pnpm, or TeX
@@ -319,8 +322,8 @@ API. The synchronous `POST /v1/compile` endpoint remains for v1 clients.
 use `/var/lib/latexmk`. `LATEXMK_MAX_STATE_BYTES` is a hard combined source-cache
 and result-archive limit. A periodic sweeper expires results, snapshots, and
 unreferenced blobs according to TTL settings while preserving data referenced by
-a live upload or current snapshot. The state directory never stores plaintext
-API tokens.
+a live upload, current project snapshot, or queued/running job snapshot. The
+state directory never stores plaintext API tokens.
 
 ## Dashboard
 
