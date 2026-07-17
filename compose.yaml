@@ -72,6 +72,7 @@ services:
       LATEXMK_SERVER: ${LATEXMK_CLIENT_SERVER:-http://server:8080}
       LATEXMK_TOKEN: ${LATEXMK_CLIENT_TOKEN:-${LATEXMK_API_TOKEN}}
       LATEXMK_CA_FILE: ${LATEXMK_CLIENT_CA_FILE:-}
+      LATEXMK_UPLOAD_MODE: ${LATEXMK_CLIENT_UPLOAD_MODE:-auto}
     working_dir: /workspace
     volumes:
       - type: bind
