@@ -1,14 +1,31 @@
 # latexmk
 
 A remote LaTeX compilation service for small research groups. The local Go CLI
-safely packages a project and sends it to a Go server on a PaaS. The server runs
-`latexmk` in a disposable workspace and returns the PDF, logs, SyncTeX, and
-allowed auxiliary files to the local project.
+safely packages a project and sends it to a Go server. The server runs `latexmk`
+in a disposable workspace and returns the PDF, logs, SyncTeX, and allowed
+auxiliary files to the local project.
 
 The project emphasizes predictable compilation and practical isolation: it does
 not expose a persistent remote workspace, ignores `latexmkrc` files, disables
 shell escape by default, and limits upload size, expansion, concurrency, queued
 jobs, logs, artifacts, and state storage.
+
+## Self-hosted server quick start
+
+Requirements: Docker with Docker Compose. No local Go, Node.js, pnpm, or TeX
+installation is needed to start the server.
+
+```sh
+cp .env.example .env
+# Set LATEXMK_API_TOKEN in .env to a new random value of at least 24 characters.
+docker compose up -d server
+curl http://127.0.0.1:8080/healthz
+```
+
+The default binds to `127.0.0.1`. Set `LATEXMK_BIND_ADDRESS=0.0.0.0` only when
+a firewall, private LAN, VPN, or TLS reverse proxy protects the service. Source
+blobs and results are stored in the `latexmk-state` named volume. The slim
+self-hosted image enables XeLaTeX and PDFLaTeX by default.
 
 ## Monorepo
 
@@ -25,7 +42,7 @@ PostgreSQL for production; PGlite is limited to one development, demo, or test
 instance. The connection pool is intentionally limited to one connection for
 PGlite compatibility.
 
-## Quick start
+## Development quick start
 
 Requirements: Go 1.23+, Node.js 22+, pnpm 11, and (for local end-to-end tests)
 `latexmk` plus a TeX engine.

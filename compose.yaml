@@ -1,0 +1,58 @@
+name: latexmk
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: packages/deploy/templates/Dockerfile.slim
+      args:
+        SERVER_SOURCE: packages/server
+        DEPLOY_ASSETS: packages/deploy/templates
+        GO_IMAGE: ${GO_IMAGE:-golang:1.26.5-bookworm}
+        TEXLIVE_IMAGE: ${TEXLIVE_IMAGE:-texlive/texlive:latest-basic}
+        VERSION: ${LATEXMK_VERSION:-0.1.0-local}
+        COMMIT: ${LATEXMK_COMMIT:-local}
+        BUILD_DATE: ${LATEXMK_BUILD_DATE:-unknown}
+    image: ${LATEXMK_SERVER_IMAGE:-latexmk-server:local}
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      LATEXMK_IMAGE_PROFILE: xelatex-cjk-slim
+      LATEXMK_AUTH_MODE: token
+      LATEXMK_API_TOKEN: ${LATEXMK_API_TOKEN:?Set LATEXMK_API_TOKEN in .env}
+      LATEXMK_DATABASE_MODE: postgres
+      LATEXMK_ENGINES: ${LATEXMK_ENGINES:-xelatex,pdflatex}
+      LATEXMK_ALLOW_SHELL_ESCAPE: "false"
+      LATEXMK_COMPILE_TIMEOUT: ${LATEXMK_COMPILE_TIMEOUT:-5m}
+      LATEXMK_MAX_CONCURRENT_COMPILES: ${LATEXMK_MAX_CONCURRENT_COMPILES:-1}
+      LATEXMK_MAX_QUEUED_JOBS: ${LATEXMK_MAX_QUEUED_JOBS:-12}
+      LATEXMK_MAX_UPLOAD_BYTES: ${LATEXMK_MAX_UPLOAD_BYTES:-64MiB}
+      LATEXMK_MAX_EXPANDED_BYTES: ${LATEXMK_MAX_EXPANDED_BYTES:-256MiB}
+      LATEXMK_MAX_ARTIFACT_BYTES: ${LATEXMK_MAX_ARTIFACT_BYTES:-96MiB}
+      LATEXMK_MAX_FILES: ${LATEXMK_MAX_FILES:-5000}
+      LATEXMK_MAX_LOG_BYTES: ${LATEXMK_MAX_LOG_BYTES:-4MiB}
+      LATEXMK_MAX_STATE_BYTES: ${LATEXMK_MAX_STATE_BYTES:-3GiB}
+      LATEXMK_MAX_UPLOAD_SESSIONS: ${LATEXMK_MAX_UPLOAD_SESSIONS:-64}
+      LATEXMK_RESULT_RETENTION: ${LATEXMK_RESULT_RETENTION:-168h}
+      LATEXMK_SNAPSHOT_RETENTION: ${LATEXMK_SNAPSHOT_RETENTION:-168h}
+      LATEXMK_BLOB_RETENTION: ${LATEXMK_BLOB_RETENTION:-168h}
+      LATEXMK_STATE_SWEEP_INTERVAL: ${LATEXMK_STATE_SWEEP_INTERVAL:-1h}
+      LATEXMK_STATE_DIR: /var/lib/latexmk
+      LATEXMK_TEMP_DIR: /tmp
+      LATEXMK_CORS_ORIGINS: ${LATEXMK_CORS_ORIGINS:-}
+    ports:
+      - "${LATEXMK_BIND_ADDRESS:-127.0.0.1}:${LATEXMK_HOST_PORT:-8080}:8080"
+    read_only: true
+    mem_limit: ${LATEXMK_MEMORY_LIMIT:-2g}
+    pids_limit: ${LATEXMK_PIDS_LIMIT:-192}
+    tmpfs:
+      - /tmp:size=${LATEXMK_TMPFS_SIZE:-768m},mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - latexmk-state:/var/lib/latexmk
+
+volumes:
+  latexmk-state:

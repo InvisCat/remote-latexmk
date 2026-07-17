@@ -1,4 +1,16 @@
 .git
+.env
+.env.*
 node_modules
+**/node_modules
 dist
-*.zip
+**/dist
+docs
+examples
+packages/cli
+packages/dashboard
+packages/deploy/scripts
+packages/deploy/src
+packages/deploy/test
+tmp
+tmp-*
