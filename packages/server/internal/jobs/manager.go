@@ -264,6 +264,125 @@ func (m *Manager) ResultPath(ctx context.Context, ownerID, id string) (string, a
 	return path, job, nil
 }
 
+// CleanupProject previews or removes server-side state for one authenticated
+// project. Snapshot and full-project cleanup are rejected while a job is
+// active. Result cleanup only removes terminal result archives.
+func (m *Manager) CleanupProject(ctx context.Context, ownerID, projectID, scope string, dryRun bool) (api.CleanupReport, error) {
+	report := api.CleanupReport{ProjectID: projectID, Scope: scope, DryRun: dryRun}
+	if !project.ValidProjectID(projectID) {
+		return report, errors.New("project ID is invalid")
+	}
+	if scope != "results" && scope != "snapshot" && scope != "project" {
+		return report, errors.New("cleanup scope must be results, snapshot, or project")
+	}
+	m.admissionMu.Lock()
+	defer m.admissionMu.Unlock()
+	records, err := m.projectRecords(ctx, ownerID, projectID)
+	if err != nil {
+		return report, err
+	}
+	terminalIDs := make([]string, 0, len(records))
+	for _, rec := range records {
+		switch rec.Job.Status {
+		case "queued", "running":
+			report.ActiveJobs = append(report.ActiveJobs, rec.Job.ID)
+		case "succeeded", "failed", "cancelled":
+			terminalIDs = append(terminalIDs, rec.Job.ID)
+			if scope == "results" || scope == "project" {
+				exists, size, infoErr := m.projects.ResultInfo(ownerID, rec.Job.ID)
+				if infoErr != nil {
+					return report, infoErr
+				}
+				if exists {
+					report.Results++
+					report.ResultBytes += size
+				}
+			}
+		}
+	}
+	if scope == "project" {
+		report.Jobs = len(terminalIDs)
+	}
+	if scope == "snapshot" || scope == "project" {
+		report.SnapshotPresent, report.SnapshotFiles, report.SnapshotBytes, err = m.projects.SnapshotStats(ctx, ownerID, projectID)
+		if err != nil {
+			return report, err
+		}
+		if len(report.ActiveJobs) > 0 && !dryRun {
+			return report, errors.New("project has active jobs; wait for them to finish or cancel queued jobs")
+		}
+	}
+	if dryRun {
+		return report, nil
+	}
+	if scope == "results" || scope == "project" {
+		for _, id := range terminalIDs {
+			reclaimed, deleteErr := m.projects.DeleteResult(ownerID, id)
+			if deleteErr != nil {
+				return report, deleteErr
+			}
+			report.ReclaimedBytes += reclaimed
+		}
+	}
+	if scope == "project" {
+		if err := m.deleteTerminalProjectRecords(ctx, ownerID, projectID); err != nil {
+			return report, err
+		}
+	}
+	if scope == "snapshot" || scope == "project" {
+		if _, err := m.projects.DeleteSnapshot(ctx, ownerID, projectID); err != nil {
+			return report, err
+		}
+		reclaimed, err := m.projects.CollectUnreferencedBlobs(ctx)
+		if err != nil {
+			return report, err
+		}
+		report.ReclaimedBytes += reclaimed
+	}
+	return report, nil
+}
+
+func (m *Manager) projectRecords(ctx context.Context, ownerID, projectID string) ([]record, error) {
+	if m.db != nil {
+		rows, err := m.db.ListProjectJobs(ctx, ownerID, projectID)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]record, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, record{OwnerID: row.OwnerID, Job: api.Job{ID: row.ID, ProjectID: row.ProjectID, Status: row.Status}})
+		}
+		return out, nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]record, 0)
+	for _, rec := range m.jobs {
+		if rec.OwnerID == ownerID && rec.Job.ProjectID == projectID {
+			out = append(out, rec)
+		}
+	}
+	return out, nil
+}
+
+func (m *Manager) deleteTerminalProjectRecords(ctx context.Context, ownerID, projectID string) error {
+	if m.db != nil {
+		return m.db.DeleteTerminalProjectJobs(ctx, ownerID, projectID)
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, rec := range m.jobs {
+		if rec.OwnerID == ownerID && rec.Job.ProjectID == projectID && isTerminal(rec.Job.Status) {
+			delete(m.jobs, id)
+		}
+	}
+	return nil
+}
+
+func isTerminal(status string) bool {
+	return status == "succeeded" || status == "failed" || status == "cancelled"
+}
+
 func (m *Manager) worker(ctx context.Context, worker int) {
 	for {
 		select {

@@ -67,6 +67,7 @@ func Collect(cfg config.Config, build BuildInfo) api.Metadata {
 			QueuedJobs:          true,
 			DependencyInputs:    true,
 			NeedsFiles:          true,
+			RemoteCleanup:       true,
 			MaxQueuedJobs:       cfg.MaxQueuedJobs,
 			MaxStateBytes:       cfg.MaxStateBytes,
 			MaxUploadSessions:   cfg.MaxUploadSessions,

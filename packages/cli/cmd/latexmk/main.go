@@ -30,6 +30,7 @@ type compileOptions struct {
 	server        string
 	token         string
 	projectRoot   string
+	projectID     string
 	rootMode      string
 	uploadMode    string
 	manifestFile  string
@@ -84,6 +85,13 @@ func run(args []string) int {
 			return runMeta(argv[1:], true)
 		case "clean":
 			return runClean(argv[1:])
+		case "remote-clean":
+			return runRemoteClean(argv[1:])
+		case "remote":
+			if len(argv) > 1 && argv[1] == "clean" {
+				return runRemoteClean(argv[2:])
+			}
+			return fail(errors.New("remote currently supports only 'clean'"))
 		case "files":
 			return runCompile(argv[1:], "", true)
 		case "watch":
@@ -118,6 +126,7 @@ func runCompile(args []string, forcedEngine string, listOnly bool) int {
 		server:        cfg.Server,
 		token:         cfg.Token,
 		projectRoot:   cfg.ProjectRoot,
+		projectID:     cfg.ProjectID,
 		rootMode:      cfg.RootMode,
 		uploadMode:    cfg.UploadMode,
 		manifestFile:  cfg.ManifestFile,
@@ -166,6 +175,7 @@ func runCompile(args []string, forcedEngine string, listOnly bool) int {
 	c.UploadMode = opts.uploadMode
 	c.ManifestFile = opts.manifestFile
 	c.IncludeFiles = append([]string(nil), opts.includeFiles...)
+	c.ProjectID = opts.projectID
 	request := protocol.CompileRequest{
 		ProtocolVersion: protocol.Version,
 		Entry:           opts.entry,
@@ -394,6 +404,12 @@ func parseCompileArgs(args []string, opts *compileOptions) error {
 				return err
 			}
 			opts.projectRoot = v
+		case a == "--project-id" || strings.HasPrefix(a, "--project-id="):
+			v, err := value("--project-id")
+			if err != nil {
+				return err
+			}
+			opts.projectID = v
 		case a == "--root-mode" || strings.HasPrefix(a, "--root-mode="):
 			v, err := value("--root-mode")
 			if err != nil {
@@ -831,6 +847,148 @@ func runClean(args []string) int {
 	return 0
 }
 
+func runRemoteClean(args []string) int {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fail(err)
+	}
+	cfg, err := config.Load(cwd)
+	if err != nil {
+		return fail(err)
+	}
+	server, token, timeout := cfg.Server, cfg.Token, cfg.Timeout
+	insecure, caFile := cfg.InsecureSkipVerify, cfg.CAFile
+	projectRoot, projectID := cfg.ProjectRoot, cfg.ProjectID
+	scope, yes, explicitDryRun, jsonOutput, legacyID := "", false, false, false, false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		value := func(name string) (string, error) {
+			if strings.Contains(a, "=") {
+				return strings.SplitN(a, "=", 2)[1], nil
+			}
+			if i+1 >= len(args) {
+				return "", fmt.Errorf("%s requires a value", name)
+			}
+			i++
+			return args[i], nil
+		}
+		switch {
+		case a == "--server" || strings.HasPrefix(a, "--server="):
+			server, err = value("--server")
+		case a == "--token" || strings.HasPrefix(a, "--token="):
+			token, err = value("--token")
+		case a == "--token-file" || strings.HasPrefix(a, "--token-file="):
+			var path string
+			path, err = value("--token-file")
+			if err == nil {
+				token, err = config.ReadTokenFile(path)
+			}
+		case a == "--ca-file" || strings.HasPrefix(a, "--ca-file="):
+			caFile, err = value("--ca-file")
+		case a == "--insecure-skip-verify":
+			insecure = true
+		case a == "--timeout" || strings.HasPrefix(a, "--timeout="):
+			var raw string
+			raw, err = value("--timeout")
+			if err == nil {
+				timeout, err = time.ParseDuration(raw)
+			}
+		case a == "--project-root" || strings.HasPrefix(a, "--project-root="):
+			projectRoot, err = value("--project-root")
+		case a == "--project-id" || strings.HasPrefix(a, "--project-id="):
+			projectID, err = value("--project-id")
+		case a == "--legacy-project-id":
+			legacyID = true
+		case a == "--scope" || strings.HasPrefix(a, "--scope="):
+			scope, err = value("--scope")
+		case a == "--yes":
+			yes = true
+		case a == "--dry-run":
+			explicitDryRun = true
+		case a == "--json":
+			jsonOutput = true
+		default:
+			return fail(fmt.Errorf("unknown option %q", a))
+		}
+		if err != nil {
+			return fail(err)
+		}
+	}
+	if scope != "results" && scope != "snapshot" && scope != "project" {
+		return fail(errors.New("--scope must be results, snapshot, or project"))
+	}
+	if yes && explicitDryRun {
+		return fail(errors.New("--yes and --dry-run cannot be used together"))
+	}
+	if projectRoot == "" {
+		projectRoot = cwd
+	}
+	projectRoot, err = filepath.Abs(projectRoot)
+	if err != nil {
+		return fail(err)
+	}
+	projectRoot, err = filepath.EvalSymlinks(projectRoot)
+	if err != nil {
+		return fail(fmt.Errorf("project root: %w", err))
+	}
+	if legacyID {
+		if projectID != "" {
+			return fail(errors.New("--legacy-project-id cannot be combined with a configured or explicit project ID"))
+		}
+		projectID, err = client.LegacyProjectID(projectRoot)
+	} else if projectID == "" {
+		projectID, err = client.ResolveProjectID(projectRoot, false)
+		if errors.Is(err, client.ErrProjectIDNotFound) {
+			return fail(errors.New("this project has no local project ID; compile it once, or use --project-id/--legacy-project-id to clean older data"))
+		}
+	}
+	if err != nil {
+		return fail(err)
+	}
+	c, err := client.New(server, token, timeout, insecure, caFile)
+	if err != nil {
+		return fail(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	meta, err := c.Metadata(ctx)
+	if err != nil {
+		return fail(err)
+	}
+	if !meta.Capabilities.RemoteCleanup {
+		return fail(errors.New("server does not advertise remote cleanup support"))
+	}
+	report, err := c.CleanupProject(ctx, projectID, scope, !yes)
+	if err != nil {
+		return fail(err)
+	}
+	if jsonOutput {
+		if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+			return fail(err)
+		}
+		return 0
+	}
+	fmt.Printf("project ID: %s\nscope: %s\ndry run: %t\n", report.ProjectID, report.Scope, report.DryRun)
+	if scope == "snapshot" || scope == "project" {
+		fmt.Printf("snapshot: %t (%d files, %d bytes)\n", report.SnapshotPresent, report.SnapshotFiles, report.SnapshotBytes)
+	}
+	if scope == "results" || scope == "project" {
+		fmt.Printf("results: %d (%d bytes)\n", report.Results, report.ResultBytes)
+	}
+	if scope == "project" {
+		fmt.Printf("terminal jobs: %d\n", report.Jobs)
+	}
+	if len(report.ActiveJobs) > 0 {
+		fmt.Printf("active jobs (not deleted): %s\n", strings.Join(report.ActiveJobs, ", "))
+	}
+	if report.DryRun {
+		fmt.Println("preview only; rerun with --yes to delete this scope")
+	} else {
+		fmt.Printf("reclaimed bytes: %d\n", report.ReclaimedBytes)
+	}
+	return 0
+}
+
 func usage() {
 	fmt.Print(`latexmk - remote, PaaS-hosted LaTeX compiler
 
@@ -842,6 +1000,7 @@ Usage:
   latexmk doctor
   latexmk init [--server URL]
   latexmk clean [main.tex]
+  latexmk remote clean --scope results|snapshot|project [--yes]
   latexmk files [options] <main.tex>
   latexmk version
 
@@ -851,6 +1010,7 @@ Compile options:
   --token-file FILE            Read the bearer token from a file
   --ca-file FILE               Add PEM CA certificates for HTTPS
   --project-root DIR           Root directory uploaded to the server
+  --project-id ID              Override the persisted local project identity
   --root-mode entry|git        Default root when --project-root is absent
   --upload-mode MODE           auto (default), manifest, or all
   --manifest FILE              Read exact project-relative files, one per line
@@ -871,6 +1031,9 @@ Compile options:
 
 The executable may be symlinked as xelatex, lualatex, or pdflatex.
 Configuration is read from the user config, .latexmk.json, and environment variables.
+
+Remote cleanup previews by default. Add --yes to delete. Use
+--legacy-project-id only to target data created by the old path-derived ID.
 `)
 }
 

@@ -27,6 +27,8 @@ type Postgres struct {
 	db *gorm.DB
 }
 
+var ErrProjectSnapshotNotFound = errors.New("project snapshot not found")
+
 type User struct {
 	ID        string    `gorm:"primaryKey;size:40" json:"id"`
 	Name      string    `gorm:"not null" json:"name"`
@@ -268,7 +270,7 @@ func (p *Postgres) LoadSnapshot(ctx context.Context, ownerID, projectID string) 
 	var snapshot ProjectSnapshot
 	err := p.db.WithContext(ctx).Where("owner_id = ? AND project_id = ?", ownerID, projectID).First(&snapshot).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ProjectSnapshot{}, errors.New("project snapshot not found")
+		return ProjectSnapshot{}, ErrProjectSnapshotNotFound
 	}
 	return snapshot, err
 }
@@ -304,6 +306,11 @@ func (p *Postgres) DeleteSnapshotsBefore(ctx context.Context, cutoff time.Time) 
 	return p.db.WithContext(ctx).Where("updated_at < ?", cutoff).Delete(&ProjectSnapshot{}).Error
 }
 
+func (p *Postgres) DeleteSnapshot(ctx context.Context, ownerID, projectID string) (bool, error) {
+	result := p.db.WithContext(ctx).Where("owner_id = ? AND project_id = ?", ownerID, projectID).Delete(&ProjectSnapshot{})
+	return result.RowsAffected > 0, result.Error
+}
+
 func (p *Postgres) CreateJob(ctx context.Context, job CompileJob) error {
 	return p.db.WithContext(ctx).Create(&job).Error
 }
@@ -335,6 +342,20 @@ func (p *Postgres) ListPendingJobs(ctx context.Context) ([]CompileJob, error) {
 		return nil, err
 	}
 	return jobs, nil
+}
+
+func (p *Postgres) ListProjectJobs(ctx context.Context, ownerID, projectID string) ([]CompileJob, error) {
+	var jobs []CompileJob
+	if err := p.db.WithContext(ctx).Where("owner_id = ? AND project_id = ?", ownerID, projectID).Order("created_at DESC").Find(&jobs).Error; err != nil {
+		return nil, err
+	}
+	return jobs, nil
+}
+
+func (p *Postgres) DeleteTerminalProjectJobs(ctx context.Context, ownerID, projectID string) error {
+	return p.db.WithContext(ctx).
+		Where("owner_id = ? AND project_id = ? AND status IN ?", ownerID, projectID, []string{"succeeded", "failed", "cancelled"}).
+		Delete(&CompileJob{}).Error
 }
 
 // VisitActiveJobSnapshots exposes only immutable manifests referenced by jobs

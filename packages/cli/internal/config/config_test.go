@@ -97,7 +97,7 @@ func TestFindGitRoot(t *testing.T) {
 }
 
 func TestDefaultDenyIncludesSensitiveLocalConfiguration(t *testing.T) {
-	want := map[string]bool{".latexmk.json": false, ".latexmk-files": false, ".env": false, "*.key": false, "*.pem": false}
+	want := map[string]bool{".latexmk.json": false, ".latexmk-cache": false, ".latexmk-files": false, ".env": false, "*.key": false, "*.pem": false}
 	for _, pattern := range DefaultDeny() {
 		if _, ok := want[pattern]; ok {
 			want[pattern] = true

@@ -65,6 +65,20 @@ type UploadPlan struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
+type CleanupReport struct {
+	ProjectID       string   `json:"projectId"`
+	Scope           string   `json:"scope"`
+	DryRun          bool     `json:"dryRun"`
+	SnapshotPresent bool     `json:"snapshotPresent"`
+	SnapshotFiles   int      `json:"snapshotFiles"`
+	SnapshotBytes   int64    `json:"snapshotBytes"`
+	Jobs            int      `json:"jobs"`
+	Results         int      `json:"results"`
+	ResultBytes     int64    `json:"resultBytes"`
+	ReclaimedBytes  int64    `json:"reclaimedBytes"`
+	ActiveJobs      []string `json:"activeJobs,omitempty"`
+}
+
 type Job struct {
 	ID         string         `json:"id"`
 	ProjectID  string         `json:"projectId"`
@@ -107,6 +121,7 @@ type Capabilities struct {
 	QueuedJobs          bool     `json:"queuedJobs"`
 	DependencyInputs    bool     `json:"dependencyInputs"`
 	NeedsFiles          bool     `json:"needsFiles"`
+	RemoteCleanup       bool     `json:"remoteCleanup"`
 	MaxQueuedJobs       int      `json:"maxQueuedJobs"`
 	MaxStateBytes       int64    `json:"maxStateBytes"`
 	MaxUploadSessions   int      `json:"maxUploadSessions"`

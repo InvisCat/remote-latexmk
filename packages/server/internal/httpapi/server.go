@@ -63,6 +63,8 @@ func New(cfg config.Config, meta api.Metadata, runner *compile.Runner, authManag
 	engine.GET("/v1/jobs/:id", compileAuth, s.getJob)
 	engine.DELETE("/v1/jobs/:id", compileAuth, s.cancelJob)
 	engine.GET("/v1/jobs/:id/result", compileAuth, s.downloadResult)
+	engine.GET("/v1/projects/:id/cleanup", compileAuth, s.previewProjectCleanup)
+	engine.DELETE("/v1/projects/:id/cleanup", compileAuth, s.cleanupProject)
 
 	engine.GET("/v1/admin/users", adminAuth, s.listUsers)
 	engine.POST("/v1/admin/users", adminAuth, s.createUser)
@@ -305,6 +307,33 @@ func (s *Server) downloadResult(c *gin.Context) {
 	c.Header("Content-Type", "application/vnd.latexmk.result+tar.gz")
 	c.Header("Content-Disposition", `attachment; filename="latexmk-result.tar.gz"`)
 	c.DataFromReader(http.StatusOK, st.Size(), "application/vnd.latexmk.result+tar.gz", f, nil)
+}
+
+func (s *Server) previewProjectCleanup(c *gin.Context) {
+	s.projectCleanup(c, true)
+}
+
+func (s *Server) cleanupProject(c *gin.Context) {
+	s.projectCleanup(c, false)
+}
+
+func (s *Server) projectCleanup(c *gin.Context, dryRun bool) {
+	scope := c.Query("scope")
+	if scope == "" {
+		writeError(c, http.StatusBadRequest, "cleanup scope is required")
+		return
+	}
+	principal, _ := auth.FromContext(c.Request.Context())
+	report, err := s.jobs.CleanupProject(c.Request.Context(), principal.ID, c.Param("id"), scope, dryRun)
+	if err != nil {
+		status := http.StatusConflict
+		if !project.ValidProjectID(c.Param("id")) || (scope != "results" && scope != "snapshot" && scope != "project") {
+			status = http.StatusBadRequest
+		}
+		writeError(c, status, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, report)
 }
 
 func (s *Server) listUsers(c *gin.Context) {

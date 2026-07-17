@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -198,5 +201,43 @@ func TestWatchTargetsOnlyAddsSelectedFilesAndPolicyControls(t *testing.T) {
 	}
 	if paths[filepath.Join(project, "unrelated-secret.txt")] {
 		t.Fatal("watcher included an unrelated project file")
+	}
+}
+
+func TestRemoteCleanPreviewsUnlessYesIsExplicit(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	methods := make([]string, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/meta":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"protocolVersion": 2,
+				"capabilities":    map[string]any{"remoteCleanup": true},
+			})
+		case "/v1/projects/project-test/cleanup":
+			methods = append(methods, r.Method)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"projectId": "project-test", "scope": "project", "dryRun": r.Method == http.MethodGet,
+				"snapshotPresent": true, "snapshotFiles": 1, "snapshotBytes": 5,
+				"jobs": 1, "results": 1, "resultBytes": 3, "reclaimedBytes": 8,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	base := []string{"latexmk", "remote", "clean", "--scope", "project", "--project-root", root, "--project-id", "project-test", "--server", server.URL}
+	if code := run(base); code != 0 {
+		t.Fatalf("preview exit code = %d", code)
+	}
+	if code := run(append(base, "--yes")); code != 0 {
+		t.Fatalf("delete exit code = %d", code)
+	}
+	if len(methods) != 2 || methods[0] != http.MethodGet || methods[1] != http.MethodDelete {
+		t.Fatalf("cleanup methods = %#v", methods)
 	}
 }

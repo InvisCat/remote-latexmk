@@ -206,6 +206,13 @@ still pass the current Git-ignore and deny policies. When history covers a
 dynamic reference, the CLI warns because the path set may be stale; it never
 falls back to `all` automatically.
 
+The first queued compile also creates `.latexmk-cache/project-id`. This is a
+random project identity, not a credential. It stays with the paper directory
+and is never uploaded as a project file. In particular, separate papers remain
+separate even when the Docker client mounts each one at `/workspace`. Advanced
+users can set `projectId`, `LATEXMK_PROJECT_ID`, or `--project-id`, but IDs must
+not be reused for unrelated papers under the same token.
+
 If stale history misses a file and the server reports a recognized TeX
 missing-file diagnostic, `auto` mode can make a bounded retry. The client
 resolves the exact request only inside its current policy-filtered manifest and
@@ -280,8 +287,34 @@ latexmk main.tex
 latexmk meta
 latexmk doctor
 latexmk clean main.tex
+latexmk remote clean --scope project
 latexmk --json main.tex
 ```
+
+Remote cleanup is a preview unless `--yes` is present:
+
+```sh
+# Remove compiled result archives, but keep job metadata and source snapshot.
+latexmk remote clean --scope results
+latexmk remote clean --scope results --yes
+
+# Remove the current source snapshot and immediately collect unshared blobs.
+latexmk remote clean --scope snapshot --yes
+
+# Remove the snapshot, terminal jobs, results, and unshared source blobs.
+latexmk remote clean --scope project --yes
+
+# The same command through the client container.
+docker compose run --rm client remote clean --scope project
+docker compose run --rm client remote clean --scope project --yes
+```
+
+Snapshot and project deletion refuse to run while that project has queued or
+running jobs. Content-addressed blobs still referenced by another project,
+active upload, or active job are preserved. The API always scopes cleanup to
+the authenticated token owner. For data created before random local project
+IDs were introduced, run the preview with `--legacy-project-id`; use that flag
+only for this migration case.
 
 ## Deployment
 
@@ -392,7 +425,9 @@ use `/var/lib/latexmk`. `LATEXMK_MAX_STATE_BYTES` is a hard combined source-cach
 and result-archive limit. A periodic sweeper expires results, snapshots, and
 unreferenced blobs according to TTL settings while preserving data referenced by
 a live upload, current project snapshot, or queued/running job snapshot. The
-state directory never stores plaintext API tokens.
+state directory never stores plaintext API tokens. The authenticated project
+cleanup API can remove retained data before its TTL; the CLI requires an
+explicit scope, previews by default, and requires `--yes` for deletion.
 
 ## Dashboard
 

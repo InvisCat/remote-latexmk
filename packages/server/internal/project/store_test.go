@@ -204,6 +204,50 @@ func TestPruneKeepsReferencedBlobsAndRemovesExpiredCache(t *testing.T) {
 	}
 }
 
+func TestCollectUnreferencedBlobsKeepsContentSharedByAnotherProject(t *testing.T) {
+	m, err := New(config.Config{StateDir: t.TempDir(), MaxFiles: 10, MaxUploadBytes: 1024, MaxExpandedBytes: 1024, MaxStateBytes: 4096}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := []byte("shared source")
+	digest := sha256.Sum256(content)
+	sha := hex.EncodeToString(digest[:])
+	commit := func(projectID string) Snapshot {
+		t.Helper()
+		plan, err := m.Plan("member", api.UploadPlanRequest{ProjectID: projectID, Files: []api.ProjectFile{{Path: "main.tex", SHA256: sha, Size: int64(len(content))}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(plan.Missing) > 0 {
+			if err := m.PutBlob("member", plan.UploadID, sha, bytes.NewReader(content)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		snapshot, _, err := m.Commit(context.Background(), "member", plan.UploadID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return snapshot
+	}
+	first := commit("paper-one")
+	second := commit("paper-two")
+	if _, err := m.DeleteSnapshot(context.Background(), "member", first.ProjectID); err != nil {
+		t.Fatal(err)
+	}
+	if reclaimed, err := m.CollectUnreferencedBlobs(context.Background()); err != nil || reclaimed != 0 {
+		t.Fatalf("shared cleanup reclaimed %d bytes: %v", reclaimed, err)
+	}
+	if err := m.Materialize(second, t.TempDir()); err != nil {
+		t.Fatalf("shared blob was removed: %v", err)
+	}
+	if _, err := m.DeleteSnapshot(context.Background(), "member", second.ProjectID); err != nil {
+		t.Fatal(err)
+	}
+	if reclaimed, err := m.CollectUnreferencedBlobs(context.Background()); err != nil || reclaimed != int64(len(content)) {
+		t.Fatalf("orphan cleanup reclaimed %d bytes: %v", reclaimed, err)
+	}
+}
+
 func TestPruneKeepsBlobPinnedByOlderQueuedSnapshot(t *testing.T) {
 	cfg := config.Config{
 		StateDir: t.TempDir(), MaxFiles: 10, MaxUploadBytes: 1024,

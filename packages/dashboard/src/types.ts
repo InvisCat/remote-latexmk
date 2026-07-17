@@ -11,6 +11,7 @@ export interface CapabilitySet {
   queuedJobs: boolean;
   dependencyInputs: boolean;
   needsFiles: boolean;
+  remoteCleanup: boolean;
   maxQueuedJobs: number;
   maxStateBytes: number;
   maxUploadSessions: number;

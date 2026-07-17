@@ -38,6 +38,7 @@ type Client struct {
 	UploadMode       string
 	ManifestFile     string
 	IncludeFiles     []string
+	ProjectID        string
 }
 
 type CompileOutput struct {
@@ -124,6 +125,25 @@ func (c *Client) Health(ctx context.Context) error {
 		return readHTTPError(resp)
 	}
 	return nil
+}
+
+func (c *Client) CleanupProject(ctx context.Context, projectID, scope string, dryRun bool) (protocol.CleanupReport, error) {
+	var report protocol.CleanupReport
+	if !validProjectID(projectID) {
+		return report, errors.New("project ID is invalid")
+	}
+	if scope != "results" && scope != "snapshot" && scope != "project" {
+		return report, errors.New("cleanup scope must be results, snapshot, or project")
+	}
+	method := http.MethodDelete
+	if dryRun {
+		method = http.MethodGet
+	}
+	path := "/v1/projects/" + url.PathEscape(projectID) + "/cleanup?scope=" + url.QueryEscape(scope)
+	if err := c.jsonRequest(ctx, method, path, nil, &report); err != nil {
+		return report, err
+	}
+	return report, nil
 }
 
 func (c *Client) Compile(ctx context.Context, request protocol.CompileRequest, outputRoot string) (CompileOutput, error) {
@@ -277,9 +297,15 @@ func (c *Client) compileQueued(ctx context.Context, request protocol.CompileRequ
 	if c.ProjectRoot == "" {
 		return out, errors.New("project root is not configured")
 	}
-	projectID, err := stableProjectID(c.ProjectRoot)
-	if err != nil {
-		return out, err
+	projectID := c.ProjectID
+	if projectID == "" {
+		resolvedID, resolveErr := ResolveProjectID(c.ProjectRoot, true)
+		if resolveErr != nil {
+			return out, resolveErr
+		}
+		projectID = resolvedID
+	} else if !validProjectID(projectID) {
+		return out, errors.New("configured project ID is invalid")
 	}
 	planRequest := protocol.UploadPlanRequest{ProjectID: projectID, Request: request, Files: make([]protocol.ProjectFile, 0, len(files))}
 	byDigest := make(map[string]string, len(files))
@@ -502,19 +528,6 @@ func (c *Client) rawRequest(ctx context.Context, method, path string, body io.Re
 		return nil, readHTTPError(resp)
 	}
 	return resp, nil
-}
-
-func stableProjectID(root string) (string, error) {
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return "", err
-	}
-	resolved, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		return "", err
-	}
-	digest := sha256.Sum256([]byte(filepath.Clean(resolved)))
-	return "project-" + hex.EncodeToString(digest[:16]), nil
 }
 
 func (c *Client) decorate(req *http.Request) {

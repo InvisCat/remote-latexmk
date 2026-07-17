@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/billstark001/latexmk/packages/server/internal/api"
 	"github.com/billstark001/latexmk/packages/server/internal/compile"
@@ -124,6 +125,110 @@ func TestLegacyFinishedJobWithoutSnapshotRemainsReadable(t *testing.T) {
 	row.Status = "queued"
 	if _, err := recordFromRow(row); err == nil {
 		t.Fatal("expected active legacy job without snapshot to be rejected")
+	}
+}
+
+func TestCleanupProjectPreviewsAndDeletesTerminalState(t *testing.T) {
+	cfg := config.Config{
+		StateDir: t.TempDir(), Engines: []string{"xelatex"}, MaxFiles: 10,
+		MaxUploadBytes: 1024, MaxExpandedBytes: 1024, MaxConcurrentCompiles: 1,
+		MaxQueuedJobs: 2, MaxStateBytes: 4096,
+	}
+	projects, err := project.New(cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := api.CompileRequest{ProtocolVersion: api.ProtocolVersion, Entry: "main.tex", Engine: "xelatex", Interaction: "nonstopmode"}
+	snapshot := commitTestSnapshot(t, projects, request, []byte("private paper source"))
+	manager := New(cfg, api.Metadata{}, compile.NewRunner(cfg), projects, nil, slog.New(slog.NewTextHandler(testWriter{t}, nil)))
+	now := time.Now().UTC()
+	rec := record{
+		OwnerID: "member", Request: request, Snapshot: snapshot,
+		Job: api.Job{ID: "job_finished", ProjectID: snapshot.ProjectID, SnapshotID: snapshot.ID, Status: "succeeded", CreatedAt: now, FinishedAt: &now},
+	}
+	if err := manager.save(context.Background(), rec); err != nil {
+		t.Fatal(err)
+	}
+	resultPath, err := projects.ResultPath("member", rec.Job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(resultPath, []byte("result archive"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	preview, err := manager.CleanupProject(context.Background(), "member", snapshot.ProjectID, "project", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.DryRun || !preview.SnapshotPresent || preview.SnapshotFiles != 1 || preview.Jobs != 1 || preview.Results != 1 {
+		t.Fatalf("cleanup preview = %#v", preview)
+	}
+	if _, err := os.Stat(resultPath); err != nil {
+		t.Fatalf("preview changed result: %v", err)
+	}
+
+	results, err := manager.CleanupProject(context.Background(), "member", snapshot.ProjectID, "results", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results.ReclaimedBytes != int64(len("result archive")) {
+		t.Fatalf("result cleanup = %#v", results)
+	}
+	if _, err := manager.Get(context.Background(), "member", rec.Job.ID); err != nil {
+		t.Fatalf("result cleanup removed job metadata: %v", err)
+	}
+	if _, err := os.Stat(resultPath); !os.IsNotExist(err) {
+		t.Fatalf("result cleanup kept archive: %v", err)
+	}
+
+	cleaned, err := manager.CleanupProject(context.Background(), "member", snapshot.ProjectID, "project", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleaned.Jobs != 1 || !cleaned.SnapshotPresent || cleaned.ReclaimedBytes < int64(len("private paper source")) {
+		t.Fatalf("project cleanup = %#v", cleaned)
+	}
+	if _, err := manager.Get(context.Background(), "member", rec.Job.ID); err == nil {
+		t.Fatal("project cleanup kept terminal job metadata")
+	}
+	if _, err := projects.Snapshot(context.Background(), "member", snapshot.ProjectID); err == nil {
+		t.Fatal("project cleanup kept current snapshot")
+	}
+	if err := projects.Materialize(snapshot, t.TempDir()); err == nil {
+		t.Fatal("project cleanup kept unreferenced source blob")
+	}
+}
+
+func TestCleanupProjectRejectsActiveJobs(t *testing.T) {
+	cfg := config.Config{
+		StateDir: t.TempDir(), Engines: []string{"xelatex"}, MaxFiles: 10,
+		MaxUploadBytes: 1024, MaxExpandedBytes: 1024, MaxConcurrentCompiles: 1,
+		MaxQueuedJobs: 2, MaxStateBytes: 4096,
+	}
+	projects, err := project.New(cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := api.CompileRequest{ProtocolVersion: api.ProtocolVersion, Entry: "main.tex", Engine: "xelatex", Interaction: "nonstopmode"}
+	snapshot := commitTestSnapshot(t, projects, request, []byte("active source"))
+	manager := New(cfg, api.Metadata{}, compile.NewRunner(cfg), projects, nil, slog.New(slog.NewTextHandler(testWriter{t}, nil)))
+	job, err := manager.Enqueue(context.Background(), "member", snapshot, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview, err := manager.CleanupProject(context.Background(), "member", snapshot.ProjectID, "project", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(preview.ActiveJobs) != 1 || preview.ActiveJobs[0] != job.ID {
+		t.Fatalf("active cleanup preview = %#v", preview)
+	}
+	if _, err := manager.CleanupProject(context.Background(), "member", snapshot.ProjectID, "project", false); err == nil {
+		t.Fatal("expected active project cleanup to be rejected")
+	}
+	if _, err := projects.Snapshot(context.Background(), "member", snapshot.ProjectID); err != nil {
+		t.Fatalf("rejected cleanup changed snapshot: %v", err)
 	}
 }
 
