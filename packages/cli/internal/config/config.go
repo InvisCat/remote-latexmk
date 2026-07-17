@@ -25,6 +25,7 @@ type FileConfig struct {
 	Engine             string   `json:"engine,omitempty"`
 	Timeout            string   `json:"timeout,omitempty"`
 	Exclude            []string `json:"exclude,omitempty"`
+	CAFile             string   `json:"caFile,omitempty"`
 	InsecureSkipVerify bool     `json:"insecureSkipVerify,omitempty"`
 }
 
@@ -37,6 +38,7 @@ type Resolved struct {
 	Engine             string
 	Timeout            time.Duration
 	Exclude            []string
+	CAFile             string
 	InsecureSkipVerify bool
 	ConfigPath         string
 	UserConfigPath     string
@@ -127,6 +129,9 @@ func Load(start string) (Resolved, error) {
 	if v := os.Getenv("LATEXMK_ENGINE"); v != "" {
 		cfg.Engine = v
 	}
+	if v := os.Getenv("LATEXMK_CA_FILE"); v != "" {
+		cfg.CAFile = v
+	}
 	if v := os.Getenv("LATEXMK_ROOT_MODE"); v != "" {
 		cfg.RootMode = v
 	}
@@ -178,6 +183,7 @@ func Load(start string) (Resolved, error) {
 		Engine:             cfg.Engine,
 		Timeout:            timeout,
 		Exclude:            cfg.Exclude,
+		CAFile:             cfg.CAFile,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		ConfigPath:         path,
 		UserConfigPath:     userPath,

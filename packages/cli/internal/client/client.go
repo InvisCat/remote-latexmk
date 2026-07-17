@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -41,7 +42,7 @@ type CompileOutput struct {
 	Stderr []byte
 }
 
-func New(baseURL, token string, timeout time.Duration, insecure bool) (*Client, error) {
+func New(baseURL, token string, timeout time.Duration, insecure bool, caFile string) (*Client, error) {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
@@ -51,7 +52,22 @@ func New(baseURL, token string, timeout time.Duration, insecure bool) (*Client, 
 		return nil, errors.New("server URL must be an absolute http(s) URL without credentials, query, or fragment")
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: insecure} //nolint:gosec -- explicit user option
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: insecure} //nolint:gosec -- explicit user option
+	if caFile != "" {
+		pemData, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, fmt.Errorf("read CA file %s: %w", caFile, err)
+		}
+		roots, err := x509.SystemCertPool()
+		if err != nil || roots == nil {
+			roots = x509.NewCertPool()
+		}
+		if !roots.AppendCertsFromPEM(pemData) {
+			return nil, fmt.Errorf("CA file %s does not contain a valid PEM certificate", caFile)
+		}
+		tlsConfig.RootCAs = roots
+	}
+	transport.TLSClientConfig = tlsConfig
 	return &Client{
 		BaseURL:          baseURL,
 		Token:            token,

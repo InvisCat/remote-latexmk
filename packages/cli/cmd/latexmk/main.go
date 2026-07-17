@@ -42,6 +42,7 @@ type compileOptions struct {
 	jsonOutput    bool
 	dryRun        bool
 	insecure      bool
+	caFile        string
 	entry         string
 	exclude       []string
 	configPath    string
@@ -115,6 +116,7 @@ func runCompile(args []string, forcedEngine string, listOnly bool) int {
 		haltOnError:   true,
 		fileLineError: true,
 		insecure:      cfg.InsecureSkipVerify,
+		caFile:        cfg.CAFile,
 		exclude:       cfg.Exclude,
 		configPath:    cfg.ConfigPath,
 		dryRun:        listOnly,
@@ -137,7 +139,7 @@ func runCompile(args []string, forcedEngine string, listOnly bool) int {
 		return printManifest(opts)
 	}
 
-	c, err := client.New(opts.server, opts.token, opts.timeout, opts.insecure)
+	c, err := client.New(opts.server, opts.token, opts.timeout, opts.insecure, opts.caFile)
 	if err != nil {
 		return fail(err)
 	}
@@ -316,6 +318,12 @@ func parseCompileArgs(args []string, opts *compileOptions) error {
 			opts.dryRun = true
 		case a == "--insecure-skip-verify":
 			opts.insecure = true
+		case a == "--ca-file" || strings.HasPrefix(a, "--ca-file="):
+			v, err := value("--ca-file")
+			if err != nil {
+				return err
+			}
+			opts.caFile = v
 		case a == "--version":
 			return errors.New("--version must be used without a compile target")
 		case strings.HasPrefix(a, "-"):
@@ -435,7 +443,7 @@ func runMeta(args []string, doctor bool) int {
 	if err != nil {
 		return fail(err)
 	}
-	server, token, timeout, insecure, jsonOutput := cfg.Server, cfg.Token, cfg.Timeout, cfg.InsecureSkipVerify, false
+	server, token, timeout, insecure, caFile, jsonOutput := cfg.Server, cfg.Token, cfg.Timeout, cfg.InsecureSkipVerify, cfg.CAFile, false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		next := func() (string, error) {
@@ -481,13 +489,19 @@ func runMeta(args []string, doctor bool) int {
 			}
 		case a == "--insecure-skip-verify":
 			insecure = true
+		case a == "--ca-file" || strings.HasPrefix(a, "--ca-file="):
+			v, e := next()
+			if e != nil {
+				return fail(e)
+			}
+			caFile = v
 		case a == "--json":
 			jsonOutput = true
 		default:
 			return fail(fmt.Errorf("unknown option %q", a))
 		}
 	}
-	c, err := client.New(server, token, timeout, insecure)
+	c, err := client.New(server, token, timeout, insecure, caFile)
 	if err != nil {
 		return fail(err)
 	}
@@ -589,6 +603,7 @@ Compile options:
   --server URL                 Remote server URL
   --token TOKEN                Bearer token (prefer LATEXMK_TOKEN)
   --token-file FILE            Read the bearer token from a file
+  --ca-file FILE               Add PEM CA certificates for HTTPS
   --project-root DIR           Root directory uploaded to the server
   --root-mode entry|git        Default root when --project-root is absent
   --gitignore                  Respect Git ignore rules (default)

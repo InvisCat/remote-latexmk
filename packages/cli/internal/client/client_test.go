@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -84,11 +85,11 @@ func TestNewRejectsUnsafeServerURLs(t *testing.T) {
 		"https://example.test?token=secret",
 		"https://example.test/#fragment",
 	} {
-		if _, err := New(raw, "", 0, false); err == nil {
+		if _, err := New(raw, "", 0, false, ""); err == nil {
 			t.Fatalf("expected URL %q to be rejected", raw)
 		}
 	}
-	if _, err := New("https://example.test/api", "", 0, false); err != nil {
+	if _, err := New("https://example.test/api", "", 0, false, ""); err != nil {
 		t.Fatalf("expected valid URL: %v", err)
 	}
 }
@@ -145,7 +146,7 @@ func TestCompileUsesQueuedIncrementalProtocol(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client, err := New(server.URL, "", 3*time.Second, false)
+	client, err := New(server.URL, "", 3*time.Second, false, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,6 +157,29 @@ func TestCompileUsesQueuedIncrementalProtocol(t *testing.T) {
 	}
 	if !output.Result.Success || string(uploaded) != "hello" || len(planned.Files) != 1 {
 		t.Fatalf("queued compile result=%#v upload=%q plan=%#v", output.Result, uploaded, planned)
+	}
+}
+
+func TestNewTrustsAdditionalCAFile(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/healthz" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	caFile := filepath.Join(t.TempDir(), "ca.pem")
+	certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
+	if err := os.WriteFile(caFile, certificate, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := New(server.URL, "", 3*time.Second, false, caFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Health(context.Background()); err != nil {
+		t.Fatalf("health with additional CA: %v", err)
 	}
 }
 

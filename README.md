@@ -36,6 +36,35 @@ The client image contains the Go CLI, Git, and CA certificates, but no TeX Live.
 Use `--no-deps` with `docker compose run` when `LATEXMK_CLIENT_SERVER` points to
 an already-running remote server and the local `server` service is not needed.
 
+### Optional private HTTPS
+
+The `https` profile adds Caddy in front of the server. It creates a private CA
+and keeps its key in the `caddy-data` volume:
+
+```sh
+docker compose --profile https up -d proxy
+docker compose cp proxy:/data/caddy/pki/authorities/local/root.crt \
+  certs/caddy-local-root.crt
+```
+
+For the Compose client, set these values in `.env`:
+
+```dotenv
+LATEXMK_CLIENT_SERVER=https://latexmk.local:8443
+LATEXMK_CLIENT_CA_FILE=/etc/latexmk/certs/caddy-local-root.crt
+```
+
+Then `docker compose run --rm client main.tex` verifies Caddy's certificate
+against that CA. A native client can use
+`LATEXMK_SERVER=https://localhost:8443` and
+`LATEXMK_CA_FILE=$PWD/certs/caddy-local-root.crt`.
+
+HTTPS also binds only to `127.0.0.1` by default. For a private LAN, set
+`LATEXMK_HTTPS_BIND_ADDRESS=0.0.0.0` and `LATEXMK_TLS_HOST` to the DNS name used
+by clients. Distribute only the copied root certificate, never files containing
+the Caddy CA private key. A server with a certificate already trusted by the
+operating system needs no CA-file option.
+
 ## Monorepo
 
 | Package | Implementation | Purpose |
@@ -125,6 +154,7 @@ The CLI first reads the user config at `$XDG_CONFIG_HOME/latexmk/config.json`
   "server": "https://latex.example.edu",
   "rootMode": "entry",
   "respectGitignore": true,
+  "caFile": "/absolute/path/to/lab-root-ca.pem",
   "engine": "xelatex",
   "timeout": "3m",
   "exclude": [".git", "node_modules", ".latexmk-cache", "*.aux", "*.fdb_latexmk", "*.fls", "*.log", "*.synctex.gz", "*.xdv"]
@@ -150,6 +180,10 @@ Token priority is: CLI `--token`/`--token-file`, `LATEXMK_TOKEN`,
 `LATEXMK_TOKEN_FILE`, user config, then project config. Project settings other
 than the token override user defaults. A token file must contain exactly one
 non-empty token; a trailing newline is accepted.
+
+Standard HTTPS certificates use the operating system trust store. For a lab CA,
+set `caFile`, `LATEXMK_CA_FILE`, or `--ca-file`. `--insecure-skip-verify` remains
+an explicit debugging option and is not needed for the Compose HTTPS profile.
 
 The client does not upload `.latexmk.json`, `.latexmkignore`, `.env` files, or
 common private-key files by default, even when a project replaces the ordinary
