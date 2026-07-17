@@ -73,6 +73,7 @@ services:
       LATEXMK_TOKEN: ${LATEXMK_CLIENT_TOKEN:-${LATEXMK_API_TOKEN}}
       LATEXMK_CA_FILE: ${LATEXMK_CLIENT_CA_FILE:-}
       LATEXMK_UPLOAD_MODE: ${LATEXMK_CLIENT_UPLOAD_MODE:-auto}
+      LATEXMK_MANIFEST_FILE: ${LATEXMK_CLIENT_MANIFEST_FILE:-}
     working_dir: /workspace
     volumes:
       - type: bind
