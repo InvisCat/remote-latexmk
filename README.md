@@ -21,7 +21,7 @@ installation is needed to start the server.
 ```sh
 cp .env.example .env
 # Set LATEXMK_API_TOKEN in .env to a new random value of at least 24 characters.
-docker compose up -d server
+docker compose up -d
 curl http://127.0.0.1:8080/healthz
 docker compose run --rm client main.tex
 ```
@@ -29,7 +29,11 @@ docker compose run --rm client main.tex
 The default binds to `127.0.0.1`. Set `LATEXMK_BIND_ADDRESS=0.0.0.0` only when
 a firewall, private LAN, VPN, or TLS reverse proxy protects the service. Source
 blobs and results are stored in the `latexmk-state` named volume. The slim
-self-hosted image enables XeLaTeX and PDFLaTeX by default.
+self-hosted image enables XeLaTeX and PDFLaTeX by default. The token/state/TeX
+server is attached only to an internal Docker network, so it has no default
+route to the Internet. A separate Caddy `gateway` with no token or state volume
+publishes localhost port 8080. The Compose client and optional HTTPS proxy reach
+the server over the internal network.
 
 The default client command compiles `examples/basic/main.tex`. Set
 `LATEXMK_PROJECT_DIR` in `.env` to an absolute paper directory, then pass the
@@ -38,6 +42,8 @@ parent Git repository, mount the repository root and pass a nested entry path.
 The client image contains the Go CLI, Git, and CA certificates, but no TeX Live.
 Use `--no-deps` with `docker compose run` when `LATEXMK_CLIENT_SERVER` points to
 an already-running remote server and the local `server` service is not needed.
+Client containers also join a separate egress network so they can reach a
+remote HTTPS server; the server itself does not join that network.
 
 For continuous compilation, set `LATEXMK_PROJECT_DIR` and
 `LATEXMK_CLIENT_ENTRY`, then start the dedicated watch profile:
@@ -417,6 +423,10 @@ compile result also contains `serverVersion` and `imageProfile`.
   terminated after a timeout.
 - The container is non-root; generated Compose settings use a read-only root,
   tmpfs, dropped capabilities, memory limits, and PID limits.
+- The root self-hosted Compose topology puts the server/TeX process only on an
+  internal backend network. A credential-free gateway publishes HTTP; client
+  containers have a separate egress network. Neither component grants the
+  server a default Internet route.
 - Logs, artifacts, uploads, sessions, queues, and state storage have hard
   limits. Result artifacts must be workspace-local and allowed by `.fls` or a
   valid job-name rule.

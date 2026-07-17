@@ -30,6 +30,9 @@ x-client-service: &client-service
   depends_on:
     server:
       condition: service_started
+  networks:
+    - latexmk-backend
+    - client-egress
 
 services:
   server:
@@ -71,8 +74,6 @@ services:
       LATEXMK_STATE_DIR: /var/lib/latexmk
       LATEXMK_TEMP_DIR: /tmp
       LATEXMK_CORS_ORIGINS: ${LATEXMK_CORS_ORIGINS:-}
-    ports:
-      - "${LATEXMK_BIND_ADDRESS:-127.0.0.1}:${LATEXMK_HOST_PORT:-8080}:8080"
     read_only: true
     mem_limit: ${LATEXMK_MEMORY_LIMIT:-2g}
     pids_limit: ${LATEXMK_PIDS_LIMIT:-192}
@@ -84,6 +85,33 @@ services:
       - ALL
     volumes:
       - latexmk-state:/var/lib/latexmk
+    networks:
+      - latexmk-backend
+
+  gateway:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    restart: unless-stopped
+    ports:
+      - "${LATEXMK_BIND_ADDRESS:-127.0.0.1}:${LATEXMK_HOST_PORT:-8080}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+      - /data:size=16m,mode=0700
+      - /config:size=16m,mode=0700
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    volumes:
+      - ./packages/deploy/templates/Caddyfile.gateway:/etc/caddy/Caddyfile:ro
+    networks:
+      - latexmk-backend
+      - edge
+    depends_on:
+      server:
+        condition: service_started
 
   client:
     <<: *client-service
@@ -126,9 +154,10 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     networks:
-      default:
+      latexmk-backend:
         aliases:
           - latexmk.local
+      edge:
     depends_on:
       server:
         condition: service_started
@@ -137,3 +166,9 @@ volumes:
   latexmk-state:
   caddy-data:
   caddy-config:
+
+networks:
+  latexmk-backend:
+    internal: true
+  client-egress:
+  edge:

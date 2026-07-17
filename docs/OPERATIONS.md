@@ -120,6 +120,33 @@ On Linux, also set `LATEXMK_CLIENT_UID` and `LATEXMK_CLIENT_GID` so returned
 artifacts are writable by the host user. Restart `client-watch` after changing
 client configuration or environment variables.
 
+## Compose network boundary
+
+The root self-hosted Compose file uses three networks:
+
+- `latexmk-backend` is `internal: true`. The token/state/TeX server joins only
+  this network and has no default Internet route.
+- `edge` is used by the credential-free HTTP gateway and optional HTTPS proxy
+  to publish host ports. These proxies can reach the server on the backend but
+  do not receive its environment or state volume.
+- `client-egress` is a normal bridge used only by `client` and `client-watch`.
+  It lets a containerized client reach an external HTTPS server while the same
+  client can still resolve the local `server` service on the backend network.
+
+Run `docker compose up -d` so both `server` and `gateway` start. Starting only
+the `server` service deliberately does not expose a host port.
+
+This topology is intended for the default single-user token deployment, which
+does not need an external database. If an advanced deployment adds an external
+PostgreSQL service, attach the server to a narrowly scoped database network or
+use the provider's private network. Do not attach the compiler-facing server to
+a general egress bridge merely for convenience.
+
+Network isolation does not create a hostile-code sandbox by itself. TeX still
+runs in the API container and shares its filesystem identity. A separate
+compiler worker or stronger runtime sandbox remains required before treating
+untrusted papers as safe.
+
 ## PostgreSQL and PGlite
 
 The server uses GORM/pgx over the PostgreSQL protocol and creates its tables and

@@ -49,6 +49,10 @@ at the application and deployment layers.
 - Docker images run as an unprivileged user. Generated Compose files use a
   read-only root filesystem, tmpfs, `no-new-privileges`, dropped capabilities,
   PID limits, and memory limits.
+- The root self-hosted Compose server joins only an `internal: true` backend
+  network. TeX has no default Internet route. A gateway without credentials or
+  state publishes HTTP, while client containers use a separate egress bridge;
+  neither implicitly adds that route to the server.
 - Static and database bearer tokens use constant-time comparison; database
   tokens are stored only as SHA-256 hashes.
 - Administrative endpoints require the administrator role. User and token
@@ -65,6 +69,9 @@ at the application and deployment layers.
   suitable for a deliberately isolated local development instance.
 - Do not inject cloud-control-plane credentials into the compile container.
 - Restrict outbound network access, especially if shell escape is ever enabled.
+- When adapting Compose for an external database, use a private, narrowly
+  scoped database network instead of attaching the server to a general-purpose
+  egress bridge.
 - Keep the root filesystem read-only and retain equivalent seccomp/AppArmor or
   PaaS isolation controls.
 - Enforce request-size and timeout limits at the edge as well as in the server.
