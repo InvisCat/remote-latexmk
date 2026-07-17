@@ -7,7 +7,6 @@ dist
 **/dist
 docs
 examples
-packages/cli
 packages/dashboard
 packages/deploy/scripts
 packages/deploy/src

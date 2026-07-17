@@ -20,12 +20,21 @@ cp .env.example .env
 # Set LATEXMK_API_TOKEN in .env to a new random value of at least 24 characters.
 docker compose up -d server
 curl http://127.0.0.1:8080/healthz
+docker compose run --rm client main.tex
 ```
 
 The default binds to `127.0.0.1`. Set `LATEXMK_BIND_ADDRESS=0.0.0.0` only when
 a firewall, private LAN, VPN, or TLS reverse proxy protects the service. Source
 blobs and results are stored in the `latexmk-state` named volume. The slim
 self-hosted image enables XeLaTeX and PDFLaTeX by default.
+
+The default client command compiles `examples/basic/main.tex`. Set
+`LATEXMK_PROJECT_DIR` in `.env` to an absolute paper directory, then pass the
+entry path relative to that mount. If the paper inherits ignore rules from a
+parent Git repository, mount the repository root and pass a nested entry path.
+The client image contains the Go CLI, Git, and CA certificates, but no TeX Live.
+Use `--no-deps` with `docker compose run` when `LATEXMK_CLIENT_SERVER` points to
+an already-running remote server and the local `server` service is not needed.
 
 ## Monorepo
 
