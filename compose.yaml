@@ -1,5 +1,36 @@
 name: latexmk
 
+x-client-service: &client-service
+  build:
+    context: .
+    dockerfile: packages/cli/Dockerfile
+    args:
+      GO_IMAGE: ${GO_IMAGE:-golang:1.26.5-bookworm}
+      CLIENT_BASE_IMAGE: ${LATEXMK_CLIENT_BASE_IMAGE:-debian:bookworm-slim}
+      VERSION: ${LATEXMK_VERSION:-0.1.0-local}
+      COMMIT: ${LATEXMK_COMMIT:-local}
+      BUILD_DATE: ${LATEXMK_BUILD_DATE:-unknown}
+  image: ${LATEXMK_CLIENT_IMAGE:-latexmk-client:local}
+  user: "${LATEXMK_CLIENT_UID:-1000}:${LATEXMK_CLIENT_GID:-1000}"
+  environment:
+    LATEXMK_SERVER: ${LATEXMK_CLIENT_SERVER:-http://server:8080}
+    LATEXMK_TOKEN: ${LATEXMK_CLIENT_TOKEN:-${LATEXMK_API_TOKEN}}
+    LATEXMK_CA_FILE: ${LATEXMK_CLIENT_CA_FILE:-}
+    LATEXMK_UPLOAD_MODE: ${LATEXMK_CLIENT_UPLOAD_MODE:-auto}
+    LATEXMK_MANIFEST_FILE: ${LATEXMK_CLIENT_MANIFEST_FILE:-}
+  working_dir: /workspace
+  volumes:
+    - type: bind
+      source: ${LATEXMK_PROJECT_DIR:-./examples/basic}
+      target: /workspace
+    - type: bind
+      source: ./certs
+      target: /etc/latexmk/certs
+      read_only: true
+  depends_on:
+    server:
+      condition: service_started
+
 services:
   server:
     build:
@@ -55,37 +86,22 @@ services:
       - latexmk-state:/var/lib/latexmk
 
   client:
+    <<: *client-service
     profiles:
       - client
-    build:
-      context: .
-      dockerfile: packages/cli/Dockerfile
-      args:
-        GO_IMAGE: ${GO_IMAGE:-golang:1.26.5-bookworm}
-        CLIENT_BASE_IMAGE: ${LATEXMK_CLIENT_BASE_IMAGE:-debian:bookworm-slim}
-        VERSION: ${LATEXMK_VERSION:-0.1.0-local}
-        COMMIT: ${LATEXMK_COMMIT:-local}
-        BUILD_DATE: ${LATEXMK_BUILD_DATE:-unknown}
-    image: ${LATEXMK_CLIENT_IMAGE:-latexmk-client:local}
-    user: "${LATEXMK_CLIENT_UID:-1000}:${LATEXMK_CLIENT_GID:-1000}"
-    environment:
-      LATEXMK_SERVER: ${LATEXMK_CLIENT_SERVER:-http://server:8080}
-      LATEXMK_TOKEN: ${LATEXMK_CLIENT_TOKEN:-${LATEXMK_API_TOKEN}}
-      LATEXMK_CA_FILE: ${LATEXMK_CLIENT_CA_FILE:-}
-      LATEXMK_UPLOAD_MODE: ${LATEXMK_CLIENT_UPLOAD_MODE:-auto}
-      LATEXMK_MANIFEST_FILE: ${LATEXMK_CLIENT_MANIFEST_FILE:-}
-    working_dir: /workspace
-    volumes:
-      - type: bind
-        source: ${LATEXMK_PROJECT_DIR:-./examples/basic}
-        target: /workspace
-      - type: bind
-        source: ./certs
-        target: /etc/latexmk/certs
-        read_only: true
-    depends_on:
-      server:
-        condition: service_started
+
+  client-watch:
+    <<: *client-service
+    profiles:
+      - watch
+    restart: unless-stopped
+    command:
+      - watch
+      - --watch-interval
+      - ${LATEXMK_CLIENT_WATCH_INTERVAL:-500ms}
+      - --watch-debounce
+      - ${LATEXMK_CLIENT_WATCH_DEBOUNCE:-500ms}
+      - ${LATEXMK_CLIENT_ENTRY:-main.tex}
 
   proxy:
     profiles:
