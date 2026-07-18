@@ -330,6 +330,29 @@ func (c *Client) StartCompile(ctx context.Context, request protocol.CompileReque
 	return StartCompileOutput{Job: job, Warnings: warnings}, nil
 }
 
+// StartPreparedCompile starts a queued compile from an exact manifest that the
+// caller has already validated. Callers must revalidate the manifest before
+// invoking this method; no additional paths are discovered here.
+func (c *Client) StartPreparedCompile(ctx context.Context, request protocol.CompileRequest, files []projectarchive.File) (StartCompileOutput, error) {
+	if len(files) == 0 {
+		return StartCompileOutput{}, errors.New("prepared manifest is empty")
+	}
+	meta, err := c.Metadata(ctx)
+	if err != nil {
+		return StartCompileOutput{}, err
+	}
+	if !meta.Capabilities.IncrementalUpload || !meta.Capabilities.QueuedJobs {
+		return StartCompileOutput{}, &CapabilityError{Capability: "detached queued compilation"}
+	}
+	request.RecordInputs = meta.Capabilities.DependencyInputs
+	request.DetectMissingFiles = meta.Capabilities.NeedsFiles && (c.UploadMode == "" || c.UploadMode == "auto")
+	job, err := c.startQueued(ctx, request, files)
+	if err != nil {
+		return StartCompileOutput{}, err
+	}
+	return StartCompileOutput{Job: job}, nil
+}
+
 func (c *Client) compileOnce(ctx context.Context, request protocol.CompileRequest, outputRoot string, files []projectarchive.File, meta protocol.Metadata) (CompileOutput, error) {
 	var output CompileOutput
 	var err error

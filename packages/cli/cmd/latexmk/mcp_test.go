@@ -1,0 +1,203 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/billstark001/latexmk/packages/cli/internal/client"
+	"github.com/billstark001/latexmk/packages/cli/internal/config"
+)
+
+func testMCPClient(t *testing.T, root string) *client.Client {
+	t.Helper()
+	c, err := client.New("http://127.0.0.1:1", "secret-token-must-not-leak", time.Second, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.ProjectRoot = root
+	c.Exclude = append(config.DefaultExcludes(), config.DefaultDeny()...)
+	c.RespectGitIgnore = true
+	c.UploadMode = "auto"
+	return c
+}
+
+func TestMCPInitializeAndToolListUseJSONOnly(t *testing.T) {
+	root := t.TempDir()
+	input := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`,
+		`{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`,
+	}, "\n") + "\n"
+	var stdout bytes.Buffer
+	server := newStdioMCPServer(strings.NewReader(input), &stdout, root, testMCPClient(t, root), "xelatex", time.Second)
+	if err := server.serve(); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("responses = %d: %s", len(lines), stdout.String())
+	}
+	for _, line := range lines {
+		var response map[string]any
+		if err := json.Unmarshal([]byte(line), &response); err != nil {
+			t.Fatalf("non-JSON stdout %q: %v", line, err)
+		}
+		if response["jsonrpc"] != "2.0" {
+			t.Fatalf("response = %#v", response)
+		}
+	}
+	var listed struct {
+		Result struct {
+			Tools []mcpTool `json:"tools"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal([]byte(lines[1]), &listed); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Result.Tools) != 12 {
+		t.Fatalf("tools = %d: %s", len(listed.Result.Tools), lines[1])
+	}
+	for _, tool := range listed.Result.Tools {
+		if tool.InputSchema["additionalProperties"] != false || tool.Annotations["openWorldHint"] != false {
+			t.Fatalf("unsafe or open schema for %s: %#v %#v", tool.Name, tool.InputSchema, tool.Annotations)
+		}
+	}
+}
+
+func TestMCPRejectsCallsBeforeInitialize(t *testing.T) {
+	root := t.TempDir()
+	var stdout bytes.Buffer
+	server := newStdioMCPServer(strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`+"\n"), &stdout, root, testMCPClient(t, root), "xelatex", time.Second)
+	if err := server.serve(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), `"code":-32002`) {
+		t.Fatalf("response = %s", stdout.String())
+	}
+}
+
+func TestMCPManifestIsOneUseAndInvalidAfterSourceChange(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "main.tex")
+	if err := os.WriteFile(path, []byte("\\documentclass{article}\n\\begin{document}first\\end{document}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := newStdioMCPServer(&bytes.Buffer{}, &bytes.Buffer{}, root, testMCPClient(t, root), "xelatex", time.Second)
+	data, err := server.toolProjectManifest(json.RawMessage(`{"entry":"main.tex"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestID, ok := data.(map[string]any)["manifestId"].(string)
+	if !ok || manifestID == "" {
+		t.Fatalf("manifest = %#v", data)
+	}
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(encoded, []byte("secret-token-must-not-leak")) || bytes.Contains(encoded, []byte(root)) {
+		t.Fatalf("manifest leaked private configuration: %s", encoded)
+	}
+	if err := os.WriteFile(path, []byte("\\documentclass{article}\n\\begin{document}changed\\end{document}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	raw := json.RawMessage(`{"manifestId":"` + manifestID + `"}`)
+	if _, err := server.toolCompileStart(raw); err == nil || !strings.Contains(err.Error(), "manifest changed") {
+		t.Fatalf("change error = %v", err)
+	}
+	if _, err := server.toolCompileStart(raw); err == nil || !strings.Contains(err.Error(), "already used") {
+		t.Fatalf("reuse error = %v", err)
+	}
+}
+
+func TestMCPManifestExpiresAndOutputDirectoryIsConfined(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.tex"), []byte("test"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := newStdioMCPServer(&bytes.Buffer{}, &bytes.Buffer{}, root, testMCPClient(t, root), "xelatex", time.Second)
+	now := time.Now()
+	server.now = func() time.Time { return now }
+	data, err := server.toolProjectManifest(json.RawMessage(`{"entry":"main.tex"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestID := data.(map[string]any)["manifestId"].(string)
+	now = now.Add(mcpManifestTTL + time.Second)
+	if _, err := server.toolCompileStart(json.RawMessage(`{"manifestId":"` + manifestID + `"}`)); err == nil || !strings.Contains(err.Error(), "expired") {
+		t.Fatalf("expiry error = %v", err)
+	}
+	if _, err := resolveMCPOutputDir(root, "/tmp"); err == nil {
+		t.Fatal("absolute output directory was accepted")
+	}
+	if _, err := resolveMCPOutputDir(root, "../outside"); err == nil {
+		t.Fatal("escaping output directory was accepted")
+	}
+}
+
+func TestMCPToolArgumentsRejectUnknownFields(t *testing.T) {
+	root := t.TempDir()
+	server := newStdioMCPServer(&bytes.Buffer{}, &bytes.Buffer{}, root, testMCPClient(t, root), "xelatex", time.Second)
+	if _, err := server.toolProjectManifest(json.RawMessage(`{"entry":"main.tex","shellEscape":true}`)); err == nil {
+		t.Fatal("unknown shellEscape field was accepted")
+	}
+}
+
+func TestMCPRemoteCleanupUsesPreviewPlanAndDetectsDrift(t *testing.T) {
+	root := t.TempDir()
+	projectID, err := client.ResolveProjectID(root, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previewCalls := 0
+	deleteCalls := 0
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/meta":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"protocolVersion": 2,
+				"capabilities":    map[string]any{"remoteCleanup": true},
+			})
+		case strings.Contains(r.URL.Path, "/cleanup") && r.Method == http.MethodGet:
+			previewCalls++
+			results := 1
+			if previewCalls == 2 {
+				results = 2
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"projectId": projectID,
+				"scope":     "results", "dryRun": true, "results": results, "resultBytes": results * 10,
+			})
+		case strings.Contains(r.URL.Path, "/cleanup") && r.Method == http.MethodDelete:
+			deleteCalls++
+			_ = json.NewEncoder(w).Encode(map[string]any{"scope": "results", "dryRun": false})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer remote.Close()
+	c, err := client.New(remote.URL, "token", time.Second, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.ProjectRoot = root
+	server := newStdioMCPServer(&bytes.Buffer{}, &bytes.Buffer{}, root, c, "xelatex", time.Second)
+	preview, err := server.previewRemoteCleanup("remote-results")
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID := preview.(map[string]any)["planId"].(string)
+	if _, err := server.applyRemoteCleanup(planID); err == nil || !strings.Contains(err.Error(), "changed since preview") {
+		t.Fatalf("drift error = %v", err)
+	}
+	if deleteCalls != 0 {
+		t.Fatalf("delete calls = %d", deleteCalls)
+	}
+}

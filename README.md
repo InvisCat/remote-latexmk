@@ -343,6 +343,55 @@ These new commands use a versioned JSON envelope with stable error codes and a
 `retryable` flag. Existing `compile`, `files`, `meta`, and `remote clean` JSON
 shapes remain unchanged. See [the Agent-facing CLI contract](docs/AGENT_CLI.md).
 
+Inspect local state and use a two-phase cleanup plan:
+
+```sh
+latexmk cache inspect --project-root . --json
+latexmk cache clean --project-root . --scope local-generated --json
+latexmk cache clean --project-root . --plan-id PLAN_ID --yes --json
+```
+
+The preview records exact path, size, and SHA-256 values for ten minutes. Apply
+refuses to delete anything if a target changed. `local-client-cache` removes
+dependency-discovery state but always preserves `.latexmk-cache/project-id`.
+
+### Agent Skills and local MCP
+
+The repository provides separate non-destructive compile/debug and destructive
+maintenance skills:
+
+```text
+.agents/skills/remote-latex
+.agents/skills/remote-latex-maintenance
+```
+
+Agents that discover repository-local skills can use them in place. To install
+them for one user, copy those two directories into `~/.agents/skills/`. The
+compile skill requires manifest review, bounded diagnostics with raw-log
+fallback, small edits, and bounded retries. The maintenance skill requires an
+explicit cleanup request and preview before apply.
+
+The same client binary can expose strict local STDIO MCP tools without local
+TeX Live:
+
+```sh
+latexmk mcp serve --stdio --project-root /absolute/path/to/paper
+```
+
+For the Docker client, set `LATEXMK_PROJECT_DIR` and configure the MCP host to
+run:
+
+```sh
+docker compose --project-directory /absolute/path/to/latexmk \
+  run --rm -T client mcp serve --stdio --project-root /workspace
+```
+
+The MCP process locks its project root at startup. Compilation consumes a
+five-minute, one-use manifest ID and rejects it after any selected-file change.
+It has no arbitrary shell, URL, server-path, absolute-output-path, token, or
+compiler-argument tool. See [the native and Docker MCP guide](docs/MCP.md) for
+client configuration, all tools, and cleanup semantics.
+
 `diagnostics` is a bounded, derived index over the complete stdout, stderr, and
 compiler logs. It extracts common TeX errors and warnings with project-relative
 file and source line information when available. Every item includes one or

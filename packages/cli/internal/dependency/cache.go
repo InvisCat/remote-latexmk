@@ -32,6 +32,42 @@ type cacheEntry struct {
 	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
+type CacheEntryInfo struct {
+	Entry      string    `json:"entry"`
+	Engine     string    `json:"engine"`
+	InputFiles int       `json:"inputFiles"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+type CacheInfo struct {
+	Present bool             `json:"present"`
+	Path    string           `json:"path"`
+	Size    int64            `json:"size"`
+	Entries []CacheEntryInfo `json:"entries"`
+}
+
+// InspectCache returns bounded metadata without exposing cached file names.
+func InspectCache(root string) (CacheInfo, error) {
+	info := CacheInfo{Path: filepath.ToSlash(filepath.Join(cacheDirName, cacheFileName))}
+	cache, found, err := readCache(root)
+	if err != nil || !found {
+		return info, err
+	}
+	stat, err := os.Lstat(filepath.Join(root, cacheDirName, cacheFileName))
+	if err != nil {
+		return info, err
+	}
+	info.Present = true
+	info.Size = stat.Size()
+	info.Entries = make([]CacheEntryInfo, 0, len(cache.Entries))
+	for _, item := range cache.Entries {
+		info.Entries = append(info.Entries, CacheEntryInfo{
+			Entry: item.Entry, Engine: item.Engine, InputFiles: len(item.InputFiles), UpdatedAt: item.UpdatedAt,
+		})
+	}
+	return info, nil
+}
+
 // LoadCachedInputs reads paths recorded by a previous successful compile.
 // The cache contains project-relative paths only and never grants access to a
 // file absent from the current policy-filtered manifest.

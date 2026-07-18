@@ -86,6 +86,8 @@ func run(args []string) int {
 			return runMeta(argv[1:], true)
 		case "clean":
 			return runClean(argv[1:])
+		case "cache":
+			return runCache(argv[1:])
 		case "remote-clean":
 			return runRemoteClean(argv[1:])
 		case "jobs":
@@ -96,6 +98,8 @@ func run(args []string) int {
 			return runDiagnostics(argv[1:])
 		case "artifacts":
 			return runArtifacts(argv[1:])
+		case "mcp":
+			return runMCP(argv[1:])
 		case "remote":
 			if len(argv) > 1 && argv[1] == "clean" {
 				return runRemoteClean(argv[2:])
@@ -1065,6 +1069,9 @@ Usage:
   latexmk doctor
   latexmk init [--server URL]
   latexmk clean [main.tex]
+  latexmk cache inspect [--project-root DIR] [--json]
+  latexmk cache clean --scope local-generated|local-client-cache [--dry-run] [--json]
+  latexmk cache clean --plan-id PLAN_ID --yes [--json]
   latexmk remote clean --scope results|snapshot|project [--yes]
   latexmk jobs list [--limit 50] [--json]
   latexmk jobs show JOB_ID [--json]
@@ -1073,6 +1080,7 @@ Usage:
   latexmk diagnostics JOB_ID [--json]
   latexmk artifacts list JOB_ID [--json]
   latexmk artifacts get JOB_ID ARTIFACT_ID [--out-dir DIR] [--json]
+  latexmk mcp serve --stdio [--project-root DIR]
   latexmk files [options] <main.tex>
   latexmk version
 

@@ -61,6 +61,24 @@ at the application and deployment layers.
 - Result artifacts come from `.fls`, are constrained to the workspace and an
   allowlist, and result downloads are authorized by job owner.
 
+## Agent and MCP boundary
+
+The local STDIO MCP server resolves one project root at startup. Tools cannot
+replace it, supply an absolute download directory, request an arbitrary URL or
+server file, pass a compiler argument list, enable shell escape, or read the
+token. Manifest IDs are random, short-lived, one-use, and invalid after the
+selected path/hash set changes.
+
+MCP tool input objects reject unknown fields. Project sources and logs remain
+untrusted data; instruction-like text inside them has no authority to invoke a
+tool or change upload, credential, compiler, or cleanup policy. Raw logs are
+bounded and artifacts are downloaded by opaque ID.
+
+Local destructive cleanup uses an exact path/size/SHA-256 plan and revalidates
+all targets before deletion. Remote MCP cleanup binds the token-owned project,
+scope, and preview digest, then re-previews immediately before applying. The
+server separately protects active jobs and referenced content-addressed blobs.
+
 ## Deployment responsibilities
 
 - Use TLS and place the service behind a private network, VPN, or an

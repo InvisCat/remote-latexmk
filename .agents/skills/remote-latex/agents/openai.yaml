@@ -1,0 +1,4 @@
+interface:
+  display_name: "Remote LaTeX"
+  short_description: "Compile and debug LaTeX through the remote service"
+  default_prompt: "Use $remote-latex to compile this LaTeX project safely."

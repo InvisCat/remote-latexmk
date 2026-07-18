@@ -1,0 +1,4 @@
+interface:
+  display_name: "Remote LaTeX Maintenance"
+  short_description: "Inspect and clean remote LaTeX caches safely"
+  default_prompt: "Use $remote-latex-maintenance to inspect or clean LaTeX service state safely."

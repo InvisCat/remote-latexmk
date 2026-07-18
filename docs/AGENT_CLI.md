@@ -1,7 +1,7 @@
 # Agent-facing CLI contract
 
-Status: version 1 draft implemented for detached compile, jobs, logs,
-diagnostics, and artifacts.
+Status: version 1 implemented for detached compile, jobs, logs, diagnostics,
+artifacts, and local cache inspection/cleanup.
 
 This contract is for local agents and scripts. The CLI uses the same token,
 CA, timeout, and HTTPS configuration as interactive commands. It never prints
@@ -137,3 +137,30 @@ absolute local path and MIME type. Binary data is never embedded in JSON.
 List output is bounded to 1 through 200 jobs. Log, diagnostic, and artifact
 commands use separate bounded contracts; they do not embed PDF data or
 unbounded logs in this envelope.
+
+## Local cache inspection and cleanup
+
+```sh
+latexmk cache inspect --project-root . --json
+latexmk cache clean --project-root . --scope local-generated --json
+latexmk cache clean --project-root . --plan-id PLAN_ID --yes --json
+```
+
+Inspection returns dependency-cache entry counts without returning cached input
+paths, plus the count and size of known local generated files. Cleanup preview
+creates a random, ten-minute plan under the platform user cache directory. Each
+target is bound by project-relative path, size, and SHA-256. Apply revalidates
+every target before deleting any and rejects a changed, missing, symlinked, or
+expired plan. `local-client-cache` deletes only dependency discovery state and
+preserves the random project ID.
+
+There is no direct `--scope ... --yes` local cleanup form. The caller must use
+the `planId` returned by preview. Remote cleanup keeps its existing
+preview/`--yes` CLI for compatibility.
+
+## MCP mapping
+
+`latexmk mcp serve --stdio` exposes the same client operations as strict MCP
+tools. MCP success and error results contain structured JSON plus an equivalent
+text content item for older hosts. See [MCP.md](MCP.md) for tool schemas,
+manifest lifetime, cleanup plans, and native/Docker configuration.

@@ -31,6 +31,20 @@ func TestDependencyCacheRoundTripIsScopedByEntryAndEngine(t *testing.T) {
 	}
 }
 
+func TestInspectCacheReturnsCountsWithoutInputPaths(t *testing.T) {
+	root := t.TempDir()
+	if err := SaveCachedInputs(root, "main.tex", "xelatex", []string{"main.tex", "private/section.tex"}); err != nil {
+		t.Fatal(err)
+	}
+	info, err := InspectCache(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.Present || len(info.Entries) != 1 || info.Entries[0].InputFiles != 2 {
+		t.Fatalf("cache info = %#v", info)
+	}
+}
+
 func TestDependencyCacheRejectsSymlinkDirectory(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlink creation is not generally available")
