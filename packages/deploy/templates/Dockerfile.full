@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
-ARG GO_IMAGE=golang:1.26.5-bookworm
-ARG TEXLIVE_IMAGE=texlive/texlive:latest
+ARG GO_IMAGE=golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
+ARG TEXLIVE_IMAGE=texlive/texlive:latest@sha256:d39efa547acfa518072600315280f92357ca8e0b9e295e09b6ccd5f5d82a1373
 
 FROM ${GO_IMAGE} AS builder
 ARG SERVER_SOURCE=server

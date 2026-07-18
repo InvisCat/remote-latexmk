@@ -5,8 +5,8 @@ x-client-service: &client-service
     context: .
     dockerfile: packages/cli/Dockerfile
     args:
-      GO_IMAGE: ${GO_IMAGE:-golang:1.26.5-bookworm}
-      CLIENT_BASE_IMAGE: ${LATEXMK_CLIENT_BASE_IMAGE:-debian:bookworm-slim}
+      GO_IMAGE: ${GO_IMAGE:-golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651}
+      CLIENT_BASE_IMAGE: ${LATEXMK_CLIENT_BASE_IMAGE:-debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818}
       VERSION: ${LATEXMK_VERSION:-0.1.0-local}
       COMMIT: ${LATEXMK_COMMIT:-local}
       BUILD_DATE: ${LATEXMK_BUILD_DATE:-unknown}
@@ -42,8 +42,8 @@ services:
       args:
         SERVER_SOURCE: packages/server
         DEPLOY_ASSETS: packages/deploy/templates
-        GO_IMAGE: ${GO_IMAGE:-golang:1.26.5-bookworm}
-        TEXLIVE_IMAGE: ${TEXLIVE_IMAGE:-texlive/texlive:latest-basic}
+        GO_IMAGE: ${GO_IMAGE:-golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651}
+        TEXLIVE_IMAGE: ${TEXLIVE_IMAGE:-texlive/texlive:latest-basic@sha256:eaf1c8098d8600f89a63c2c8b30364bdef2dedffe9ea93065fa8e6f4edcea52b}
         VERSION: ${LATEXMK_VERSION:-0.1.0-local}
         COMMIT: ${LATEXMK_COMMIT:-local}
         BUILD_DATE: ${LATEXMK_BUILD_DATE:-unknown}
@@ -89,7 +89,7 @@ services:
       - latexmk-backend
 
   gateway:
-    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    image: ${CADDY_IMAGE:-caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648}
     restart: unless-stopped
     ports:
       - "${LATEXMK_BIND_ADDRESS:-127.0.0.1}:${LATEXMK_HOST_PORT:-8080}:8080"
@@ -134,7 +134,7 @@ services:
   proxy:
     profiles:
       - https
-    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    image: ${CADDY_IMAGE:-caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648}
     restart: unless-stopped
     environment:
       LATEXMK_TLS_HOST: ${LATEXMK_TLS_HOST:-localhost}

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
-ARG GO_IMAGE=golang:1.26.5-bookworm
-ARG CLIENT_BASE_IMAGE=debian:bookworm-slim
+ARG GO_IMAGE=golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
+ARG CLIENT_BASE_IMAGE=debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818
 
 FROM ${GO_IMAGE} AS builder
 WORKDIR /src

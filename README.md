@@ -26,6 +26,23 @@ curl http://127.0.0.1:8080/healthz
 docker compose run --rm client main.tex
 ```
 
+After a tagged release has been published in your fork, the same deployment
+can pull versioned GHCR images without building Go or TeX Live layers locally:
+
+```sh
+# In .env, set LATEXMK_GHCR_NAMESPACE and an exact LATEXMK_GHCR_VERSION.
+docker compose -f compose.yaml -f compose.ghcr.yaml up -d
+docker compose -f compose.yaml -f compose.ghcr.yaml run --rm client main.tex
+```
+
+The override uses `pull_policy: always`, so an unavailable release fails
+instead of silently building a different local image. Set
+`LATEXMK_GHCR_SERVER_IMAGE` to the full `latexmk-server-full` reference when
+the full TeX Live profile is required. For the strongest deployment pin, replace
+the version tag with the image digest reported by GHCR. Public GHCR packages
+need no login; for private packages, authenticate Docker with a token that has
+`read:packages` before starting Compose.
+
 The default binds to `127.0.0.1`. Set `LATEXMK_BIND_ADDRESS=0.0.0.0` only when
 a firewall, private LAN, VPN, or TLS reverse proxy protects the service. Source
 blobs and results are stored in the `latexmk-state` named volume. The slim
@@ -158,6 +175,23 @@ source "$HOME/.bashrc"
 command -v latexmk
 latexmk version
 ```
+
+Tagged releases attach client archives for Linux, macOS, and Windows on amd64
+and arm64. Each archive contains the client, `LICENSE`, and `README.md`. Verify
+an archive before installing it:
+
+```sh
+# Linux
+sha256sum -c SHA256SUMS --ignore-missing
+# macOS: compare this output with the matching SHA256SUMS line
+shasum -a 256 latexmk_*.tar.gz
+# Windows PowerShell
+Get-FileHash .\latexmk_*.zip -Algorithm SHA256
+```
+
+The native client does not need TeX Live, Go, Node.js, or pnpm at runtime. It
+does need `git` when Git-ignore discovery is enabled (the default inside a Git
+repository), plus the operating system CA store for HTTPS.
 
 Add the `PATH` line only once. If your Bash startup files use `~/.bash_profile`
 instead of `~/.bashrc`, add it there (or source `~/.bashrc` from that file).
@@ -342,6 +376,31 @@ Use `--profile full` for the full TeX Live image. The bundler writes
 placeholders. `--external-database` connects to an already provisioned private
 PostgreSQL service rather than adding another database container.
 
+## Release process
+
+The release workflow runs only for a semantic-version tag such as `v0.1.0`.
+It performs these actions:
+
+- builds deterministic client archives for six OS/architecture targets;
+- writes one `SHA256SUMS` file and GitHub build attestations;
+- publishes `latexmk-server`, `latexmk-server-full`, and multi-architecture
+  `latexmk-client` images under the current repository owner's GHCR namespace;
+- publishes OCI provenance and SBOM attestations for each image;
+- creates or updates the matching GitHub release.
+
+All third-party Actions are pinned to full commit SHAs. Docker build inputs use
+readable tags plus immutable manifest digests. Dependabot is configured to
+propose Action pin updates. Creating a local Git tag alone does not publish
+anything; the workflow runs only after that tag is pushed to GitHub. Protect
+release tags in repository settings before using this flow for public releases.
+
+Client archives are byte-for-byte deterministic for identical source and build
+metadata. Container base images are immutable, but the Dockerfiles still run
+`apt` and, for the slim server, `tlmgr` against package repositories. Therefore
+container provenance is auditable, but a clean rebuild is not yet guaranteed to
+have the same final image digest. A future hardening step can move those package
+installs to dated repository snapshots.
+
 To build and export an OCI/Docker image:
 
 ```sh
@@ -354,8 +413,10 @@ node packages/deploy/dist/index.js bundle \
   --save dist/latexmk-0.1.0.tar
 ```
 
-The templates are in `packages/deploy/templates/`. Pin `TEXLIVE_IMAGE` by digest
-in production for a reproducible typesetting environment.
+The templates are in `packages/deploy/templates/`. Their default Go, TeX Live,
+Debian, Caddy, PostgreSQL, and Node images are pinned by manifest digest. Update
+each readable tag and digest together; the release tests reject unpinned build
+inputs.
 
 ## Server modes
 

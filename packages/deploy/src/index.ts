@@ -235,7 +235,7 @@ function renderCompose(options) {
   const depends = fullPostgres ? '    depends_on:\n      postgres:\n        condition: service_healthy\n' : pglite ? '    depends_on:\n      pglite:\n        condition: service_started\n' : '';
   const database = fullPostgres ? `
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
     environment:
       POSTGRES_DB: latexmk
       POSTGRES_USER: latexmk
@@ -249,7 +249,7 @@ function renderCompose(options) {
       retries: 20
 ` : pglite ? `
   pglite:
-    image: node:22-bookworm-slim
+    image: node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3
     working_dir: /srv
     command: sh -c "npm install --no-save @electric-sql/pglite-socket@0.0.7 && ./node_modules/.bin/pglite-server --db=/var/lib/pglite --host=0.0.0.0 --port=5432"
     volumes:
