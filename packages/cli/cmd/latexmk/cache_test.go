@@ -99,6 +99,31 @@ func TestCollectGeneratedTargetsDoesNotFollowSymlinks(t *testing.T) {
 	}
 }
 
+func TestCollectGeneratedTargetsIncludesCommonIndexProducts(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"main.idx", "main.ind", "main.ilg", "appendix.IDX"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "index.tex"), []byte("source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	targets, err := collectCleanupTargets(root, "local-generated")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]string, 0, len(targets))
+	for _, target := range targets {
+		got = append(got, target.Path)
+	}
+	want := []string{"appendix.IDX", "main.idx", "main.ilg", "main.ind"}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("targets = %q, want %q", got, want)
+	}
+}
+
 func TestParseCacheArgsRequiresTwoPhaseApply(t *testing.T) {
 	opts := cacheCommandOptions{}
 	if err := parseCacheArgs("clean", []string{"--scope", "local-generated", "--yes"}, &opts); err == nil {

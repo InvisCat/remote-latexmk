@@ -167,6 +167,48 @@ func TestInspectProjectCacheGitIgnoreUsesEffectiveRules(t *testing.T) {
 	}
 }
 
+func TestInspectProjectCacheGitIgnoreChecksEveryCacheEntry(t *testing.T) {
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git is unavailable")
+	}
+	root := t.TempDir()
+	if output, err := exec.Command(git, "init", "-q", root).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, output)
+	}
+	cacheDir := filepath.Join(root, ".latexmk-cache")
+	if err := os.Mkdir(cacheDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"project-id", "dependencies.json", "future-cache-file"} {
+		if err := os.WriteFile(filepath.Join(cacheDir, name), []byte("cache\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ignore := ".latexmk-cache/*\n!.latexmk-cache/dependencies.json\n!.latexmk-cache/future-cache-file\n"
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(ignore), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status, err := InspectProjectCacheGitIgnore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.InWorkTree || status.Ignored {
+		t.Fatalf("partially ignored cache status = %#v", status)
+	}
+
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".latexmk-cache/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status, err = InspectProjectCacheGitIgnore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.InWorkTree || !status.Ignored {
+		t.Fatalf("fully ignored cache status = %#v", status)
+	}
+}
+
 func TestAddProjectCacheGitIgnoreOverridesLaterNegation(t *testing.T) {
 	git, err := exec.LookPath("git")
 	if err != nil {

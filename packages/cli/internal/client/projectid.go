@@ -16,7 +16,11 @@ import (
 
 const projectIDRelativePath = ".latexmk-cache/project-id"
 
-const ProjectCacheGitAdvice = ".latexmk-cache/project-id stores this paper's local project identity. If this project uses Git, run \"latexmk cache ignore\" to add .latexmk-cache/ to .gitignore. Warning: \"git clean -fdX\" deletes ignored cache files; the next compile will create a new project ID."
+const dependencyCacheRelativePath = ".latexmk-cache/dependencies.json"
+
+const maxProjectCacheGitPaths = 4096
+
+const ProjectCacheGitAdvice = ".latexmk-cache stores this paper's local project identity and dependency cache. If this project uses Git, run \"latexmk cache ignore\" to add .latexmk-cache/ to .gitignore. Warning: \"git clean -fdX\" deletes ignored cache files; the next compile will create a new project ID."
 
 var ErrProjectIDNotFound = errors.New("local project ID is not initialized")
 
@@ -95,8 +99,10 @@ func ResolveProjectIDWithStatus(root string, create bool) (ProjectIDResolution, 
 	return ProjectIDResolution{ID: id, Created: true}, nil
 }
 
-// InspectProjectCacheGitIgnore checks the effective Git ignore policy without
-// changing the repository. A missing Git work tree is not an error.
+// InspectProjectCacheGitIgnore checks the effective Git ignore policy for the
+// cache directory, its known files, and every entry currently below it. It
+// does not create probe files or otherwise change the repository. A missing
+// Git work tree is not an error.
 func InspectProjectCacheGitIgnore(root string) (ProjectCacheGitStatus, error) {
 	resolved, err := resolvedProjectRoot(root)
 	if err != nil {
@@ -116,18 +122,88 @@ func InspectProjectCacheGitIgnore(root string) (ProjectCacheGitStatus, error) {
 		return ProjectCacheGitStatus{}, nil
 	}
 	status := ProjectCacheGitStatus{InWorkTree: true}
-	checkIgnore := exec.Command("git", "-C", resolved, "check-ignore", "-q", "--no-index", "--", filepath.FromSlash(projectIDRelativePath))
+	paths, err := projectCacheGitPaths(resolved)
+	if err != nil {
+		return ProjectCacheGitStatus{}, err
+	}
+	var input bytes.Buffer
+	for _, path := range paths {
+		input.WriteString(filepath.FromSlash(path))
+		input.WriteByte(0)
+	}
+	checkIgnore := exec.Command("git", "-C", resolved, "check-ignore", "--no-index", "-z", "--stdin")
 	checkIgnore.Env = append(os.Environ(), "LC_ALL=C")
-	err = checkIgnore.Run()
-	if err == nil {
-		status.Ignored = true
-		return status, nil
-	}
+	checkIgnore.Stdin = &input
+	ignoredOutput, err := checkIgnore.Output()
 	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
-		return status, nil
+	if err != nil && !(errors.As(err, &exitErr) && exitErr.ExitCode() == 1) {
+		return ProjectCacheGitStatus{}, fmt.Errorf("check Git ignore rules: %w", err)
 	}
-	return ProjectCacheGitStatus{}, fmt.Errorf("check Git ignore rules: %w", err)
+	ignored := make(map[string]struct{}, len(paths))
+	for _, path := range bytes.Split(ignoredOutput, []byte{0}) {
+		if len(path) == 0 {
+			continue
+		}
+		ignored[normalizeGitCheckPath(string(path))] = struct{}{}
+	}
+	for _, path := range paths {
+		if _, ok := ignored[normalizeGitCheckPath(path)]; !ok {
+			return status, nil
+		}
+	}
+	status.Ignored = true
+	return status, nil
+}
+
+func projectCacheGitPaths(root string) ([]string, error) {
+	cachePath := filepath.Join(root, ".latexmk-cache")
+	paths := []string{".latexmk-cache/", projectIDRelativePath, dependencyCacheRelativePath}
+	seen := map[string]struct{}{
+		normalizeGitCheckPath(paths[0]): {},
+		normalizeGitCheckPath(paths[1]): {},
+		normalizeGitCheckPath(paths[2]): {},
+	}
+	info, err := os.Lstat(cachePath)
+	if os.IsNotExist(err) {
+		return paths, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("inspect .latexmk-cache: %w", err)
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return paths, nil
+	}
+	err = filepath.WalkDir(cachePath, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if path == cachePath {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		rel = filepath.ToSlash(rel)
+		key := normalizeGitCheckPath(rel)
+		if _, ok := seen[key]; ok {
+			return nil
+		}
+		if len(paths) >= maxProjectCacheGitPaths {
+			return fmt.Errorf(".latexmk-cache contains more than %d entries", maxProjectCacheGitPaths)
+		}
+		seen[key] = struct{}{}
+		paths = append(paths, rel)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("inspect .latexmk-cache entries: %w", err)
+	}
+	return paths, nil
+}
+
+func normalizeGitCheckPath(path string) string {
+	return strings.TrimSuffix(filepath.ToSlash(path), "/")
 }
 
 // AddProjectCacheGitIgnore appends the cache rule only after an explicit user

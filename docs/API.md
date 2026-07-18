@@ -145,6 +145,46 @@ After a job has ended, returns the same
 `application/vnd.latexmk.result+tar.gz` archive as synchronous compilation. It
 returns an error once the archive has passed the configured result retention.
 
+### `GET /v1/projects/{projectId}/cleanup?scope={scope}`
+
+Previews cleanup for one authenticated principal and project. `scope` must be
+`results`, `snapshot`, or `project`. The response is a cleanup report with
+counts, byte totals, protected active jobs, `dryRun: true`, and a 64-character
+SHA-256 `planDigest` representing the current report:
+
+```json
+{
+  "projectId": "project-example",
+  "scope": "project",
+  "dryRun": true,
+  "planDigest": "…64 hex characters…",
+  "snapshotPresent": true,
+  "snapshotFiles": 12,
+  "snapshotBytes": 1048576,
+  "jobs": 2,
+  "results": 2,
+  "resultBytes": 524288,
+  "reclaimedBytes": 0
+}
+```
+
+Clients should treat the digest as opaque and keep it with the server, project,
+and scope that produced it. The remote CLI stores those values in a token-free,
+ten-minute local plan; MCP keeps an equivalent short-lived in-process plan.
+
+### `DELETE /v1/projects/{projectId}/cleanup?scope={scope}&expectedDigest={digest}`
+
+Applies a previewed cleanup. `expectedDigest` must be the 64-character digest
+returned by `GET`. The server takes its cleanup admission lock, recomputes the
+report digest, compares it, and performs deletion while holding that same lock.
+A mismatch returns `409 Conflict` before anything is removed. Token ownership,
+active-job checks, and shared-blob references are enforced independently.
+
+For backward HTTP compatibility, the server still accepts `DELETE` without
+`expectedDigest` and applies the current scope directly. The current CLI and
+MCP cleanup workflows never use that unbound form; both require a preview plan
+and send its digest.
+
 ## Database administration API
 
 Every administration endpoint requires an administrator. The bootstrap token is

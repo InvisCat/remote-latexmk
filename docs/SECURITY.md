@@ -75,16 +75,21 @@ tool or change upload, credential, compiler, or cleanup policy. Raw logs are
 bounded and artifacts are downloaded by opaque ID.
 
 Local destructive cleanup uses an exact path/size/SHA-256 plan and revalidates
-all targets before deletion. Remote MCP cleanup binds the token-owned project,
-scope, and server-issued preview digest. The server recomputes and compares the
-digest under the same admission lock used for deletion, so a changed plan is
-rejected before any target is removed. The server separately protects active
-jobs and referenced content-addressed blobs.
+all targets before deletion. Remote CLI and MCP cleanup bind the token-owned
+project, scope, and server-issued preview digest. CLI plan files are short-lived
+and contain no bearer token. The server recomputes and compares the digest under
+the same admission lock used for deletion, so a changed plan is rejected before
+any target is removed. The server separately protects active jobs and
+referenced content-addressed blobs.
 
 ## Deployment responsibilities
 
 - Use TLS and place the service behind a private network, VPN, or an
   identity-aware proxy.
+- Treat every file and bind mount readable by the compiler container's UID as
+  potentially readable by TeX input. A read-only root filesystem prevents
+  modification; it does not hide system files. Do not mount host secrets,
+  home directories, SSH material, or the Docker socket into this container.
 - Use token or PostgreSQL authentication in every deployment. `none` is only
   suitable for a deliberately isolated local development instance.
 - Do not inject cloud-control-plane credentials into the compile container.

@@ -149,7 +149,7 @@ func runCache(args []string) int {
 		if result.Changed {
 			fmt.Printf("added .latexmk-cache/ to %s\n", result.GitIgnore)
 		} else {
-			fmt.Println(".latexmk-cache/project-id is already covered by the effective Git ignore rules")
+			fmt.Println(".latexmk-cache is already covered by the effective Git ignore rules")
 		}
 		fmt.Println("warning: git clean -fdX deletes ignored cache files and resets the local project identity")
 		return 0
@@ -301,13 +301,13 @@ func createLocalCleanupPlan(root, scope string) (cleanupPlan, error) {
 	if err != nil {
 		return cleanupPlan{}, err
 	}
-	idBytes := make([]byte, 16)
-	if _, err := rand.Read(idBytes); err != nil {
+	id, err := newCleanupPlanID()
+	if err != nil {
 		return cleanupPlan{}, err
 	}
 	now := time.Now().UTC()
 	plan := cleanupPlan{
-		Version: cleanupPlanVersion, ID: hex.EncodeToString(idBytes), ProjectRoot: root,
+		Version: cleanupPlanVersion, ID: id, ProjectRoot: root,
 		Scope: scope, CreatedAt: now, ExpiresAt: now.Add(cleanupPlanTTL), Targets: targets,
 	}
 	for _, target := range targets {
@@ -447,7 +447,7 @@ func collectCleanupTargets(root, scope string) ([]cleanupTarget, error) {
 
 func generatedFileName(name string) bool {
 	lower := strings.ToLower(name)
-	for _, suffix := range []string{".aux", ".bbl", ".bcf", ".blg", ".fdb_latexmk", ".fls", ".log", ".out", ".run.xml", ".synctex.gz", ".toc", ".xdv"} {
+	for _, suffix := range []string{".aux", ".bbl", ".bcf", ".blg", ".fdb_latexmk", ".fls", ".idx", ".ilg", ".ind", ".log", ".out", ".run.xml", ".synctex.gz", ".toc", ".xdv"} {
 		if strings.HasSuffix(lower, suffix) {
 			return true
 		}
@@ -520,6 +520,21 @@ func defaultCleanupPlansDir() (string, error) {
 }
 
 func saveCleanupPlan(plan cleanupPlan) error {
+	return saveCleanupPlanData(plan.ID, plan)
+}
+
+func newCleanupPlanID() (string, error) {
+	idBytes := make([]byte, 16)
+	if _, err := rand.Read(idBytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(idBytes), nil
+}
+
+func saveCleanupPlanData(planID string, plan any) error {
+	if !cleanupPlanIDPattern.MatchString(planID) {
+		return errors.New("cleanup plan ID is invalid")
+	}
 	dir, err := cleanupPlansDir()
 	if err != nil {
 		return err
@@ -539,7 +554,7 @@ func saveCleanupPlan(plan cleanupPlan) error {
 		return err
 	}
 	payload = append(payload, '\n')
-	path := filepath.Join(dir, plan.ID+".json")
+	path := filepath.Join(dir, planID+".json")
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return err
@@ -589,35 +604,50 @@ func pruneCleanupPlans(dir string, now time.Time) error {
 
 func loadCleanupPlan(planID string) (cleanupPlan, string, error) {
 	var plan cleanupPlan
-	if !cleanupPlanIDPattern.MatchString(planID) {
-		return plan, "", errors.New("cleanup plan ID is invalid")
-	}
-	dir, err := cleanupPlansDir()
-	if err != nil {
-		return plan, "", err
-	}
-	path := filepath.Join(dir, planID+".json")
-	info, err := os.Lstat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return plan, path, errors.New("cleanup plan was not found; create a new preview")
-		}
-		return plan, path, err
-	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() > 8<<20 {
-		return plan, path, errors.New("cleanup plan file is invalid")
-	}
-	payload, err := os.ReadFile(path)
+	path, err := loadCleanupPlanData(planID, &plan)
 	if err != nil {
 		return plan, path, err
-	}
-	decoder := json.NewDecoder(strings.NewReader(string(payload)))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&plan); err != nil {
-		return plan, path, fmt.Errorf("parse cleanup plan: %w", err)
 	}
 	if plan.Version != cleanupPlanVersion || plan.ID != planID || (plan.Scope != "local-generated" && plan.Scope != "local-client-cache") || len(plan.Targets) > maxCleanupTargets {
 		return plan, path, errors.New("cleanup plan contents are invalid")
 	}
 	return plan, path, nil
+}
+
+func loadCleanupPlanData(planID string, target any) (string, error) {
+	if !cleanupPlanIDPattern.MatchString(planID) {
+		return "", errors.New("cleanup plan ID is invalid")
+	}
+	dir, err := cleanupPlansDir()
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, planID+".json")
+	info, err := os.Lstat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return path, errors.New("cleanup plan was not found; create a new preview")
+		}
+		return path, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() > 8<<20 {
+		return path, errors.New("cleanup plan file is invalid")
+	}
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		return path, err
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(payload)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return path, fmt.Errorf("parse cleanup plan: %w", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return path, errors.New("cleanup plan file contains trailing data")
+		}
+		return path, fmt.Errorf("parse cleanup plan: %w", err)
+	}
+	return path, nil
 }

@@ -44,6 +44,19 @@ func TestMCPInitializeAndToolListUseJSONOnly(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("responses = %d: %s", len(lines), stdout.String())
 	}
+	var initialized struct {
+		Result struct {
+			ServerInfo struct {
+				Name string `json:"name"`
+			} `json:"serverInfo"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal([]byte(lines[0]), &initialized); err != nil {
+		t.Fatal(err)
+	}
+	if initialized.Result.ServerInfo.Name != "remote-latexmk" {
+		t.Fatalf("MCP server name = %q", initialized.Result.ServerInfo.Name)
+	}
 	for _, line := range lines {
 		var response map[string]any
 		if err := json.Unmarshal([]byte(line), &response); err != nil {
@@ -67,6 +80,9 @@ func TestMCPInitializeAndToolListUseJSONOnly(t *testing.T) {
 	for _, tool := range listed.Result.Tools {
 		if tool.InputSchema["additionalProperties"] != false || tool.Annotations["openWorldHint"] != false {
 			t.Fatalf("unsafe or open schema for %s: %#v %#v", tool.Name, tool.InputSchema, tool.Annotations)
+		}
+		if tool.Name == "job_cancel" && strings.Contains(tool.Description, "running") {
+			t.Fatalf("job_cancel advertises unsupported running-job cancellation: %q", tool.Description)
 		}
 	}
 }

@@ -73,7 +73,7 @@ func run(args []string) int {
 	if len(argv) > 0 {
 		switch argv[0] {
 		case "version", "--version", "-version":
-			fmt.Printf("latexmk %s\ncommit: %s\nbuilt: %s\n", version, commit, buildDate)
+			fmt.Printf("latexmk (remote-latexmk client) %s\ncommit: %s\nbuilt: %s\n", version, commit, buildDate)
 			return 0
 		case "help", "--help", "-h":
 			usage()
@@ -393,6 +393,9 @@ func watchTargets(opts compileOptions, files []projectarchive.File) []projectwat
 		}
 	}
 	policyPaths[filepath.Join(repoRoot, ".git", "info", "exclude")] = struct{}{}
+	if globalExcludes, ok := effectiveGitExcludesFile(repoRoot); ok {
+		policyPaths[globalExcludes] = struct{}{}
+	}
 	for policyPath := range policyPaths {
 		label, relErr := filepath.Rel(opts.projectRoot, policyPath)
 		if relErr != nil {
@@ -947,19 +950,24 @@ func runClean(args []string) int {
 	return 0
 }
 
-func runRemoteClean(args []string) int {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fail(err)
-	}
-	cfg, err := config.Load(cwd)
-	if err != nil {
-		return fail(err)
-	}
-	server, token, timeout := cfg.Server, cfg.Token, cfg.Timeout
-	insecure, caFile := cfg.InsecureSkipVerify, cfg.CAFile
-	projectRoot, projectID := cfg.ProjectRoot, cfg.ProjectID
-	scope, yes, explicitDryRun, jsonOutput, legacyID := "", false, false, false, false
+type remoteCleanOptions struct {
+	server          string
+	token           string
+	timeout         time.Duration
+	insecure        bool
+	caFile          string
+	projectRoot     string
+	projectID       string
+	scope           string
+	planID          string
+	yes             bool
+	explicitDryRun  bool
+	jsonOutput      bool
+	legacyProjectID bool
+}
+
+func parseRemoteCleanArgs(args []string, opts *remoteCleanOptions) error {
+	var err error
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		value := func(name string) (string, error) {
@@ -974,70 +982,104 @@ func runRemoteClean(args []string) int {
 		}
 		switch {
 		case a == "--server" || strings.HasPrefix(a, "--server="):
-			server, err = value("--server")
+			opts.server, err = value("--server")
 		case a == "--token" || strings.HasPrefix(a, "--token="):
-			token, err = value("--token")
+			opts.token, err = value("--token")
 		case a == "--token-file" || strings.HasPrefix(a, "--token-file="):
 			var path string
 			path, err = value("--token-file")
 			if err == nil {
-				token, err = config.ReadTokenFile(path)
+				opts.token, err = config.ReadTokenFile(path)
 			}
 		case a == "--ca-file" || strings.HasPrefix(a, "--ca-file="):
-			caFile, err = value("--ca-file")
+			opts.caFile, err = value("--ca-file")
 		case a == "--insecure-skip-verify":
-			insecure = true
+			opts.insecure = true
 		case a == "--timeout" || strings.HasPrefix(a, "--timeout="):
 			var raw string
 			raw, err = value("--timeout")
 			if err == nil {
-				timeout, err = time.ParseDuration(raw)
+				opts.timeout, err = time.ParseDuration(raw)
 			}
 		case a == "--project-root" || strings.HasPrefix(a, "--project-root="):
-			projectRoot, err = value("--project-root")
+			opts.projectRoot, err = value("--project-root")
 		case a == "--project-id" || strings.HasPrefix(a, "--project-id="):
-			projectID, err = value("--project-id")
+			opts.projectID, err = value("--project-id")
 		case a == "--legacy-project-id":
-			legacyID = true
+			opts.legacyProjectID = true
 		case a == "--scope" || strings.HasPrefix(a, "--scope="):
-			scope, err = value("--scope")
+			opts.scope, err = value("--scope")
+		case a == "--plan-id" || strings.HasPrefix(a, "--plan-id="):
+			opts.planID, err = value("--plan-id")
 		case a == "--yes":
-			yes = true
+			opts.yes = true
 		case a == "--dry-run":
-			explicitDryRun = true
+			opts.explicitDryRun = true
 		case a == "--json":
-			jsonOutput = true
+			opts.jsonOutput = true
 		default:
-			return fail(fmt.Errorf("unknown option %q", a))
+			return fmt.Errorf("unknown option %q", a)
 		}
 		if err != nil {
-			return fail(err)
+			return err
 		}
 	}
-	if scope != "results" && scope != "snapshot" && scope != "project" {
-		return fail(errors.New("--scope must be results, snapshot, or project"))
+	if opts.yes {
+		if opts.explicitDryRun {
+			return errors.New("--yes and --dry-run cannot be used together")
+		}
+		if !cleanupPlanIDPattern.MatchString(opts.planID) {
+			return errors.New("remote clean --yes requires a valid --plan-id from a preview")
+		}
+		if opts.scope != "" {
+			return errors.New("do not pass --scope when applying a remote cleanup plan")
+		}
+		return nil
 	}
-	if yes && explicitDryRun {
-		return fail(errors.New("--yes and --dry-run cannot be used together"))
+	if opts.planID != "" {
+		return errors.New("--plan-id requires --yes")
 	}
-	if projectRoot == "" {
-		projectRoot = cwd
+	if opts.scope != "results" && opts.scope != "snapshot" && opts.scope != "project" {
+		return errors.New("--scope must be results, snapshot, or project")
 	}
-	projectRoot, err = filepath.Abs(projectRoot)
+	return nil
+}
+
+func runRemoteClean(args []string) int {
+	cwd, err := os.Getwd()
 	if err != nil {
 		return fail(err)
 	}
-	projectRoot, err = filepath.EvalSymlinks(projectRoot)
+	cfg, err := config.Load(cwd)
+	if err != nil {
+		return fail(err)
+	}
+	opts := remoteCleanOptions{
+		server: cfg.Server, token: cfg.Token, timeout: cfg.Timeout,
+		insecure: cfg.InsecureSkipVerify, caFile: cfg.CAFile,
+		projectRoot: cfg.ProjectRoot, projectID: cfg.ProjectID,
+	}
+	if err := parseRemoteCleanArgs(args, &opts); err != nil {
+		return fail(err)
+	}
+	if opts.projectRoot == "" {
+		opts.projectRoot = cwd
+	}
+	opts.projectRoot, err = filepath.Abs(opts.projectRoot)
+	if err != nil {
+		return fail(err)
+	}
+	opts.projectRoot, err = filepath.EvalSymlinks(opts.projectRoot)
 	if err != nil {
 		return fail(fmt.Errorf("project root: %w", err))
 	}
-	if legacyID {
-		if projectID != "" {
+	if opts.legacyProjectID {
+		if opts.projectID != "" {
 			return fail(errors.New("--legacy-project-id cannot be combined with a configured or explicit project ID"))
 		}
-		projectID, err = client.LegacyProjectID(projectRoot)
-	} else if projectID == "" {
-		projectID, err = client.ResolveProjectID(projectRoot, false)
+		opts.projectID, err = client.LegacyProjectID(opts.projectRoot)
+	} else if opts.projectID == "" {
+		opts.projectID, err = client.ResolveProjectID(opts.projectRoot, false)
 		if errors.Is(err, client.ErrProjectIDNotFound) {
 			return fail(errors.New("this project has no local project ID; compile it once, or use --project-id/--legacy-project-id to clean older data"))
 		}
@@ -1045,11 +1087,28 @@ func runRemoteClean(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
-	c, err := client.New(server, token, timeout, insecure, caFile)
+	c, err := client.New(opts.server, opts.token, opts.timeout, opts.insecure, opts.caFile)
 	if err != nil {
 		return fail(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	var plan remoteCleanupPlan
+	var planPath string
+	if opts.yes {
+		plan, planPath, err = loadRemoteCleanupPlan(opts.planID)
+		if err != nil {
+			return fail(err)
+		}
+		if !time.Now().Before(plan.ExpiresAt) {
+			return fail(errors.New("remote cleanup plan has expired; create a new preview"))
+		}
+		if plan.Server != c.BaseURL {
+			return fail(errors.New("remote cleanup plan belongs to a different server"))
+		}
+		if plan.ProjectID != opts.projectID {
+			return fail(errors.New("remote cleanup plan belongs to a different project"))
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), opts.timeout)
 	defer cancel()
 	meta, err := c.Metadata(ctx)
 	if err != nil {
@@ -1058,39 +1117,69 @@ func runRemoteClean(args []string) int {
 	if !meta.Capabilities.RemoteCleanup {
 		return fail(errors.New("server does not advertise remote cleanup support"))
 	}
-	report, err := c.CleanupProject(ctx, projectID, scope, !yes)
+	if !opts.yes {
+		report, err := c.CleanupProject(ctx, opts.projectID, opts.scope, true)
+		if err != nil {
+			return fail(err)
+		}
+		plan, err := createRemoteCleanupPlan(c.BaseURL, opts.projectID, opts.scope, report)
+		if err != nil {
+			return fail(err)
+		}
+		if opts.jsonOutput {
+			output := remoteCleanupOutput{PlanID: plan.ID, ExpiresAt: &plan.ExpiresAt, Report: report}
+			if err := json.NewEncoder(os.Stdout).Encode(output); err != nil {
+				return fail(err)
+			}
+			return 0
+		}
+		writeRemoteCleanupReport(report)
+		fmt.Printf("plan ID: %s\nexpires: %s\npreview only; apply with --plan-id %s --yes\n", plan.ID, plan.ExpiresAt.Format(time.RFC3339), plan.ID)
+		return 0
+	}
+	report, err := c.CleanupProjectWithPlan(ctx, plan.ProjectID, plan.Scope, plan.PlanDigest)
 	if err != nil {
 		return fail(err)
 	}
-	if jsonOutput {
-		if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+	if report.ProjectID != plan.ProjectID || report.Scope != plan.Scope || report.DryRun || report.PlanDigest != plan.PlanDigest {
+		return fail(errors.New("server returned an inconsistent cleanup result"))
+	}
+	if err := consumeRemoteCleanupPlan(planPath); err != nil {
+		return fail(fmt.Errorf("remote cleanup succeeded but the local plan could not be consumed: %w", err))
+	}
+	if opts.jsonOutput {
+		if err := json.NewEncoder(os.Stdout).Encode(remoteCleanupOutput{PlanID: plan.ID, Report: report}); err != nil {
 			return fail(err)
 		}
 		return 0
 	}
+	fmt.Printf("plan ID: %s\n", plan.ID)
+	writeRemoteCleanupReport(report)
+	fmt.Printf("reclaimed bytes: %d\n", report.ReclaimedBytes)
+	return 0
+}
+
+func writeRemoteCleanupReport(report protocol.CleanupReport) {
 	fmt.Printf("project ID: %s\nscope: %s\ndry run: %t\n", report.ProjectID, report.Scope, report.DryRun)
-	if scope == "snapshot" || scope == "project" {
+	if report.Scope == "snapshot" || report.Scope == "project" {
 		fmt.Printf("snapshot: %t (%d files, %d bytes)\n", report.SnapshotPresent, report.SnapshotFiles, report.SnapshotBytes)
 	}
-	if scope == "results" || scope == "project" {
+	if report.Scope == "results" || report.Scope == "project" {
 		fmt.Printf("results: %d (%d bytes)\n", report.Results, report.ResultBytes)
 	}
-	if scope == "project" {
+	if report.Scope == "project" {
 		fmt.Printf("terminal jobs: %d\n", report.Jobs)
 	}
 	if len(report.ActiveJobs) > 0 {
 		fmt.Printf("active jobs (not deleted): %s\n", strings.Join(report.ActiveJobs, ", "))
 	}
-	if report.DryRun {
-		fmt.Println("preview only; rerun with --yes to delete this scope")
-	} else {
-		fmt.Printf("reclaimed bytes: %d\n", report.ReclaimedBytes)
-	}
-	return 0
 }
 
 func usage() {
-	fmt.Print(`latexmk - remote, PaaS-hosted LaTeX compiler
+	fmt.Print(`latexmk - remote-latexmk client
+
+Compile LaTeX on a self-hosted remote TeX Live server. This command is not the
+upstream Perl latexmk program, although the remote server uses that program.
 
 Usage:
   latexmk compile [options] <main.tex>
@@ -1104,7 +1193,8 @@ Usage:
   latexmk cache ignore [--project-root DIR] [--json]
   latexmk cache clean --scope local-generated|local-client-cache [--dry-run] [--json]
   latexmk cache clean --plan-id PLAN_ID --yes [--json]
-  latexmk remote clean --scope results|snapshot|project [--yes]
+  latexmk remote clean --scope results|snapshot|project [--dry-run] [--json]
+  latexmk remote clean --plan-id PLAN_ID --yes [--json]
   latexmk jobs list [--limit 50] [--json]
   latexmk jobs show JOB_ID [--json]
   latexmk jobs cancel JOB_ID [--json]
@@ -1145,8 +1235,9 @@ Compile options:
 The executable may be symlinked as xelatex, lualatex, or pdflatex.
 Configuration is read from the user config, .latexmk.json, and environment variables.
 
-Remote cleanup previews by default. Add --yes to delete. Use
---legacy-project-id only to target data created by the old path-derived ID.
+Remote cleanup previews create a ten-minute plan. Apply that exact preview with
+--plan-id PLAN_ID --yes. Use --legacy-project-id only to target data created by
+the old path-derived ID.
 `)
 }
 

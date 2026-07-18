@@ -18,13 +18,18 @@ latexmk artifacts get --json --out-dir . JOB_ID ARTIFACT_ID
 
 Use `.latexmk.json` for non-secret settings. Prefer `LATEXMK_TOKEN` or `LATEXMK_TOKEN_FILE` for the credential. Environment variables also support server, CA, engine, project ID, and upload-policy configuration.
 
-Agent-facing commands such as `jobs`, `logs`, `diagnostics`, `artifacts`, and
-`cache` use a versioned JSON envelope. Check `ok`; on failure inspect
-`error.code`, `error.message`, `error.details`, and `error.retryable`.
+`compile --detach`, `jobs`, `logs`, `diagnostics`, `artifacts`, and `cache` use
+a versioned JSON envelope. Check `ok` and the process exit status. On success,
+read the command payload under `data`; on failure inspect `error.code`,
+`error.message`, `error.details`, and `error.retryable`.
 
-The compatibility commands `compile`, `files`, `meta`, and `remote clean` still
-use their original top-level JSON shapes. Parse those commands according to
-their documented fields instead of looking for `ok`. Do not scrape
-human-readable output when JSON is available.
+Synchronous `compile --json` (without `--detach`), `files`, and `meta` retain
+their original top-level success shapes. `remote clean` also remains outside
+the versioned envelope; its preview returns `planId`, `expiresAt`, and `report`,
+while apply returns `planId` and `report`. These commands do not promise the
+versioned JSON error envelope. Parse successful output according to the
+documented fields instead of looking for `ok`, and use the process exit status
+plus stderr on failure. Do not scrape human-readable output when JSON is
+available.
 
 `--detach` returns an immutable job. Poll at a reasonable interval and stop on a terminal state. Do not start repeated jobs while an earlier one is still useful.

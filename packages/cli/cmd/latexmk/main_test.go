@@ -46,6 +46,18 @@ func captureCommandOutput(t *testing.T, fn func() int) (int, string, string) {
 	return code, string(stdout), string(stderr)
 }
 
+func TestVersionIdentifiesRemoteLatexmkClient(t *testing.T) {
+	code, stdout, stderr := captureCommandOutput(t, func() int {
+		return run([]string{"latexmk", "version"})
+	})
+	if code != 0 || stderr != "" {
+		t.Fatalf("version result: code=%d stderr=%q", code, stderr)
+	}
+	if !strings.Contains(stdout, "latexmk (remote-latexmk client)") {
+		t.Fatalf("version output does not identify remote-latexmk: %q", stdout)
+	}
+}
+
 func TestNormalizeCompilePathsResolvesProjectRootSymlink(t *testing.T) {
 	physicalRoot := t.TempDir()
 	entry := filepath.Join(physicalRoot, "main.tex")
@@ -289,13 +301,47 @@ func TestWatchTargetsOnlyAddsSelectedFilesAndPolicyControls(t *testing.T) {
 	}
 }
 
-func TestRemoteCleanPreviewsUnlessYesIsExplicit(t *testing.T) {
+func TestParseRemoteCleanArgsRequiresPreviewPlan(t *testing.T) {
+	validPlanID := strings.Repeat("a", 32)
+	for _, test := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "direct scope apply", args: []string{"--scope", "project", "--yes"}, want: "--plan-id"},
+		{name: "plan without confirmation", args: []string{"--plan-id", validPlanID}, want: "requires --yes"},
+		{name: "scope with plan", args: []string{"--scope", "project", "--plan-id", validPlanID, "--yes"}, want: "do not pass --scope"},
+		{name: "invalid plan", args: []string{"--plan-id", "invalid", "--yes"}, want: "valid --plan-id"},
+		{name: "dry run apply", args: []string{"--plan-id", validPlanID, "--yes", "--dry-run"}, want: "cannot be used together"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := parseRemoteCleanArgs(test.args, &remoteCleanOptions{})
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want substring %q", err, test.want)
+			}
+		})
+	}
+	if err := parseRemoteCleanArgs([]string{"--scope", "results"}, &remoteCleanOptions{}); err != nil {
+		t.Fatalf("preview arguments rejected: %v", err)
+	}
+	if err := parseRemoteCleanArgs([]string{"--plan-id", validPlanID, "--yes"}, &remoteCleanOptions{}); err != nil {
+		t.Fatalf("apply arguments rejected: %v", err)
+	}
+}
+
+func TestRemoteCleanPlanBindsPreviewAndConsumesOnSuccess(t *testing.T) {
+	useTestCleanupPlansDir(t)
 	root := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("LATEXMK_TOKEN", "")
 	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	digest := strings.Repeat("a", 64)
 	methods := make([]string, 0, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer secret-token" {
+			http.Error(w, "missing token", http.StatusUnauthorized)
+			return
+		}
 		switch r.URL.Path {
 		case "/v1/meta":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -304,8 +350,13 @@ func TestRemoteCleanPreviewsUnlessYesIsExplicit(t *testing.T) {
 			})
 		case "/v1/projects/project-test/cleanup":
 			methods = append(methods, r.Method)
+			if r.Method == http.MethodDelete && r.URL.Query().Get("expectedDigest") != digest {
+				http.Error(w, "missing digest", http.StatusBadRequest)
+				return
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"projectId": "project-test", "scope": "project", "dryRun": r.Method == http.MethodGet,
+				"planDigest":      digest,
 				"snapshotPresent": true, "snapshotFiles": 1, "snapshotBytes": 5,
 				"jobs": 1, "results": 1, "resultBytes": 3, "reclaimedBytes": 8,
 			})
@@ -315,15 +366,107 @@ func TestRemoteCleanPreviewsUnlessYesIsExplicit(t *testing.T) {
 	}))
 	defer server.Close()
 
-	base := []string{"latexmk", "remote", "clean", "--scope", "project", "--project-root", root, "--project-id", "project-test", "--server", server.URL}
-	if code := run(base); code != 0 {
-		t.Fatalf("preview exit code = %d", code)
+	base := []string{"latexmk", "remote", "clean", "--project-root", root, "--project-id", "project-test", "--server", server.URL, "--token", "secret-token", "--json"}
+	code, stdout, stderr := captureCommandOutput(t, func() int {
+		return run(append(append([]string{}, base...), "--scope", "project"))
+	})
+	if code != 0 || stderr != "" {
+		t.Fatalf("preview code=%d stderr=%q", code, stderr)
 	}
-	if code := run(append(base, "--yes")); code != 0 {
-		t.Fatalf("delete exit code = %d", code)
+	var preview remoteCleanupOutput
+	if err := json.Unmarshal([]byte(stdout), &preview); err != nil {
+		t.Fatalf("decode preview %q: %v", stdout, err)
+	}
+	if !cleanupPlanIDPattern.MatchString(preview.PlanID) || preview.ExpiresAt == nil || preview.Report.PlanDigest != digest {
+		t.Fatalf("preview = %#v", preview)
+	}
+	plansDir, err := cleanupPlansDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	planPath := filepath.Join(plansDir, preview.PlanID+".json")
+	payload, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(payload), "secret-token") || strings.Contains(strings.ToLower(string(payload)), `"token"`) {
+		t.Fatalf("cleanup plan persisted authentication material: %s", payload)
+	}
+	for _, expected := range []string{server.URL, "project-test", "project", digest} {
+		if !strings.Contains(string(payload), expected) {
+			t.Fatalf("cleanup plan omitted %q: %s", expected, payload)
+		}
+	}
+
+	code, _, stderr = captureCommandOutput(t, func() int {
+		return run(append(append([]string{}, base...), "--plan-id", preview.PlanID, "--yes"))
+	})
+	if code != 0 || stderr != "" {
+		t.Fatalf("apply code=%d stderr=%q", code, stderr)
 	}
 	if len(methods) != 2 || methods[0] != http.MethodGet || methods[1] != http.MethodDelete {
 		t.Fatalf("cleanup methods = %#v", methods)
+	}
+	if _, err := os.Stat(planPath); !os.IsNotExist(err) {
+		t.Fatalf("successful plan was not consumed: %v", err)
+	}
+	code, _, _ = captureCommandOutput(t, func() int {
+		return run(append(append([]string{}, base...), "--plan-id", preview.PlanID, "--yes"))
+	})
+	if code == 0 || len(methods) != 2 {
+		t.Fatalf("consumed plan was reused: code=%d methods=%#v", code, methods)
+	}
+}
+
+func TestRemoteCleanPlanRejectsServerStateDrift(t *testing.T) {
+	useTestCleanupPlansDir(t)
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	digest := strings.Repeat("b", 64)
+	deleteCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/meta":
+			_ = json.NewEncoder(w).Encode(map[string]any{"protocolVersion": 2, "capabilities": map[string]any{"remoteCleanup": true}})
+		case "/v1/projects/project-test/cleanup":
+			if r.Method == http.MethodGet {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"projectId": "project-test", "scope": "results", "dryRun": true, "planDigest": digest,
+					"results": 1, "resultBytes": 4,
+				})
+				return
+			}
+			deleteCalls++
+			if r.URL.Query().Get("expectedDigest") != digest {
+				http.Error(w, "wrong expected digest", http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "cleanup targets changed since preview; create a new plan"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	base := []string{"latexmk", "remote", "clean", "--project-root", root, "--project-id", "project-test", "--server", server.URL, "--json"}
+	code, stdout, stderr := captureCommandOutput(t, func() int {
+		return run(append(append([]string{}, base...), "--scope", "results"))
+	})
+	if code != 0 || stderr != "" {
+		t.Fatalf("preview code=%d stderr=%q", code, stderr)
+	}
+	var preview remoteCleanupOutput
+	if err := json.Unmarshal([]byte(stdout), &preview); err != nil {
+		t.Fatal(err)
+	}
+	code, _, stderr = captureCommandOutput(t, func() int {
+		return run(append(append([]string{}, base...), "--plan-id", preview.PlanID, "--yes"))
+	})
+	if code == 0 || !strings.Contains(stderr, "changed since preview") || deleteCalls != 1 {
+		t.Fatalf("drift result code=%d stderr=%q deleteCalls=%d", code, stderr, deleteCalls)
 	}
 }
 

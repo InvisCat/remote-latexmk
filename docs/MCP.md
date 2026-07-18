@@ -17,7 +17,7 @@ Most MCP clients accept the following command shape:
 ```json
 {
   "mcpServers": {
-    "latexmk": {
+    "remote-latexmk": {
       "command": "/absolute/path/to/latexmk",
       "args": ["mcp", "serve", "--stdio", "--project-root", "/absolute/path/to/paper"],
       "env": {
@@ -35,7 +35,7 @@ Use a protected token file or the client's secret/environment facility. Do not p
 For Codex, the equivalent configuration is:
 
 ```toml
-[mcp_servers.latexmk]
+[mcp_servers.remote-latexmk]
 command = "/absolute/path/to/latexmk"
 args = ["mcp", "serve", "--stdio", "--project-root", "/absolute/path/to/paper"]
 env = { LATEXMK_SERVER = "https://latex.example.edu", LATEXMK_TOKEN_FILE = "/absolute/path/to/latexmk-token" }
@@ -44,10 +44,10 @@ env = { LATEXMK_SERVER = "https://latex.example.edu", LATEXMK_TOKEN_FILE = "/abs
 The current Codex and Claude Code CLIs can create the same entry directly:
 
 ```sh
-codex mcp add latexmk -- /absolute/path/to/latexmk \
+codex mcp add remote-latexmk -- /absolute/path/to/latexmk \
   mcp serve --stdio --project-root /absolute/path/to/paper
 
-claude mcp add --scope user latexmk -- /absolute/path/to/latexmk \
+claude mcp add --scope user remote-latexmk -- /absolute/path/to/latexmk \
   mcp serve --stdio --project-root /absolute/path/to/paper
 ```
 
@@ -58,10 +58,10 @@ Set `LATEXMK_PROJECT_DIR` in the repository `.env` to the absolute paper directo
 ```json
 {
   "mcpServers": {
-    "latexmk-docker": {
+    "remote-latexmk-docker": {
       "command": "docker",
       "args": [
-        "compose", "--project-directory", "/absolute/path/to/latexmk",
+        "compose", "--project-directory", "/absolute/path/to/remote-latexmk",
         "run", "--rm", "-T", "client",
         "mcp", "serve", "--stdio", "--project-root", "/workspace"
       ]
@@ -84,7 +84,7 @@ The Compose client image contains the Go binary, Git, and CA certificates, but n
 | `artifact_list` | List artifact metadata and opaque IDs |
 | `compile_start` | Consume a current manifest ID and create an immutable queued job |
 | `artifact_download` | Download one opaque artifact ID below the bound project root |
-| `job_cancel` | Cancel one queued or running job when the server permits it |
+| `job_cancel` | Cancel one queued job |
 | `cleanup_preview` | Create a ten-minute local or remote cleanup plan |
 | `cleanup_apply` | Consume the same plan after target/report revalidation |
 
@@ -93,6 +93,11 @@ The Compose client image contains the Go binary, Git, and CA certificates, but n
 Local cleanup plans store every relative target path, size, and SHA-256 outside the paper. Apply validates all targets before deleting any. `local-client-cache` preserves `.latexmk-cache/project-id`.
 
 Remote scopes are `remote-results`, `remote-snapshots`, and `remote-project`. A remote plan binds the project ID, scope, and server-issued preview digest. Apply sends that digest to the server, which recomputes, compares, and deletes under one admission lock. A changed report is rejected before any target is removed. The server still enforces token ownership, active-job protection, and shared-blob references. Snapshot/project cleanup collects only blobs that are no longer referenced; there is deliberately no broad `remote-blobs` tool.
+
+The ordinary `latexmk remote clean` CLI uses the same server-side digest
+binding. Its preview persists a token-free, ten-minute local plan, and its
+apply accepts only that plan ID plus `--yes`. See [AGENT_CLI.md](AGENT_CLI.md)
+for the CLI command forms and its command-specific JSON success shapes.
 
 ## Security boundaries
 

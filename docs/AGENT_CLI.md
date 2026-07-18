@@ -9,11 +9,14 @@ the token or Authorization header.
 
 ## Compatibility
 
-New Agent-facing commands use a versioned JSON envelope. Existing JSON output
-from `compile`, `files`, `meta`, and `remote clean` remains unchanged for now.
-Those commands will move to the versioned contract only through an explicit
-compatibility mechanism. Their current top-level JSON shape will not change
-silently.
+Detached `compile --json`, jobs, logs, diagnostics, artifacts, and local cache
+commands use a versioned JSON envelope. Existing JSON success output from
+synchronous `compile --json` (without `--detach`), `files`, and `meta` remains
+unchanged for now. `remote clean` also remains outside the versioned envelope;
+its two-stage preview and apply success shapes are documented below. These
+compatibility commands will move to the versioned contract only through an
+explicit compatibility mechanism. Their top-level success shapes will not
+change silently, and they do not promise a versioned JSON error envelope.
 
 ## Envelope
 
@@ -44,9 +47,11 @@ Failure:
 }
 ```
 
-With `--json`, stdout contains exactly one JSON value followed by a newline.
-Progress text belongs on stderr. Consumers must check both `ok` and the process
-exit status. Unknown fields must be ignored within the same schema version.
+For versioned commands, `--json` writes exactly one JSON value followed by a
+newline. Progress text belongs on stderr. Consumers must check both `ok` and
+the process exit status. Unknown fields must be ignored within the same schema
+version. Compatibility commands guarantee their documented JSON shape only on
+success.
 
 Exit status:
 
@@ -148,12 +153,18 @@ latexmk cache clean --project-root . --plan-id PLAN_ID --yes --json
 ```
 
 Inspection returns dependency-cache entry counts without returning cached input
-paths, plus the count and size of known local generated files. Cleanup preview
+paths, plus the count and size of known local generated files, including common
+index products (`.idx`, `.ind`, and `.ilg`). Cleanup preview
 creates a random, ten-minute plan under the platform user cache directory. Each
 target is bound by project-relative path, size, and SHA-256. Apply revalidates
 every target before deleting any and rejects a changed, missing, symlinked, or
 expired plan. `local-client-cache` deletes only dependency discovery state and
 preserves the random project ID.
+
+If a filesystem removal fails after deletion starts, the command returns a
+`cleanup_apply_failed` envelope with `removed`, `reclaimedBytes`, `failedPath`,
+and `remainingTargets`. Inspect current state and create a new preview; do not
+reuse the partially applied plan.
 
 `cache ignore` is the explicit opt-in command that appends `.latexmk-cache/` to
 the project `.gitignore`. Its JSON result reports the absolute project root,
@@ -162,8 +173,33 @@ not modify an existing effective ignore policy. `git clean -fdX` still removes
 ignored cache files and therefore resets the local project identity.
 
 There is no direct `--scope ... --yes` local cleanup form. The caller must use
-the `planId` returned by preview. Remote cleanup keeps its existing
-preview/`--yes` CLI for compatibility.
+the `planId` returned by preview.
+
+## Remote cleanup
+
+```sh
+latexmk remote clean --scope results|snapshot|project --json
+latexmk remote clean --plan-id PLAN_ID --yes --json
+```
+
+Preview asks the server for the selected token-owned project report, then
+stores a random local plan for ten minutes. The plan contains the normalized
+server URL, project ID, scope, and server-issued `planDigest`; it does not store
+the bearer token. Apply reloads those values and requires current credentials.
+It accepts only `--plan-id PLAN_ID --yes`: `--scope` cannot be repeated or
+changed during apply, and `--plan-id` without `--yes` is invalid.
+
+The server recomputes the cleanup report digest under the same admission lock
+used for deletion. If server state changed, apply is rejected before removing
+anything. A successful apply consumes the local plan. Expired, consumed,
+wrong-server, and wrong-project plans are rejected; create a fresh preview
+instead of editing or reusing a plan file.
+
+`remote clean --json` remains a compatibility command rather than a version 1
+envelope. Preview success is a top-level object with `planId`, `expiresAt`, and
+`report`; apply success has `planId` and `report`. Consumers check the process
+status and these command-specific fields. Failure does not promise a JSON error
+envelope.
 
 ## MCP mapping
 
