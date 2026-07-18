@@ -334,6 +334,7 @@ latexmk jobs show JOB_ID --json
 latexmk jobs cancel JOB_ID --json
 latexmk compile --detach --json main.tex
 latexmk logs JOB_ID --tail 200 --max-bytes 65536 --json
+latexmk diagnostics JOB_ID --json
 latexmk artifacts list JOB_ID --json
 latexmk artifacts get JOB_ID ARTIFACT_ID --out-dir ./build --json
 ```
@@ -341,6 +342,13 @@ latexmk artifacts get JOB_ID ARTIFACT_ID --out-dir ./build --json
 These new commands use a versioned JSON envelope with stable error codes and a
 `retryable` flag. Existing `compile`, `files`, `meta`, and `remote clean` JSON
 shapes remain unchanged. See [the Agent-facing CLI contract](docs/AGENT_CLI.md).
+
+`diagnostics` is a bounded, derived index over the complete stdout, stderr, and
+compiler logs. It extracts common TeX errors and warnings with project-relative
+file and source line information when available. Every item includes one or
+more raw `logLocations` with the log source, path, and line range. It does not
+replace `logs`; inspect the raw log whenever the index is incomplete, lacks the
+needed context, or does not recognize an error.
 
 Remote cleanup is a preview unless `--yes` is present:
 
