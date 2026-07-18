@@ -157,6 +157,20 @@ func (c *Client) Health(ctx context.Context) error {
 }
 
 func (c *Client) CleanupProject(ctx context.Context, projectID, scope string, dryRun bool) (protocol.CleanupReport, error) {
+	return c.cleanupProject(ctx, projectID, scope, dryRun, "")
+}
+
+// CleanupProjectWithPlan deletes only if the server still sees the exact
+// cleanup targets represented by expectedDigest.
+func (c *Client) CleanupProjectWithPlan(ctx context.Context, projectID, scope, expectedDigest string) (protocol.CleanupReport, error) {
+	decoded, err := hex.DecodeString(expectedDigest)
+	if err != nil || len(decoded) != sha256.Size {
+		return protocol.CleanupReport{}, errors.New("cleanup plan digest must be a 64-character SHA-256 digest")
+	}
+	return c.cleanupProject(ctx, projectID, scope, false, expectedDigest)
+}
+
+func (c *Client) cleanupProject(ctx context.Context, projectID, scope string, dryRun bool, expectedDigest string) (protocol.CleanupReport, error) {
 	var report protocol.CleanupReport
 	if !validProjectID(projectID) {
 		return report, errors.New("project ID is invalid")
@@ -169,6 +183,9 @@ func (c *Client) CleanupProject(ctx context.Context, projectID, scope string, dr
 		method = http.MethodGet
 	}
 	path := "/v1/projects/" + url.PathEscape(projectID) + "/cleanup?scope=" + url.QueryEscape(scope)
+	if expectedDigest != "" {
+		path += "&expectedDigest=" + url.QueryEscape(expectedDigest)
+	}
 	if err := c.jsonRequest(ctx, method, path, nil, &report); err != nil {
 		return report, err
 	}

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -229,6 +230,58 @@ func TestCleanupProjectRejectsActiveJobs(t *testing.T) {
 	}
 	if _, err := projects.Snapshot(context.Background(), "member", snapshot.ProjectID); err != nil {
 		t.Fatalf("rejected cleanup changed snapshot: %v", err)
+	}
+}
+
+func TestCleanupProjectWithPlanRejectsDriftBeforeDeleting(t *testing.T) {
+	cfg := config.Config{
+		StateDir: t.TempDir(), Engines: []string{"xelatex"}, MaxFiles: 10,
+		MaxUploadBytes: 1024, MaxExpandedBytes: 1024, MaxConcurrentCompiles: 1,
+		MaxQueuedJobs: 2, MaxStateBytes: 4096,
+	}
+	projects, err := project.New(cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := api.CompileRequest{ProtocolVersion: api.ProtocolVersion, Entry: "main.tex", Engine: "xelatex", Interaction: "nonstopmode"}
+	snapshot := commitTestSnapshot(t, projects, request, []byte("private source"))
+	manager := New(cfg, api.Metadata{}, compile.NewRunner(cfg), projects, nil, slog.New(slog.NewTextHandler(testWriter{t}, nil)))
+	now := time.Now().UTC()
+	first := record{OwnerID: "member", Request: request, Snapshot: snapshot, Job: api.Job{ID: "job_first", ProjectID: snapshot.ProjectID, SnapshotID: snapshot.ID, Status: "succeeded", CreatedAt: now, FinishedAt: &now}}
+	if err := manager.save(context.Background(), first); err != nil {
+		t.Fatal(err)
+	}
+	firstPath, err := projects.ResultPath("member", first.Job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(firstPath, []byte("first"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	preview, err := manager.CleanupProject(context.Background(), "member", snapshot.ProjectID, "results", true)
+	if err != nil || preview.PlanDigest == "" {
+		t.Fatalf("preview = %#v, error = %v", preview, err)
+	}
+
+	second := first
+	second.Job.ID = "job_second"
+	if err := manager.save(context.Background(), second); err != nil {
+		t.Fatal(err)
+	}
+	secondPath, err := projects.ResultPath("member", second.Job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secondPath, []byte("second"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CleanupProjectWithPlan(context.Background(), "member", snapshot.ProjectID, "results", preview.PlanDigest); err == nil || !strings.Contains(err.Error(), "changed since preview") {
+		t.Fatalf("drift error = %v", err)
+	}
+	for _, path := range []string{firstPath, secondPath} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("rejected plan deleted %s: %v", path, err)
+		}
 	}
 }
 

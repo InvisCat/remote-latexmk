@@ -23,6 +23,7 @@ import (
 const (
 	cleanupPlanVersion = 1
 	cleanupPlanTTL     = 10 * time.Minute
+	cleanupPreviewMax  = 20
 	maxCleanupTargets  = 20_000
 	maxCleanupPlans    = 64
 	maxCleanupFileSize = 512 << 20
@@ -32,6 +33,7 @@ const (
 var (
 	cleanupPlanIDPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
 	cleanupPlansDir      = defaultCleanupPlansDir
+	cleanupRemoveFile    = os.Remove
 )
 
 type cleanupTarget struct {
@@ -57,6 +59,21 @@ type cleanupResult struct {
 	Removed   int   `json:"removed"`
 	Reclaimed int64 `json:"reclaimedBytes"`
 }
+
+type cleanupApplyError struct {
+	Result     cleanupResult
+	FailedPath string
+	Err        error
+}
+
+func (e *cleanupApplyError) Error() string {
+	if e.Result.Removed == 0 {
+		return fmt.Sprintf("cleanup failed at %s: %v", e.FailedPath, e.Err)
+	}
+	return fmt.Sprintf("cleanup partially applied: removed %d target(s), reclaimed %d bytes, then failed at %s: %v", e.Result.Removed, e.Result.Reclaimed, e.FailedPath, e.Err)
+}
+
+func (e *cleanupApplyError) Unwrap() error { return e.Err }
 
 type generatedCacheInfo struct {
 	Files int   `json:"files"`
@@ -143,7 +160,9 @@ func runCache(args []string) int {
 		}
 		return 0
 	}
-	fmt.Printf("plan: %s\nscope: %s\ntargets: %d\nbytes: %d\nexpires: %s\npreview only; apply with --plan-id %s --yes\n", plan.ID, plan.Scope, len(plan.Targets), plan.TotalBytes, plan.ExpiresAt.Format(time.RFC3339), plan.ID)
+	if err := writeCleanupPreview(os.Stdout, plan); err != nil {
+		return fail(err)
+	}
 	return 0
 }
 
@@ -305,18 +324,42 @@ func applyLocalCleanupPlan(root, planID string) (cleanupResult, error) {
 	for _, target := range plan.Targets {
 		path, err := safeCleanupPath(root, target.Path)
 		if err != nil {
-			return result, err
+			return result, &cleanupApplyError{Result: result, FailedPath: target.Path, Err: err}
 		}
-		if err := os.Remove(path); err != nil {
-			return result, fmt.Errorf("remove %s: %w", target.Path, err)
+		if err := cleanupRemoveFile(path); err != nil {
+			return result, &cleanupApplyError{Result: result, FailedPath: target.Path, Err: err}
 		}
 		result.Removed++
 		result.Reclaimed += target.Size
 	}
 	if err := os.Remove(planPath); err != nil && !os.IsNotExist(err) {
-		return result, fmt.Errorf("remove applied cleanup plan: %w", err)
+		return result, &cleanupApplyError{Result: result, FailedPath: "cleanup plan metadata", Err: err}
 	}
 	return result, nil
+}
+
+func writeCleanupPreview(w io.Writer, plan cleanupPlan) error {
+	if _, err := fmt.Fprintf(w, "plan: %s\nscope: %s\ntargets: %d\nbytes: %d\n", plan.ID, plan.Scope, len(plan.Targets), plan.TotalBytes); err != nil {
+		return err
+	}
+	shown := min(len(plan.Targets), cleanupPreviewMax)
+	if shown > 0 {
+		if _, err := fmt.Fprintln(w, "paths:"); err != nil {
+			return err
+		}
+		for _, target := range plan.Targets[:shown] {
+			if _, err := fmt.Fprintf(w, "  - %s (%d bytes)\n", target.Path, target.Size); err != nil {
+				return err
+			}
+		}
+	}
+	if remaining := len(plan.Targets) - shown; remaining > 0 {
+		if _, err := fmt.Fprintf(w, "  ... %d more target(s); use --json for the full list\n", remaining); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprintf(w, "expires: %s\npreview only; apply with --plan-id %s --yes\n", plan.ExpiresAt.Format(time.RFC3339), plan.ID)
+	return err
 }
 
 func collectCleanupTargets(root, scope string) ([]cleanupTarget, error) {

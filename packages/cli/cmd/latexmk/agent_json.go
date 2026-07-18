@@ -77,6 +77,15 @@ func failAgentArguments(command string, jsonOutput bool, err error) int {
 }
 
 func classifyAgentError(err error) (string, map[string]any, bool, int) {
+	var cleanupErr *cleanupApplyError
+	if errors.As(err, &cleanupErr) {
+		remaining := len(cleanupErr.Result.Targets) - cleanupErr.Result.Removed
+		return "cleanup_apply_failed", map[string]any{
+			"planId": cleanupErr.Result.ID, "failedPath": cleanupErr.FailedPath,
+			"removed": cleanupErr.Result.Removed, "reclaimedBytes": cleanupErr.Result.Reclaimed,
+			"remainingTargets": remaining,
+		}, false, 1
+	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return "timeout", nil, true, 124
 	}

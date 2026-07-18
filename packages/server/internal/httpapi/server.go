@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -323,8 +324,22 @@ func (s *Server) projectCleanup(c *gin.Context, dryRun bool) {
 		writeError(c, http.StatusBadRequest, "cleanup scope is required")
 		return
 	}
+	expectedDigest := c.Query("expectedDigest")
+	if expectedDigest != "" {
+		decoded, err := hex.DecodeString(expectedDigest)
+		if dryRun || err != nil || len(decoded) != sha256.Size {
+			writeError(c, http.StatusBadRequest, "expectedDigest must be a 64-character SHA-256 digest on DELETE")
+			return
+		}
+	}
 	principal, _ := auth.FromContext(c.Request.Context())
-	report, err := s.jobs.CleanupProject(c.Request.Context(), principal.ID, c.Param("id"), scope, dryRun)
+	var report api.CleanupReport
+	var err error
+	if expectedDigest != "" {
+		report, err = s.jobs.CleanupProjectWithPlan(c.Request.Context(), principal.ID, c.Param("id"), scope, expectedDigest)
+	} else {
+		report, err = s.jobs.CleanupProject(c.Request.Context(), principal.ID, c.Param("id"), scope, dryRun)
+	}
 	if err != nil {
 		status := http.StatusConflict
 		if !project.ValidProjectID(c.Param("id")) || (scope != "results" && scope != "snapshot" && scope != "project") {

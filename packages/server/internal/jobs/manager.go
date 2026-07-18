@@ -6,6 +6,7 @@ package jobs
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -268,6 +270,19 @@ func (m *Manager) ResultPath(ctx context.Context, ownerID, id string) (string, a
 // project. Snapshot and full-project cleanup are rejected while a job is
 // active. Result cleanup only removes terminal result archives.
 func (m *Manager) CleanupProject(ctx context.Context, ownerID, projectID, scope string, dryRun bool) (api.CleanupReport, error) {
+	return m.cleanupProject(ctx, ownerID, projectID, scope, dryRun, "")
+}
+
+// CleanupProjectWithPlan removes exactly the state represented by a previous
+// preview. Digest validation and deletion happen under the same admission lock.
+func (m *Manager) CleanupProjectWithPlan(ctx context.Context, ownerID, projectID, scope, expectedDigest string) (api.CleanupReport, error) {
+	if expectedDigest == "" {
+		return api.CleanupReport{}, errors.New("cleanup plan digest is required")
+	}
+	return m.cleanupProject(ctx, ownerID, projectID, scope, false, expectedDigest)
+}
+
+func (m *Manager) cleanupProject(ctx context.Context, ownerID, projectID, scope string, dryRun bool, expectedDigest string) (api.CleanupReport, error) {
 	report := api.CleanupReport{ProjectID: projectID, Scope: scope, DryRun: dryRun}
 	if !project.ValidProjectID(projectID) {
 		return report, errors.New("project ID is invalid")
@@ -312,8 +327,16 @@ func (m *Manager) CleanupProject(ctx context.Context, ownerID, projectID, scope 
 			return report, errors.New("project has active jobs; wait for them to finish or cancel queued jobs")
 		}
 	}
+	digest, err := cleanupReportDigest(report)
+	if err != nil {
+		return report, err
+	}
+	report.PlanDigest = digest
 	if dryRun {
 		return report, nil
+	}
+	if expectedDigest != "" && expectedDigest != digest {
+		return report, errors.New("cleanup targets changed since preview; create a new plan")
 	}
 	if scope == "results" || scope == "project" {
 		for _, id := range terminalIDs {
@@ -340,6 +363,20 @@ func (m *Manager) CleanupProject(ctx context.Context, ownerID, projectID, scope 
 		report.ReclaimedBytes += reclaimed
 	}
 	return report, nil
+}
+
+func cleanupReportDigest(report api.CleanupReport) (string, error) {
+	report.DryRun = false
+	report.PlanDigest = ""
+	report.ReclaimedBytes = 0
+	report.ActiveJobs = append([]string(nil), report.ActiveJobs...)
+	sort.Strings(report.ActiveJobs)
+	payload, err := json.Marshal(report)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(payload)
+	return hex.EncodeToString(digest[:]), nil
 }
 
 func (m *Manager) projectRecords(ctx context.Context, ownerID, projectID string) ([]record, error) {

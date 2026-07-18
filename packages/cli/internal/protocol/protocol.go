@@ -67,6 +67,7 @@ type CleanupReport struct {
 	ProjectID       string   `json:"projectId"`
 	Scope           string   `json:"scope"`
 	DryRun          bool     `json:"dryRun"`
+	PlanDigest      string   `json:"planDigest,omitempty"`
 	SnapshotPresent bool     `json:"snapshotPresent"`
 	SnapshotFiles   int      `json:"snapshotFiles"`
 	SnapshotBytes   int64    `json:"snapshotBytes"`

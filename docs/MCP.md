@@ -92,7 +92,7 @@ The Compose client image contains the Go binary, Git, and CA certificates, but n
 
 Local cleanup plans store every relative target path, size, and SHA-256 outside the paper. Apply validates all targets before deleting any. `local-client-cache` preserves `.latexmk-cache/project-id`.
 
-Remote scopes are `remote-results`, `remote-snapshots`, and `remote-project`. A remote plan binds the project ID, scope, and preview digest. Apply performs another preview and refuses deletion if the report changed. The server still enforces token ownership, active-job protection, and shared-blob references. Snapshot/project cleanup collects only blobs that are no longer referenced; there is deliberately no broad `remote-blobs` tool.
+Remote scopes are `remote-results`, `remote-snapshots`, and `remote-project`. A remote plan binds the project ID, scope, and server-issued preview digest. Apply sends that digest to the server, which recomputes, compares, and deletes under one admission lock. A changed report is rejected before any target is removed. The server still enforces token ownership, active-job protection, and shared-blob references. Snapshot/project cleanup collects only blobs that are no longer referenced; there is deliberately no broad `remote-blobs` tool.
 
 ## Security boundaries
 

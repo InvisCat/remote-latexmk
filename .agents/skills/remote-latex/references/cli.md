@@ -18,6 +18,13 @@ latexmk artifacts get --json --out-dir . JOB_ID ARTIFACT_ID
 
 Use `.latexmk.json` for non-secret settings. Prefer `LATEXMK_TOKEN` or `LATEXMK_TOKEN_FILE` for the credential. Environment variables also support server, CA, engine, project ID, and upload-policy configuration.
 
-The JSON commands use a versioned envelope. Check `ok`; on failure inspect `error.code`, `error.message`, `error.details`, and `error.retryable`. Do not scrape human-readable output when JSON is available.
+Agent-facing commands such as `jobs`, `logs`, `diagnostics`, `artifacts`, and
+`cache` use a versioned JSON envelope. Check `ok`; on failure inspect
+`error.code`, `error.message`, `error.details`, and `error.retryable`.
+
+The compatibility commands `compile`, `files`, `meta`, and `remote clean` still
+use their original top-level JSON shapes. Parse those commands according to
+their documented fields instead of looking for `ok`. Do not scrape
+human-readable output when JSON is available.
 
 `--detach` returns an immutable job. Poll at a reasonable interval and stop on a terminal state. Do not start repeated jobs while an earlier one is still useful.

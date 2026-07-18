@@ -597,9 +597,8 @@ func (s *stdioMCPServer) previewRemoteCleanup(scope string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	digest, err := mcpCleanupReportDigest(report)
-	if err != nil {
-		return nil, err
+	if report.PlanDigest == "" {
+		return nil, errors.New("server does not support atomic remote cleanup plans")
 	}
 	id, err := randomMCPID()
 	if err != nil {
@@ -608,7 +607,7 @@ func (s *stdioMCPServer) previewRemoteCleanup(scope string) (any, error) {
 	expires := s.now().UTC().Add(cleanupPlanTTL)
 	s.remotePlans[id] = mcpRemoteCleanupPlan{
 		ID: id, Scope: scope, ServerScope: serverScope, ProjectID: projectID,
-		ReportDigest: digest, ExpiresAt: expires,
+		ReportDigest: report.PlanDigest, ExpiresAt: expires,
 	}
 	return map[string]any{
 		"planId": id, "scope": scope, "expiresAt": expires, "remote": true,
@@ -636,34 +635,11 @@ func (s *stdioMCPServer) applyRemoteCleanup(planID string) (any, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
-	current, err := s.client.CleanupProject(ctx, plan.ProjectID, plan.ServerScope, true)
-	if err != nil {
-		return nil, err
-	}
-	digest, err := mcpCleanupReportDigest(current)
-	if err != nil {
-		return nil, err
-	}
-	if digest != plan.ReportDigest {
-		return nil, errors.New("remote cleanup targets changed since preview; create a new plan")
-	}
-	report, err := s.client.CleanupProject(ctx, plan.ProjectID, plan.ServerScope, false)
+	report, err := s.client.CleanupProjectWithPlan(ctx, plan.ProjectID, plan.ServerScope, plan.ReportDigest)
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{"planId": plan.ID, "scope": plan.Scope, "remote": true, "report": report}, nil
-}
-
-func mcpCleanupReportDigest(report protocol.CleanupReport) (string, error) {
-	report.DryRun = false
-	report.ReclaimedBytes = 0
-	sort.Strings(report.ActiveJobs)
-	payload, err := json.Marshal(report)
-	if err != nil {
-		return "", err
-	}
-	digest := sha256.Sum256(payload)
-	return hex.EncodeToString(digest[:]), nil
 }
 
 func (s *stdioMCPServer) purgeExpiredManifests() {

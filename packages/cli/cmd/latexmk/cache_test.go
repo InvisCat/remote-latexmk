@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func useTestCleanupPlansDir(t *testing.T) {
@@ -111,5 +115,64 @@ func TestParseCacheArgsRequiresTwoPhaseApply(t *testing.T) {
 	opts = cacheCommandOptions{}
 	if err := parseCacheArgs("clean", []string{"--plan-id", strings.Repeat("a", 32), "--yes", "--dry-run"}, &opts); err == nil {
 		t.Fatal("expected --yes --dry-run conflict to be rejected")
+	}
+}
+
+func TestCleanupPreviewListsBoundedTargetPaths(t *testing.T) {
+	plan := cleanupPlan{ID: strings.Repeat("a", 32), Scope: "local-generated", ExpiresAt: time.Now().UTC()}
+	for i := 0; i < cleanupPreviewMax+2; i++ {
+		plan.Targets = append(plan.Targets, cleanupTarget{Path: fmt.Sprintf("build/file-%02d.aux", i), Size: int64(i + 1)})
+	}
+	var output bytes.Buffer
+	if err := writeCleanupPreview(&output, plan); err != nil {
+		t.Fatal(err)
+	}
+	text := output.String()
+	if !strings.Contains(text, "build/file-00.aux") || !strings.Contains(text, "build/file-19.aux") {
+		t.Fatalf("preview omitted shown paths: %s", text)
+	}
+	if strings.Contains(text, "build/file-20.aux") || !strings.Contains(text, "2 more target(s)") {
+		t.Fatalf("preview was not bounded: %s", text)
+	}
+}
+
+func TestLocalCleanupReportsPartialApplyDetails(t *testing.T) {
+	useTestCleanupPlansDir(t)
+	root := t.TempDir()
+	for _, name := range []string{"a.aux", "b.aux"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plan, err := createLocalCleanupPlan(root, "local-generated")
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldRemove := cleanupRemoveFile
+	cleanupRemoveFile = func(path string) error {
+		if filepath.Base(path) == "b.aux" {
+			return errors.New("injected remove failure")
+		}
+		return os.Remove(path)
+	}
+	t.Cleanup(func() { cleanupRemoveFile = oldRemove })
+
+	result, err := applyLocalCleanupPlan(root, plan.ID)
+	var applyErr *cleanupApplyError
+	if !errors.As(err, &applyErr) {
+		t.Fatalf("error = %T %v", err, err)
+	}
+	if result.Removed != 1 || applyErr.FailedPath != "b.aux" {
+		t.Fatalf("partial result = %#v, error = %#v", result, applyErr)
+	}
+	code, details, _, _ := classifyAgentError(err)
+	if code != "cleanup_apply_failed" || details["removed"] != 1 || details["remainingTargets"] != 1 {
+		t.Fatalf("classified error = %q %#v", code, details)
+	}
+	if _, err := os.Stat(filepath.Join(root, "a.aux")); !os.IsNotExist(err) {
+		t.Fatalf("first target was not removed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "b.aux")); err != nil {
+		t.Fatalf("failed target disappeared: %v", err)
 	}
 }

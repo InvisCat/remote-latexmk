@@ -76,8 +76,10 @@ bounded and artifacts are downloaded by opaque ID.
 
 Local destructive cleanup uses an exact path/size/SHA-256 plan and revalidates
 all targets before deletion. Remote MCP cleanup binds the token-owned project,
-scope, and preview digest, then re-previews immediately before applying. The
-server separately protects active jobs and referenced content-addressed blobs.
+scope, and server-issued preview digest. The server recomputes and compares the
+digest under the same admission lock used for deletion, so a changed plan is
+rejected before any target is removed. The server separately protects active
+jobs and referenced content-addressed blobs.
 
 ## Deployment responsibilities
 

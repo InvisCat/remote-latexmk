@@ -150,7 +150,7 @@ func TestMCPToolArgumentsRejectUnknownFields(t *testing.T) {
 	}
 }
 
-func TestMCPRemoteCleanupUsesPreviewPlanAndDetectsDrift(t *testing.T) {
+func TestMCPRemoteCleanupUsesServerAtomicPlan(t *testing.T) {
 	root := t.TempDir()
 	projectID, err := client.ResolveProjectID(root, true)
 	if err != nil {
@@ -158,6 +158,7 @@ func TestMCPRemoteCleanupUsesPreviewPlanAndDetectsDrift(t *testing.T) {
 	}
 	previewCalls := 0
 	deleteCalls := 0
+	digest := strings.Repeat("a", 64)
 	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/v1/meta":
@@ -167,17 +168,18 @@ func TestMCPRemoteCleanupUsesPreviewPlanAndDetectsDrift(t *testing.T) {
 			})
 		case strings.Contains(r.URL.Path, "/cleanup") && r.Method == http.MethodGet:
 			previewCalls++
-			results := 1
-			if previewCalls == 2 {
-				results = 2
-			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"projectId": projectID,
-				"scope":     "results", "dryRun": true, "results": results, "resultBytes": results * 10,
+				"scope":     "results", "dryRun": true, "results": 1, "resultBytes": 10,
+				"planDigest": digest,
 			})
 		case strings.Contains(r.URL.Path, "/cleanup") && r.Method == http.MethodDelete:
 			deleteCalls++
-			_ = json.NewEncoder(w).Encode(map[string]any{"scope": "results", "dryRun": false})
+			if r.URL.Query().Get("expectedDigest") != digest {
+				t.Fatalf("expectedDigest = %q", r.URL.Query().Get("expectedDigest"))
+			}
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "cleanup targets changed since preview; create a new plan"})
 		default:
 			http.NotFound(w, r)
 		}
@@ -197,7 +199,7 @@ func TestMCPRemoteCleanupUsesPreviewPlanAndDetectsDrift(t *testing.T) {
 	if _, err := server.applyRemoteCleanup(planID); err == nil || !strings.Contains(err.Error(), "changed since preview") {
 		t.Fatalf("drift error = %v", err)
 	}
-	if deleteCalls != 0 {
-		t.Fatalf("delete calls = %d", deleteCalls)
+	if previewCalls != 1 || deleteCalls != 1 {
+		t.Fatalf("preview calls = %d, delete calls = %d", previewCalls, deleteCalls)
 	}
 }
