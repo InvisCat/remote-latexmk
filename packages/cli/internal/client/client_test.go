@@ -443,6 +443,9 @@ func TestCompileUsesQueuedIncrementalProtocol(t *testing.T) {
 	if !output.Result.Success || string(uploaded) != "hello" || len(planned.Files) != 1 {
 		t.Fatalf("queued compile result=%#v upload=%q plan=%#v", output.Result, uploaded, planned)
 	}
+	if got := strings.Join(output.Warnings, "\n"); !strings.Contains(got, "latexmk cache ignore") || !strings.Contains(got, "git clean -fdX") {
+		t.Fatalf("first queued compile warnings = %#v", output.Warnings)
+	}
 	if !planned.Request.RecordInputs {
 		t.Fatal("client did not negotiate recorder INPUT results")
 	}
@@ -491,6 +494,9 @@ func TestStartCompileReturnsImmutableJobWithoutPolling(t *testing.T) {
 	}
 	if out.Job.ID != "job_detach" || out.Job.SnapshotID != "snap_detach" || out.Job.Status != "queued" {
 		t.Fatalf("detached job = %#v", out.Job)
+	}
+	if got := strings.Join(out.Warnings, "\n"); !strings.Contains(got, "latexmk cache ignore") || !strings.Contains(got, "git clean -fdX") {
+		t.Fatalf("first detached compile warnings = %#v", out.Warnings)
 	}
 	if !planned.Request.RecordInputs || !planned.Request.DetectMissingFiles {
 		t.Fatalf("detached request did not negotiate capabilities: %#v", planned.Request)

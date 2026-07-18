@@ -142,6 +142,7 @@ Configure the client and compile:
 ```sh
 cd examples/basic
 ../../../packages/cli/dist/latexmk init --server http://127.0.0.1:8080
+../../../packages/cli/dist/latexmk cache ignore
 ../../../packages/cli/dist/latexmk main.tex
 ```
 
@@ -247,6 +248,13 @@ separate even when the Docker client mounts each one at `/workspace`. Advanced
 users can set `projectId`, `LATEXMK_PROJECT_ID`, or `--project-id`, but IDs must
 not be reused for unrelated papers under the same token.
 
+The client does not edit Git files automatically. Run `latexmk cache ignore`
+once if you want it to append `.latexmk-cache/` to the project `.gitignore`.
+`latexmk doctor` checks the effective Git ignore rules and warns when the cache
+is not ignored. Note that `git clean -fdX` removes ignored cache files,
+including `project-id`; the next queued compile then creates a new remote
+project identity.
+
 If stale history misses a file and the server reports a recognized TeX
 missing-file diagnostic, `auto` mode can make a bounded retry. The client
 resolves the exact request only inside its current policy-filtered manifest and
@@ -347,13 +355,17 @@ Inspect local state and use a two-phase cleanup plan:
 
 ```sh
 latexmk cache inspect --project-root . --json
+latexmk cache ignore --project-root .
 latexmk cache clean --project-root . --scope local-generated --json
 latexmk cache clean --project-root . --plan-id PLAN_ID --yes --json
 ```
 
-The preview records exact path, size, and SHA-256 values for ten minutes. Apply
-refuses to delete anything if a target changed. `local-client-cache` removes
-dependency-discovery state but always preserves `.latexmk-cache/project-id`.
+`cache ignore` is an explicit opt-in operation and never runs automatically.
+It appends the rule only when the effective Git policy does not already ignore
+the project ID. The preview records exact path, size, and SHA-256 values for ten
+minutes. Apply refuses to delete anything if a target changed.
+`local-client-cache` removes dependency-discovery state but always preserves
+`.latexmk-cache/project-id`.
 
 ### Agent Skills and local MCP
 

@@ -118,6 +118,40 @@ func TestParseCacheArgsRequiresTwoPhaseApply(t *testing.T) {
 	}
 }
 
+func TestParseCacheIgnoreAcceptsOnlyLocalOptions(t *testing.T) {
+	opts := cacheCommandOptions{}
+	if err := parseCacheArgs("ignore", []string{"--project-root", ".", "--json"}, &opts); err != nil {
+		t.Fatalf("valid cache ignore options rejected: %v", err)
+	}
+	opts = cacheCommandOptions{}
+	if err := parseCacheArgs("ignore", []string{"--scope", "local-client-cache"}, &opts); err == nil {
+		t.Fatal("cache ignore accepted cleanup options")
+	}
+}
+
+func TestRunCacheIgnoreUpdatesGitIgnore(t *testing.T) {
+	root := t.TempDir()
+	oldCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldCwd) })
+
+	if code := runCache([]string{"ignore"}); code != 0 {
+		t.Fatalf("runCache(ignore) exit = %d", code)
+	}
+	payload, err := os.ReadFile(filepath.Join(root, ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(payload), ".latexmk-cache/") {
+		t.Fatalf(".gitignore = %q", payload)
+	}
+}
+
 func TestCleanupPreviewListsBoundedTargetPaths(t *testing.T) {
 	plan := cleanupPlan{ID: strings.Repeat("a", 32), Scope: "local-generated", ExpiresAt: time.Now().UTC()}
 	for i := 0; i < cleanupPreviewMax+2; i++ {

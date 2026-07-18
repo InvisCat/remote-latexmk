@@ -773,6 +773,9 @@ func runMeta(args []string, doctor bool) int {
 	if err != nil {
 		return fail(err)
 	}
+	if doctor {
+		reportDoctorProjectCache(cwd, cfg.ProjectRoot, hasJSONFlag(args))
+	}
 	server, token, timeout, insecure, caFile, jsonOutput := cfg.Server, cfg.Token, cfg.Timeout, cfg.InsecureSkipVerify, cfg.CAFile, false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -886,7 +889,35 @@ func runInit(args []string) int {
 		return fail(err)
 	}
 	fmt.Println(path)
+	fmt.Fprintln(os.Stderr, "latexmk: recommended: run \"latexmk cache ignore\" to add .latexmk-cache/ to .gitignore")
+	fmt.Fprintln(os.Stderr, "latexmk: warning: \"git clean -fdX\" deletes ignored cache files; the next compile will create a new project ID")
 	return 0
+}
+
+func reportDoctorProjectCache(cwd, configuredRoot string, jsonOutput bool) {
+	root, err := resolveCacheRoot(cwd, configuredRoot)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "latexmk: doctor: could not inspect project cache Git policy: %v\n", err)
+		return
+	}
+	status, err := client.InspectProjectCacheGitIgnore(root)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "latexmk: doctor: could not inspect project cache Git policy: %v\n", err)
+		return
+	}
+	if !status.InWorkTree {
+		if !jsonOutput {
+			fmt.Println("project cache Git ignore: not applicable (not a Git work tree)")
+		}
+		return
+	}
+	if status.Ignored {
+		if !jsonOutput {
+			fmt.Println("project cache Git ignore: configured")
+		}
+		return
+	}
+	fmt.Fprintln(os.Stderr, "latexmk: doctor: "+client.ProjectCacheGitAdvice)
 }
 
 func runClean(args []string) int {
@@ -1070,6 +1101,7 @@ Usage:
   latexmk init [--server URL]
   latexmk clean [main.tex]
   latexmk cache inspect [--project-root DIR] [--json]
+  latexmk cache ignore [--project-root DIR] [--json]
   latexmk cache clean --scope local-generated|local-client-cache [--dry-run] [--json]
   latexmk cache clean --plan-id PLAN_ID --yes [--json]
   latexmk remote clean --scope results|snapshot|project [--yes]

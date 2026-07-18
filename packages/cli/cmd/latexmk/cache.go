@@ -99,10 +99,10 @@ type cacheCommandOptions struct {
 func runCache(args []string) int {
 	jsonOutput := hasJSONFlag(args)
 	if len(args) == 0 {
-		return failAgentArguments("cache", jsonOutput, errors.New("cache requires inspect or clean"))
+		return failAgentArguments("cache", jsonOutput, errors.New("cache requires inspect, ignore, or clean"))
 	}
 	action := args[0]
-	if action != "inspect" && action != "clean" {
+	if action != "inspect" && action != "ignore" && action != "clean" {
 		return failAgentArguments("cache."+action, jsonOutput, fmt.Errorf("unknown cache action %q", action))
 	}
 	cwd, err := os.Getwd()
@@ -113,7 +113,7 @@ func runCache(args []string) int {
 	if err != nil {
 		return failAgent("cache."+action, jsonOutput, err)
 	}
-	opts := cacheCommandOptions{projectRoot: cfg.ProjectRoot, dryRun: true, jsonOutput: jsonOutput}
+	opts := cacheCommandOptions{projectRoot: cfg.ProjectRoot, jsonOutput: jsonOutput}
 	if err := parseCacheArgs(action, args[1:], &opts); err != nil {
 		return failAgentArguments("cache."+action, jsonOutput, err)
 	}
@@ -133,6 +133,25 @@ func runCache(args []string) int {
 			return 0
 		}
 		fmt.Printf("project root: %s\nproject ID: %s\ndependency cache: %t (%d bytes, %d entries)\ngenerated files: %d (%d bytes)\n", inspection.ProjectRoot, inspection.ProjectID, inspection.Dependency.Present, inspection.Dependency.Size, len(inspection.Dependency.Entries), inspection.Generated.Files, inspection.Generated.Bytes)
+		return 0
+	}
+	if action == "ignore" {
+		result, err := client.AddProjectCacheGitIgnore(root)
+		if err != nil {
+			return failAgent("cache.ignore", opts.jsonOutput, err)
+		}
+		if opts.jsonOutput {
+			if err := writeAgentJSON("cache.ignore", result); err != nil {
+				return fail(err)
+			}
+			return 0
+		}
+		if result.Changed {
+			fmt.Printf("added .latexmk-cache/ to %s\n", result.GitIgnore)
+		} else {
+			fmt.Println(".latexmk-cache/project-id is already covered by the effective Git ignore rules")
+		}
+		fmt.Println("warning: git clean -fdX deletes ignored cache files and resets the local project identity")
 		return 0
 	}
 	if opts.yes {
@@ -200,9 +219,9 @@ func parseCacheArgs(action string, args []string, opts *cacheCommandOptions) err
 			return err
 		}
 	}
-	if action == "inspect" {
+	if action == "inspect" || action == "ignore" {
 		if opts.scope != "" || opts.planID != "" || opts.yes || opts.dryRun {
-			return errors.New("cache inspect accepts only --project-root and --json")
+			return fmt.Errorf("cache %s accepts only --project-root and --json", action)
 		}
 		return nil
 	}

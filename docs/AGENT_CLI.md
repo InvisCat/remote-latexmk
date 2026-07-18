@@ -142,6 +142,7 @@ unbounded logs in this envelope.
 
 ```sh
 latexmk cache inspect --project-root . --json
+latexmk cache ignore --project-root . --json
 latexmk cache clean --project-root . --scope local-generated --json
 latexmk cache clean --project-root . --plan-id PLAN_ID --yes --json
 ```
@@ -153,6 +154,12 @@ target is bound by project-relative path, size, and SHA-256. Apply revalidates
 every target before deleting any and rejects a changed, missing, symlinked, or
 expired plan. `local-client-cache` deletes only dependency discovery state and
 preserves the random project ID.
+
+`cache ignore` is the explicit opt-in command that appends `.latexmk-cache/` to
+the project `.gitignore`. Its JSON result reports the absolute project root,
+the `.gitignore` path, and whether the file changed. It is idempotent and does
+not modify an existing effective ignore policy. `git clean -fdX` still removes
+ignored cache files and therefore resets the local project identity.
 
 There is no direct `--scope ... --yes` local cleanup form. The caller must use
 the `planId` returned by preview. Remote cleanup keeps its existing

@@ -340,7 +340,10 @@ func (c *Client) StartCompile(ctx context.Context, request protocol.CompileReque
 	}
 	request.RecordInputs = meta.Capabilities.DependencyInputs
 	request.DetectMissingFiles = meta.Capabilities.NeedsFiles && (c.UploadMode == "" || c.UploadMode == "auto")
-	job, err := c.startQueued(ctx, request, files)
+	job, createdProjectID, err := c.startQueued(ctx, request, files)
+	if createdProjectID {
+		warnings = append(warnings, ProjectCacheGitAdvice)
+	}
 	if err != nil {
 		return StartCompileOutput{Warnings: warnings}, err
 	}
@@ -363,11 +366,15 @@ func (c *Client) StartPreparedCompile(ctx context.Context, request protocol.Comp
 	}
 	request.RecordInputs = meta.Capabilities.DependencyInputs
 	request.DetectMissingFiles = meta.Capabilities.NeedsFiles && (c.UploadMode == "" || c.UploadMode == "auto")
-	job, err := c.startQueued(ctx, request, files)
-	if err != nil {
-		return StartCompileOutput{}, err
+	job, createdProjectID, err := c.startQueued(ctx, request, files)
+	warnings := make([]string, 0, 1)
+	if createdProjectID {
+		warnings = append(warnings, ProjectCacheGitAdvice)
 	}
-	return StartCompileOutput{Job: job}, nil
+	if err != nil {
+		return StartCompileOutput{Warnings: warnings}, err
+	}
+	return StartCompileOutput{Job: job, Warnings: warnings}, nil
 }
 
 func (c *Client) compileOnce(ctx context.Context, request protocol.CompileRequest, outputRoot string, files []projectarchive.File, meta protocol.Metadata) (CompileOutput, error) {
@@ -430,7 +437,10 @@ func (c *Client) compileLegacy(ctx context.Context, request protocol.CompileRequ
 
 func (c *Client) compileQueued(ctx context.Context, request protocol.CompileRequest, outputRoot string, files []projectarchive.File) (CompileOutput, error) {
 	var out CompileOutput
-	job, err := c.startQueued(ctx, request, files)
+	job, createdProjectID, err := c.startQueued(ctx, request, files)
+	if createdProjectID {
+		out.Warnings = append(out.Warnings, ProjectCacheGitAdvice)
+	}
 	if err != nil {
 		return out, err
 	}
@@ -464,20 +474,22 @@ func (c *Client) compileQueued(ctx context.Context, request protocol.CompileRequ
 	return out, nil
 }
 
-func (c *Client) startQueued(ctx context.Context, request protocol.CompileRequest, files []projectarchive.File) (protocol.Job, error) {
+func (c *Client) startQueued(ctx context.Context, request protocol.CompileRequest, files []projectarchive.File) (protocol.Job, bool, error) {
 	var job protocol.Job
+	createdProjectID := false
 	if c.ProjectRoot == "" {
-		return job, errors.New("project root is not configured")
+		return job, createdProjectID, errors.New("project root is not configured")
 	}
 	projectID := c.ProjectID
 	if projectID == "" {
-		resolvedID, resolveErr := ResolveProjectID(c.ProjectRoot, true)
+		resolution, resolveErr := ResolveProjectIDWithStatus(c.ProjectRoot, true)
 		if resolveErr != nil {
-			return job, resolveErr
+			return job, createdProjectID, resolveErr
 		}
-		projectID = resolvedID
+		projectID = resolution.ID
+		createdProjectID = resolution.Created
 	} else if !validProjectID(projectID) {
-		return job, errors.New("configured project ID is invalid")
+		return job, createdProjectID, errors.New("configured project ID is invalid")
 	}
 	planRequest := protocol.UploadPlanRequest{ProjectID: projectID, Request: request, Files: make([]protocol.ProjectFile, 0, len(files))}
 	byDigest := make(map[string]string, len(files))
@@ -489,21 +501,21 @@ func (c *Client) startQueued(ctx context.Context, request protocol.CompileReques
 	}
 	var plan protocol.UploadPlan
 	if err := c.jsonRequest(ctx, http.MethodPost, "/v1/uploads/plans", planRequest, &plan); err != nil {
-		return job, err
+		return job, createdProjectID, err
 	}
 	for _, digest := range plan.Missing {
 		source, ok := byDigest[digest]
 		if !ok {
-			return job, fmt.Errorf("server requested digest absent from manifest: %s", digest)
+			return job, createdProjectID, fmt.Errorf("server requested digest absent from manifest: %s", digest)
 		}
 		if err := c.uploadBlob(ctx, plan.UploadID, digest, source); err != nil {
-			return job, err
+			return job, createdProjectID, err
 		}
 	}
 	if err := c.jsonRequest(ctx, http.MethodPost, "/v1/uploads/"+url.PathEscape(plan.UploadID)+"/commit", nil, &job); err != nil {
-		return job, err
+		return job, createdProjectID, err
 	}
-	return job, nil
+	return job, createdProjectID, nil
 }
 
 func (c *Client) makeMultipart(request protocol.CompileRequest, files []projectarchive.File) (*os.File, string, error) {
