@@ -325,6 +325,19 @@ latexmk remote clean --scope project
 latexmk --json main.tex
 ```
 
+Agent and script integrations can inspect and cancel queued jobs without
+parsing human-readable output:
+
+```sh
+latexmk jobs list --limit 50 --json
+latexmk jobs show JOB_ID --json
+latexmk jobs cancel JOB_ID --json
+```
+
+These new commands use a versioned JSON envelope with stable error codes and a
+`retryable` flag. Existing `compile`, `files`, `meta`, and `remote clean` JSON
+shapes remain unchanged. See [the Agent-facing CLI contract](docs/AGENT_CLI.md).
+
 Remote cleanup is a preview unless `--yes` is present:
 
 ```sh

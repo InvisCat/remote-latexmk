@@ -87,6 +87,8 @@ func run(args []string) int {
 			return runClean(argv[1:])
 		case "remote-clean":
 			return runRemoteClean(argv[1:])
+		case "jobs":
+			return runJobs(argv[1:])
 		case "remote":
 			if len(argv) > 1 && argv[1] == "clean" {
 				return runRemoteClean(argv[2:])
@@ -1001,6 +1003,9 @@ Usage:
   latexmk init [--server URL]
   latexmk clean [main.tex]
   latexmk remote clean --scope results|snapshot|project [--yes]
+  latexmk jobs list [--limit 50] [--json]
+  latexmk jobs show JOB_ID [--json]
+  latexmk jobs cancel JOB_ID [--json]
   latexmk files [options] <main.tex>
   latexmk version
 
