@@ -51,7 +51,7 @@ services:
     restart: unless-stopped
     environment:
       PORT: "8080"
-      LATEXMK_IMAGE_PROFILE: xelatex-cjk-slim
+      LATEXMK_IMAGE_PROFILE: ${LATEXMK_IMAGE_PROFILE:-xelatex-cjk-slim}
       LATEXMK_AUTH_MODE: token
       LATEXMK_API_TOKEN: ${LATEXMK_API_TOKEN:?Set LATEXMK_API_TOKEN in .env}
       LATEXMK_DATABASE_MODE: postgres

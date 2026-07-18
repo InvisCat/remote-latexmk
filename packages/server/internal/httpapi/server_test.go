@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/billstark001/latexmk/packages/server/internal/api"
@@ -30,6 +31,12 @@ func TestProjectCleanupRoutesPreviewAndDelete(t *testing.T) {
 	runner := compile.NewRunner(cfg)
 	queue := jobs.New(cfg, api.Metadata{}, runner, projects, nil, logger)
 	server := New(cfg, api.Metadata{}, runner, auth.New(cfg, nil), nil, projects, queue, logger)
+	healthRequest := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	healthResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(healthResponse, healthRequest)
+	if healthResponse.Code != http.StatusOK || !strings.Contains(healthResponse.Body.String(), `"service":"remote-latexmk"`) {
+		t.Fatalf("health response = %d %s", healthResponse.Code, healthResponse.Body.String())
+	}
 
 	for _, test := range []struct {
 		method string

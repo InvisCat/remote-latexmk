@@ -1,83 +1,298 @@
-# latexmk
+# remote-latexmk — self-hosted remote LaTeX compiler
 
-A remote LaTeX compilation service for small research groups. The local Go CLI
-safely packages a project and sends it to a Go server. The server runs `latexmk`
-in a disposable workspace and returns the PDF, logs, SyncTeX, and allowed
-auxiliary files to the local project.
+<p align="center">
+  <img src="docs/assets/remote-latexmk-hero.svg" alt="remote-latexmk keeps TeX Live on a private server and returns PDFs and diagnostics to lightweight clients" width="100%">
+</p>
 
-The project emphasizes predictable compilation and practical isolation: it does
-not expose a persistent remote workspace, ignores `latexmkrc` files, disables
-shell escape by default, and limits upload size, expansion, concurrency, queued
-jobs, logs, artifacts, and state storage.
+![Status: pre-release](https://img.shields.io/badge/status-pre--release-e69f00)
+![License: MIT](https://img.shields.io/badge/license-MIT-2f81f7)
 
-Each queued job is bound to an immutable content-addressed source snapshot, so
-later uploads to the same project cannot change what an existing job compiles.
+**Keep the large TeX Live installation on a server you control, instead of
+installing and maintaining it on every laptop, container, and AI agent
+environment.** Compile from a small native client, a Docker client, or a local
+MCP server. The client itself does not need TeX Live.
 
-## Self-hosted server quick start
+- Start a private compilation service with Docker Compose.
+- Compile with XeLaTeX or PDFLaTeX by default; use the full image for LuaLaTeX.
+- Upload discovered dependencies rather than an entire paper repository.
+- Respect Git ignore rules, a built-in denylist, project roots, and symlink
+  boundaries.
+- Inspect the exact upload manifest before sending confidential work.
+- Use bounded logs, diagnostics, artifacts, JSON commands, MCP, and Agent
+  Skills with Codex, Claude Code, and OpenCode.
 
-Requirements: Docker with Docker Compose. No local Go, Node.js, pnpm, or TeX
-installation is needed to start the server.
+[Docker quick start](#docker-quick-start-from-source) ·
+[Use your own paper](#compile-your-own-paper) ·
+[Install a client](#install-a-client) ·
+[AI agent setup](#ai-agent-setup) ·
+[Security model](docs/SECURITY.md)
+
+> remote-latexmk is intended for individual researchers and small trusted labs
+> that control the paper, server, and network. It is not a hostile-input public
+> TeX sandbox or an Overleaf-style collaborative editor.
+
+This repository is not the upstream Perl
+[`latexmk`](https://ctan.org/pkg/latexmk) distribution. The server runs that
+tool inside TeX Live; this project provides the remote service, policy-aware
+client, and Agent integrations. The client command remains `latexmk` for
+compatibility.
+
+## Docker quick start from source
+
+Current status: the release workflow is ready, but this branch has no public
+release tag or published GHCR image yet. The honest quick start therefore
+builds the server and client images from source.
+
+Requirements: Git, Docker, Docker Compose, and `curl` for the health check. You
+do not need local Go, Node.js, pnpm, Perl, latexmk, or TeX Live.
 
 ```sh
+git clone https://github.com/OWNER/remote-latexmk.git
+cd remote-latexmk
 cp .env.example .env
+
 # Set LATEXMK_API_TOKEN in .env to a new random value of at least 24 characters.
-docker compose up -d
-curl http://127.0.0.1:8080/healthz
-docker compose run --rm client main.tex
+# For example, `openssl rand -hex 32` prints a suitable value.
+
+docker compose up -d --build
+curl --fail --retry 15 --retry-connrefused --retry-delay 1 \
+  http://127.0.0.1:8080/healthz
+docker compose run --rm --build client main.tex
 ```
 
-After a tagged release has been published in your fork, the same deployment
-can pull versioned GHCR images without building Go or TeX Live layers locally:
+Replace `OWNER` with the account or organization that publishes this fork.
+The last command compiles `examples/basic/main.tex` and returns its PDF to the
+example directory. The first build downloads and builds a TeX Live image, so it
+can take time and use several gigabytes of Docker cache. Later starts reuse the
+image.
+
+The default service binds to `127.0.0.1:8080`. Do not expose it on a public
+interface without a private network, firewall, VPN, or TLS reverse proxy.
+
+## Compile your own paper
+
+Mount an absolute paper directory and pass the entry path relative to that
+directory:
 
 ```sh
-# In .env, set LATEXMK_GHCR_NAMESPACE and an exact LATEXMK_GHCR_VERSION.
-docker compose -f compose.yaml -f compose.ghcr.yaml up -d
-docker compose -f compose.yaml -f compose.ghcr.yaml run --rm client main.tex
+LATEXMK_PROJECT_DIR=/absolute/path/to/paper \
+  docker compose run --rm client main.tex
 ```
 
-The override uses `pull_policy: always`, so an unavailable release fails
-instead of silently building a different local image. Set
-`LATEXMK_GHCR_SERVER_IMAGE` to the full `latexmk-server-full` reference when
-the full TeX Live profile is required. For the strongest deployment pin, replace
-the version tag with the image digest reported by GHCR. Public GHCR packages
-need no login; for private packages, authenticate Docker with a token that has
-`read:packages` before starting Compose.
+If the paper uses ignore rules inherited from a parent Git repository, mount
+that Git root and pass a nested entry path. The client container contains Git
+and CA certificates, but no TeX Live.
 
-The default binds to `127.0.0.1`. Set `LATEXMK_BIND_ADDRESS=0.0.0.0` only when
-a firewall, private LAN, VPN, or TLS reverse proxy protects the service. Source
-blobs and results are stored in the `latexmk-state` named volume. The slim
-self-hosted image enables XeLaTeX and PDFLaTeX by default. The token/state/TeX
-server is attached only to an internal Docker network, so it has no default
-route to the Internet. A separate Caddy `gateway` with no token or state volume
-publishes localhost port 8080. The Compose client and optional HTTPS proxy reach
-the server over the internal network.
-
-The default client command compiles `examples/basic/main.tex`. Set
-`LATEXMK_PROJECT_DIR` in `.env` to an absolute paper directory, then pass the
-entry path relative to that mount. If the paper inherits ignore rules from a
-parent Git repository, mount the repository root and pass a nested entry path.
-The client image contains the Go CLI, Git, and CA certificates, but no TeX Live.
-Use `--no-deps` with `docker compose run` when `LATEXMK_CLIENT_SERVER` points to
-an already-running remote server and the local `server` service is not needed.
-Client containers also join a separate egress network so they can reach a
-remote HTTPS server; the server itself does not join that network.
-
-For continuous compilation, set `LATEXMK_PROJECT_DIR` and
-`LATEXMK_CLIENT_ENTRY`, then start the dedicated watch profile:
+Preview exactly what would be uploaded:
 
 ```sh
-docker compose --profile watch up client-watch
+LATEXMK_PROJECT_DIR=/absolute/path/to/paper \
+  docker compose run --rm client files main.tex
 ```
 
-The watcher compiles once immediately, then polls only the currently selected
-dependency set and its relevant manifest/Git-ignore policy files. A change is
-debounced and submitted as a new immutable job. It does not watch every file in
-the repository or treat a newly created unrelated file as a dependency.
+Use `--no-deps` when the container client points to an already-running remote
+server instead of the Compose server. Set `LATEXMK_CLIENT_SERVER`,
+`LATEXMK_CLIENT_TOKEN`, and any required `LATEXMK_CLIENT_CA_FILE` in `.env`
+first; keep `LATEXMK_PROJECT_DIR` set to the paper:
 
-### Optional private HTTPS
+```sh
+docker compose run --rm --no-deps client main.tex
+```
 
-The `https` profile adds Caddy in front of the server. It creates a private CA
-and keeps its key in the `caddy-data` volume:
+## Install a client
+
+### Docker client
+
+The Compose commands above are the shortest current path. They do not install
+software in the paper directory. They write only returned artifacts and small
+client state under `.latexmk-cache`.
+
+### Native client from source
+
+Building the native client requires Go 1.23+. The resulting binary does not
+need Go or TeX Live at runtime; it needs Git when Git-aware selection is active:
+
+```sh
+mkdir -p "$HOME/.local/bin"
+go build -trimpath -o "$HOME/.local/bin/latexmk" \
+  ./packages/cli/cmd/latexmk
+export PATH="$HOME/.local/bin:$PATH"
+latexmk version
+```
+
+Add `$HOME/.local/bin` to the shell's startup configuration if it is not
+already on `PATH`. The client uses the operating-system CA store for normal
+HTTPS.
+
+Configure one paper and compile it:
+
+```sh
+cd /absolute/path/to/paper
+latexmk init --server http://127.0.0.1:8080
+export LATEXMK_TOKEN='the same token from the server .env'
+latexmk cache ignore
+latexmk files main.tex
+latexmk main.tex
+```
+
+`latexmk cache ignore` is explicit. It appends `.latexmk-cache/` to the project
+`.gitignore` only when needed. `git clean -fdX` deletes ignored cache files and
+therefore resets the local project identity.
+
+### Release binaries
+
+After the first release is published, the workflow attaches checksum-protected
+client archives for Linux, macOS, and Windows on amd64 and arm64. Until then,
+do not present those archives as available downloads. See
+[Publishing](docs/PUBLISHING.md) for the release checklist.
+
+## AI agent setup
+
+Install the client first, or configure the Docker MCP command below. The Skills
+guide agents through manifest review, queued compilation, diagnostics with raw
+log fallback, artifact download, and explicit cleanup previews.
+
+After this fork is public, install both Skills into Codex, Claude Code, and
+OpenCode with the cross-Agent installer:
+
+```sh
+npx skills add OWNER/remote-latexmk -g \
+  --skill remote-latex \
+  --skill remote-latex-maintenance \
+  --agent codex \
+  --agent claude-code \
+  --agent opencode
+```
+
+Review third-party Skill instructions before installing them. The maintenance
+Skill can propose destructive cleanup, but requires a preview and explicit
+confirmation before apply.
+
+Manual user-level locations are:
+
+| Agent | Skill directory |
+|---|---|
+| Codex | `~/.agents/skills/<skill-name>/SKILL.md` |
+| Claude Code | `~/.claude/skills/<skill-name>/SKILL.md` |
+| OpenCode | `~/.config/opencode/skills/<skill-name>/SKILL.md` or `~/.agents/skills/<skill-name>/SKILL.md` |
+
+Codex and OpenCode can discover this repository's checked-in `.agents/skills`
+directories directly. Claude Code needs its native directory, the installer,
+or a future plugin wrapper.
+
+### Local MCP server
+
+The same client binary exposes strict STDIO MCP tools:
+
+```sh
+latexmk mcp serve --stdio --project-root /absolute/path/to/paper
+```
+
+For a Docker-based MCP host, first set `LATEXMK_PROJECT_DIR` in the repository
+`.env` to the paper directory. The following command uses the local Compose
+server and its client token settings:
+
+```sh
+docker compose --project-directory /absolute/path/to/remote-latexmk \
+  run --rm -T client mcp serve --stdio --project-root /workspace
+```
+
+For an existing remote server, also set `LATEXMK_CLIENT_SERVER`,
+`LATEXMK_CLIENT_TOKEN`, and any CA file in `.env`, then add `--no-deps` after
+`run --rm` so Compose does not start its local server.
+
+MCP fixes one project root at startup and exposes structured manifest, compile,
+job, bounded log, diagnostic, artifact, and cleanup operations. It has no tool
+for arbitrary shell commands, URLs, server paths, compiler argument lists, or
+token reads. See [AI Agent integrations](docs/AI_AGENTS.md) and
+[the MCP contract](docs/MCP.md).
+
+## What gets uploaded?
+
+The default `auto` mode starts from the entry file and discovers supported
+literal LaTeX dependencies. Successful remote compiles add workspace-local
+`.fls` input history, and a bounded missing-file retry can add an exact file
+only after the client rechecks its current policy-filtered manifest.
+
+Before any upload, the client applies:
+
+- the selected project root, which defaults to the entry file's directory;
+- Git's tracked, untracked, nested ignore, repository exclude, and global
+  exclude rules;
+- a non-overridable denylist for local configuration, `.env`, key material,
+  client cache, and manifest-policy files;
+- user exclusions and `.latexmkignore`;
+- regular-file, project-boundary, size, and symlink checks.
+
+Inspect the content-addressed manifest without contacting the server:
+
+```sh
+latexmk files main.tex
+latexmk files --json main.tex
+latexmk --dry-run main.tex
+```
+
+Static discovery cannot prove that every custom macro or package reference is
+complete. Use an exact manifest for sensitive or dynamic projects; use
+`--upload-mode all` only as an explicit compatibility fallback after reviewing
+the manifest. See [Dependency discovery](docs/DEPENDENCIES.md).
+
+## Engines and images
+
+| Deployment | Default engines | Notes |
+|---|---|---|
+| Root source Compose | XeLaTeX, PDFLaTeX | Slim CJK-oriented TeX Live image |
+| Full server image | XeLaTeX, LuaLaTeX, PDFLaTeX | Larger TeX Live image; LuaLaTeX runs with `--safer` and `--nosocket` |
+
+When selecting a full GHCR image, set the matching released client image and
+all three server policy values. Then use the base and GHCR Compose files shown
+under [Prebuilt images](#prebuilt-images-and-digest-pinning):
+
+```dotenv
+LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/OWNER/remote-latexmk-server-full:VERSION
+LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/OWNER/remote-latexmk-client:VERSION
+LATEXMK_IMAGE_PROFILE=texlive-full
+LATEXMK_ENGINES=xelatex,lualatex,pdflatex
+```
+
+## Common workflows
+
+```sh
+# Compile once or watch selected dependencies.
+latexmk main.tex
+latexmk watch main.tex
+
+# Inspect server capabilities and local policy health.
+latexmk meta
+latexmk doctor
+
+# Work with immutable queued jobs and bounded diagnostics.
+latexmk compile --detach --json main.tex
+latexmk jobs list --limit 50 --json
+latexmk diagnostics JOB_ID --json
+latexmk logs JOB_ID --tail 200 --max-bytes 65536 --json
+latexmk artifacts list JOB_ID --json
+```
+
+Local and remote deletion are preview-first:
+
+```sh
+latexmk cache inspect --project-root . --json
+latexmk cache clean --project-root . --scope local-generated --json
+latexmk remote clean --scope results
+latexmk remote clean --plan-id PLAN_ID --yes
+```
+
+Both cleanup paths return a ten-minute plan ID. Remote apply accepts only that
+plan ID, not a repeated scope. The server rejects the apply before deletion if
+the remote report changed since preview. A successful apply consumes the plan.
+Active jobs and shared content-addressed blobs remain protected. See
+[Agent-facing CLI](docs/AGENT_CLI.md) for the JSON compatibility boundary and
+full plan lifecycle.
+
+## Private HTTPS
+
+The optional Compose HTTPS profile runs Caddy with a private local CA:
 
 ```sh
 docker compose --profile https up -d proxy
@@ -85,541 +300,88 @@ docker compose cp proxy:/data/caddy/pki/authorities/local/root.crt \
   certs/caddy-local-root.crt
 ```
 
-For the Compose client, set these values in `.env`:
+Distribute only the copied root certificate, never the CA private key. Native
+clients can use `LATEXMK_CA_FILE`; the Compose client can mount the copied
+certificate. See [Operations](docs/OPERATIONS.md) for LAN, VPN, trusted
+certificate, resource, retention, and network guidance.
+
+## Security boundary
+
+- Shell escape is disabled by default and `latexmk -norc` ignores rc files.
+- Every compile uses a fresh temporary workspace and a restricted environment.
+- Queued jobs bind to immutable content-addressed source snapshots.
+- The root Compose server has no normal Internet route; a credential-free
+  gateway publishes the localhost port.
+- Uploads, expanded files, logs, artifacts, jobs, processes, and retained state
+  have limits.
+
+Uploaded snapshots and results are retained until configured expiry or explicit
+cleanup. There is no shared mutable editing workspace, but this is still
+persistent remote storage.
+
+TeX remains a programmable and complex input format. The current server and TeX
+process share one container identity. Do not run this as an anonymous compiler
+for hostile documents without a separate worker sandbox or stronger runtime
+isolation. Read [Security](docs/SECURITY.md) before exposing the service.
+
+## Prebuilt images and digest pinning
+
+After a release exists, set an exact namespace and version:
 
 ```dotenv
-LATEXMK_CLIENT_SERVER=https://latexmk.local:8443
-LATEXMK_CLIENT_CA_FILE=/etc/latexmk/certs/caddy-local-root.crt
+LATEXMK_GHCR_NAMESPACE=OWNER
+LATEXMK_GHCR_VERSION=0.1.0
 ```
 
-Then `docker compose run --rm client main.tex` verifies Caddy's certificate
-against that CA. A native client can use
-`LATEXMK_SERVER=https://localhost:8443` and
-`LATEXMK_CA_FILE=$PWD/certs/caddy-local-root.crt`.
+```sh
+docker compose -f compose.yaml -f compose.ghcr.yaml up -d
+docker compose -f compose.yaml -f compose.ghcr.yaml run --rm client main.tex
+```
 
-HTTPS also binds only to `127.0.0.1` by default. For a private LAN, set
-`LATEXMK_HTTPS_BIND_ADDRESS=0.0.0.0` and `LATEXMK_TLS_HOST` to the DNS name used
-by clients. Distribute only the copied root certificate, never files containing
-the Caddy CA private key. A server with a certificate already trusted by the
-operating system needs no CA-file option.
+For immutable deployment pins, use full `@sha256:` references instead of
+putting a digest in `LATEXMK_GHCR_VERSION`:
 
-## Monorepo
+```dotenv
+LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/OWNER/remote-latexmk-server@sha256:SERVER_DIGEST
+LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/OWNER/remote-latexmk-client@sha256:CLIENT_DIGEST
+```
 
-| Package | Implementation | Purpose |
-|---|---|---|
-| `@latexmk/cli` | Go | Local proxy, `latexmk` command, and engine-symlink compatibility |
-| `@latexmk/server` | Go (Gin + GORM) | Compile API, incremental upload, job queue, metadata, authentication, limits, and PostgreSQL user/token management |
-| `@latexmk/dashboard` | Preact + Vite | Console for jobs, capabilities, members, and API tokens |
-| `@latexmk/deploy` | TypeScript | Standalone OCI/Docker context, Compose file, and deployment configuration generator |
+The release workflow currently builds server images for `linux/amd64`, a
+client image for `linux/amd64` and `linux/arm64`, and native client archives for
+Linux, macOS, and Windows on amd64 and arm64.
 
-The server uses **Gin** and **GORM/pgx** over the PostgreSQL protocol. Full
-PostgreSQL and PGlite socket use the same connection interface. Use full
-PostgreSQL for production; PGlite is limited to one development, demo, or test
-instance. The connection pool is intentionally limited to one connection for
-PGlite compatibility.
+## Documentation
 
-## Development quick start
+- [Architecture and design choices](docs/ARCHITECTURE.md)
+- [AI Agent integrations and discovery](docs/AI_AGENTS.md)
+- [Dependency discovery and upload policy](docs/DEPENDENCIES.md)
+- [MCP tools](docs/MCP.md)
+- [Agent-facing CLI and JSON contracts](docs/AGENT_CLI.md)
+- [HTTP API](docs/API.md)
+- [Operations and HTTPS](docs/OPERATIONS.md)
+- [Security model](docs/SECURITY.md)
+- [Publishing, repository metadata, and social preview](docs/PUBLISHING.md)
+- [Advanced PaaS bundler](packages/deploy/README.md)
 
-Requirements: Go 1.23+, Node.js 22+, pnpm 11, and (for local end-to-end tests)
-`latexmk` plus a TeX engine.
+## Development
+
+Requirements: Go 1.23+, Node.js 22+, and pnpm 11. Local end-to-end tests also
+need a TeX engine and the upstream Perl latexmk tool.
 
 ```sh
 corepack enable pnpm
-pnpm build
+pnpm install --frozen-lockfile
 pnpm test
+pnpm lint
+pnpm build
 ```
 
-Start an explicitly unauthenticated local development server:
-
-```sh
-LATEXMK_AUTH_MODE=none \
-LATEXMK_IMAGE_PROFILE=local-texlive \
-./packages/server/dist/latexmk-server
-```
-
-Configure the client and compile:
-
-```sh
-cd examples/basic
-../../../packages/cli/dist/latexmk init --server http://127.0.0.1:8080
-../../../packages/cli/dist/latexmk cache ignore
-../../../packages/cli/dist/latexmk main.tex
-```
-
-An engine-like symlink is also supported:
-
-```sh
-ln -s /absolute/path/to/latexmk/packages/cli/dist/latexmk ~/.local/bin/xelatex
-xelatex -interaction=nonstopmode main.tex
-```
-
-The CLI selects its engine from its executable name. It validates common flags
-and never passes unknown command-line arguments through to the server shell.
-
-## Use the CLI from Bash
-
-After building the CLI, place a symlink in a directory on Bash's `PATH`. The
-following example uses `~/.local/bin`, keeps the command updated as you rebuild
-the repository, and applies to subsequent Bash sessions:
-
-```sh
-cd /absolute/path/to/latexmk
-pnpm --filter @latexmk/cli build
-
-mkdir -p "$HOME/.local/bin"
-ln -sf "$PWD/packages/cli/dist/latexmk" "$HOME/.local/bin/latexmk"
-touch "$HOME/.bashrc"
-grep -qxF 'export PATH="$HOME/.local/bin:$PATH"' "$HOME/.bashrc" || \
-  printf '\n%s\n' 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-source "$HOME/.bashrc"
-
-command -v latexmk
-latexmk version
-```
-
-Tagged releases attach client archives for Linux, macOS, and Windows on amd64
-and arm64. Each archive contains the client, `LICENSE`, and `README.md`. Verify
-an archive before installing it:
-
-```sh
-# Linux
-sha256sum -c SHA256SUMS --ignore-missing
-# macOS: compare this output with the matching SHA256SUMS line
-shasum -a 256 latexmk_*.tar.gz
-# Windows PowerShell
-Get-FileHash .\latexmk_*.zip -Algorithm SHA256
-```
-
-The native client does not need TeX Live, Go, Node.js, or pnpm at runtime. It
-does need `git` when Git-ignore discovery is enabled (the default inside a Git
-repository), plus the operating system CA store for HTTPS.
-
-Add the `PATH` line only once. If your Bash startup files use `~/.bash_profile`
-instead of `~/.bashrc`, add it there (or source `~/.bashrc` from that file).
-The CLI name intentionally shadows a locally installed TeX Live `latexmk`; use
-the absolute CLI path if you need both in the same shell.
-
-## Client configuration
-
-The CLI first reads the user config at `$XDG_CONFIG_HOME/latexmk/config.json`
-(or the platform user config directory), then searches upward for a project
-`.latexmk.json`:
-
-```json
-{
-  "server": "https://latex.example.edu",
-  "rootMode": "entry",
-  "uploadMode": "auto",
-  "respectGitignore": true,
-  "caFile": "/absolute/path/to/lab-root-ca.pem",
-  "engine": "xelatex",
-  "timeout": "3m",
-  "exclude": [".git", "node_modules", ".latexmk-cache", "*.aux", "*.fdb_latexmk", "*.fls", "*.log", "*.synctex.gz", "*.xdv"]
-}
-```
-
-Without an explicit `projectRoot`, the project root is the directory containing
-the entry TeX file. This prevents a command run in a subdirectory from silently
-uploading its parent Git repository. Set `rootMode` to `git`, pass
-`--root-mode git`, or set `--project-root` to request a wider root explicitly.
-
-`uploadMode: "auto"` selects the entry file and supported literal LaTeX
-dependencies after Git-ignore and deny rules have been applied. It reports
-unresolved recognized dependencies before contacting the server. Missing,
-ignored, and denied references share one `unavailable` diagnostic because the
-scanner does not inspect filtered file contents. `--upload-mode all` uploads
-every policy-allowed candidate and is an explicit compatibility fallback; it
-still does not override the denylist.
-Static scanning cannot prove that custom macros or unsupported packages do not
-load more files. Always inspect `latexmk files` for a sensitive project. See
-[`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md) for supported commands and
-limitations.
-
-Successful compiles cache workspace-local `.fls` INPUT paths in
-`.latexmk-cache/dependencies.json`, keyed by entry and engine. Cached paths must
-still pass the current Git-ignore and deny policies. When history covers a
-dynamic reference, the CLI warns because the path set may be stale; it never
-falls back to `all` automatically.
-
-The first queued compile also creates `.latexmk-cache/project-id`. This is a
-random project identity, not a credential. It stays with the paper directory
-and is never uploaded as a project file. In particular, separate papers remain
-separate even when the Docker client mounts each one at `/workspace`. Advanced
-users can set `projectId`, `LATEXMK_PROJECT_ID`, or `--project-id`, but IDs must
-not be reused for unrelated papers under the same token.
-
-The client does not edit Git files automatically. Run `latexmk cache ignore`
-once if you want it to append `.latexmk-cache/` to the project `.gitignore`.
-`latexmk doctor` checks the effective Git ignore rules and warns when the cache
-is not ignored. Note that `git clean -fdX` removes ignored cache files,
-including `project-id`; the next queued compile then creates a new remote
-project identity.
-
-If stale history misses a file and the server reports a recognized TeX
-missing-file diagnostic, `auto` mode can make a bounded retry. The client
-resolves the exact request only inside its current policy-filtered manifest and
-creates a new immutable snapshot. It never lets the server bypass Git-ignore,
-the denylist, root checks, or symlink checks. Retries stop after 3 rounds, 64
-new files, or 64 MiB. `manifest` mode remains strict and never adds files this
-way.
-
-Use `includeFiles`, repeatable `--include-file`, or a line-based
-`manifestFile`/`--manifest` to add exact project-relative dependencies. In
-`auto` mode they supplement static discovery. `uploadMode: "manifest"` selects
-only the entry file and those explicit files, without reading recorder history
-or inferring any other dependency. Explicit files still must pass Git-ignore,
-denylist, root-boundary, and symlink policy. See
-[`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md).
-
-The project config may contain a `token` for a private, single-user setup. A
-user config, environment variable, or token file is safer when the paper
-directory is committed or shared:
-
-```sh
-export LATEXMK_TOKEN='lm_...'
-# Or mount a Docker/Kubernetes secret and point to it:
-export LATEXMK_TOKEN_FILE=/run/secrets/latexmk_token
-```
-
-Token priority is: CLI `--token`/`--token-file`, `LATEXMK_TOKEN`,
-`LATEXMK_TOKEN_FILE`, user config, then project config. Project settings other
-than the token override user defaults. A token file must contain exactly one
-non-empty token; a trailing newline is accepted.
-
-Standard HTTPS certificates use the operating system trust store. For a lab CA,
-set `caFile`, `LATEXMK_CA_FILE`, or `--ca-file`. `--insecure-skip-verify` remains
-an explicit debugging option and is not needed for the Compose HTTPS profile.
-
-The client does not upload `.latexmk.json`, `.latexmkignore`, `.env` files, or
-common private-key files by default, even when a project replaces the ordinary
-exclude list. In a Git work tree it selects tracked files plus untracked files
-that are not ignored, using Git's own nested, repository-local, and global
-exclude rules. Use `--no-gitignore` only when ignored files are intentional
-compile inputs. Add further exclusions in `.latexmkignore`. Symlinks are not
-followed; the client fails when it encounters one so files outside the project
-root cannot be uploaded.
-
-Inspect the exact content-addressed manifest without contacting the server:
-
-```sh
-latexmk files main.tex
-latexmk files --json main.tex
-latexmk --dry-run main.tex
-latexmk files --upload-mode all main.tex
-```
-
-Continuously compile the same policy-filtered dependency set:
-
-```sh
-latexmk watch main.tex
-latexmk watch --watch-interval 500ms --watch-debounce 500ms main.tex
-```
-
-After each compile the watcher refreshes static, recorder, explicit-manifest,
-and validated `needsFiles` dependencies. Edits made while a remote compile is
-running schedule another immutable compile. Compile failures do not terminate
-the watcher; fix a watched input to retry. `--json` emits one JSON result per
-compile. Restart the watcher after changing `.latexmk.json`, user configuration,
-environment variables, or command-line options.
-
-```sh
-latexmk compile --engine xelatex main.tex
-latexmk watch main.tex
-latexmk main.tex
-latexmk meta
-latexmk doctor
-latexmk clean main.tex
-latexmk remote clean --scope project
-latexmk --json main.tex
-```
-
-Agent and script integrations can inspect and cancel queued jobs without
-parsing human-readable output:
-
-```sh
-latexmk jobs list --limit 50 --json
-latexmk jobs show JOB_ID --json
-latexmk jobs cancel JOB_ID --json
-latexmk compile --detach --json main.tex
-latexmk logs JOB_ID --tail 200 --max-bytes 65536 --json
-latexmk diagnostics JOB_ID --json
-latexmk artifacts list JOB_ID --json
-latexmk artifacts get JOB_ID ARTIFACT_ID --out-dir ./build --json
-```
-
-These new commands use a versioned JSON envelope with stable error codes and a
-`retryable` flag. Existing `compile`, `files`, `meta`, and `remote clean` JSON
-shapes remain unchanged. See [the Agent-facing CLI contract](docs/AGENT_CLI.md).
-
-Inspect local state and use a two-phase cleanup plan:
-
-```sh
-latexmk cache inspect --project-root . --json
-latexmk cache ignore --project-root .
-latexmk cache clean --project-root . --scope local-generated --json
-latexmk cache clean --project-root . --plan-id PLAN_ID --yes --json
-```
-
-`cache ignore` is an explicit opt-in operation and never runs automatically.
-It appends the rule only when the effective Git policy does not already ignore
-the project ID. The preview records exact path, size, and SHA-256 values for ten
-minutes. Apply refuses to delete anything if a target changed.
-`local-client-cache` removes dependency-discovery state but always preserves
-`.latexmk-cache/project-id`.
-
-### Agent Skills and local MCP
-
-The repository provides separate non-destructive compile/debug and destructive
-maintenance skills:
-
-```text
-.agents/skills/remote-latex
-.agents/skills/remote-latex-maintenance
-```
-
-Agents that discover repository-local skills can use them in place. To install
-them for one user, copy those two directories into `~/.agents/skills/`. The
-compile skill requires manifest review, bounded diagnostics with raw-log
-fallback, small edits, and bounded retries. The maintenance skill requires an
-explicit cleanup request and preview before apply.
-
-The same client binary can expose strict local STDIO MCP tools without local
-TeX Live:
-
-```sh
-latexmk mcp serve --stdio --project-root /absolute/path/to/paper
-```
-
-For the Docker client, set `LATEXMK_PROJECT_DIR` and configure the MCP host to
-run:
-
-```sh
-docker compose --project-directory /absolute/path/to/latexmk \
-  run --rm -T client mcp serve --stdio --project-root /workspace
-```
-
-The MCP process locks its project root at startup. Compilation consumes a
-five-minute, one-use manifest ID and rejects it after any selected-file change.
-It has no arbitrary shell, URL, server-path, absolute-output-path, token, or
-compiler-argument tool. See [the native and Docker MCP guide](docs/MCP.md) for
-client configuration, all tools, and cleanup semantics.
-
-`diagnostics` is a bounded, derived index over the complete stdout, stderr, and
-compiler logs. It extracts common TeX errors and warnings with project-relative
-file and source line information when available. Every item includes one or
-more raw `logLocations` with the log source, path, and line range. It does not
-replace `logs`; inspect the raw log whenever the index is incomplete, lacks the
-needed context, or does not recognize an error.
-
-Remote cleanup is a preview unless `--yes` is present:
-
-```sh
-# Remove compiled result archives, but keep job metadata and source snapshot.
-latexmk remote clean --scope results
-latexmk remote clean --scope results --yes
-
-# Remove the current source snapshot and immediately collect unshared blobs.
-latexmk remote clean --scope snapshot --yes
-
-# Remove the snapshot, terminal jobs, results, and unshared source blobs.
-latexmk remote clean --scope project --yes
-
-# The same command through the client container.
-docker compose run --rm client remote clean --scope project
-docker compose run --rm client remote clean --scope project --yes
-```
-
-Snapshot and project deletion refuse to run while that project has queued or
-running jobs. Content-addressed blobs still referenced by another project,
-active upload, or active job are preserved. The API always scopes cleanup to
-the authenticated token owner. For data created before random local project
-IDs were introduced, run the preview with `--legacy-project-id`; use that flag
-only for this migration case.
-
-## Deployment
-
-Build a slim XeLaTeX/CJK context for an existing PostgreSQL service:
-
-```sh
-pnpm --filter @latexmk/deploy build
-node packages/deploy/dist/index.js bundle \
-  --profile slim \
-  --preset railway \
-  --auth postgres --database postgres --external-database \
-  --out dist/paas-slim
-```
-
-The supplied low-cost resource presets are:
-
-| Preset | State storage | Queue / retention policy |
-|---|---|---|
-| `railway-serverless` | ephemeral tmpfs | 1 compiler, 2 queued jobs, results 24 h, snapshots/blobs 48 h |
-| `lightsail-tokyo` | 3 GiB named volume | 1 compiler, 12 queued jobs, seven-day cache retention |
-| `railway` | 512 MiB named volume | 1 compiler, 5 queued jobs, 72-hour cache retention |
-
-Use `--profile full` for the full TeX Live image. The bundler writes
-`.env.example`, `compose.yaml`, and `latexmk-deploy.json`; replace all secret
-placeholders. `--external-database` connects to an already provisioned private
-PostgreSQL service rather than adding another database container.
-
-## Release process
-
-The release workflow runs only for a semantic-version tag such as `v0.1.0`.
-It performs these actions:
-
-- builds deterministic client archives for six OS/architecture targets;
-- writes one `SHA256SUMS` file and GitHub build attestations;
-- publishes `latexmk-server`, `latexmk-server-full`, and multi-architecture
-  `latexmk-client` images under the current repository owner's GHCR namespace;
-- publishes OCI provenance and SBOM attestations for each image;
-- creates or updates the matching GitHub release.
-
-All third-party Actions are pinned to full commit SHAs. Docker build inputs use
-readable tags plus immutable manifest digests. Dependabot is configured to
-propose Action pin updates. Creating a local Git tag alone does not publish
-anything; the workflow runs only after that tag is pushed to GitHub. Protect
-release tags in repository settings before using this flow for public releases.
-
-Client archives are byte-for-byte deterministic for identical source and build
-metadata. Container base images are immutable, but the Dockerfiles still run
-`apt` and, for the slim server, `tlmgr` against package repositories. Therefore
-container provenance is auditable, but a clean rebuild is not yet guaranteed to
-have the same final image digest. A future hardening step can move those package
-installs to dated repository snapshots.
-
-To build and export an OCI/Docker image:
-
-```sh
-node packages/deploy/dist/index.js bundle \
-  --profile slim \
-  --auth token \
-  --out dist/paas-slim \
-  --tag registry.example.edu/latexmk:0.1.0 \
-  --build \
-  --save dist/latexmk-0.1.0.tar
-```
-
-The templates are in `packages/deploy/templates/`. Their default Go, TeX Live,
-Debian, Caddy, PostgreSQL, and Node images are pinned by manifest digest. Update
-each readable tag and digest together; the release tests reject unpinned build
-inputs.
-
-## Server modes
-
-### `none`
-
-Only for an intentionally isolated local development instance. It is not the
-bundler default and cannot be used with a deployment preset.
-
-```sh
-LATEXMK_AUTH_MODE=none
-```
-
-### `token`
-
-One shared Bearer token without a database. This is the secure default.
-
-```sh
-LATEXMK_AUTH_MODE=token
-LATEXMK_API_TOKEN='a random value at least 24 characters long'
-```
-
-### `postgres`
-
-PostgreSQL stores users and API tokens; a bootstrap token provides initial
-administration.
-
-```sh
-LATEXMK_AUTH_MODE=postgres
-LATEXMK_DATABASE_MODE=postgres
-DATABASE_URL='postgres://latexmk:password@postgres:5432/latexmk?sslmode=require'
-LATEXMK_BOOTSTRAP_TOKEN='a random value at least 24 characters long'
-```
-
-Administration endpoints are `GET/POST /v1/admin/users`,
-`PATCH /v1/admin/users/{id}`, and `POST /v1/admin/users/{id}/tokens`. A
-plaintext API token is returned only once, in its creation response.
-
-### PGlite development database
-
-PGlite socket uses the PostgreSQL protocol, so the Go server needs no alternate
-store implementation. It provides neither TLS nor production concurrency.
-
-```sh
-npm install -g @electric-sql/pglite-socket
-pglite-server --db=.latexmk-pglite --host=127.0.0.1 --port=5432
-
-LATEXMK_AUTH_MODE=postgres \
-LATEXMK_DATABASE_MODE=pglite \
-DATABASE_URL='postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable' \
-LATEXMK_BOOTSTRAP_TOKEN='a random value at least 24 characters long' \
-./packages/server/dist/latexmk-server
-```
-
-The bundler supports `--auth postgres --database pglite` for local/demo Compose
-only. The default database mode uses full PostgreSQL.
-
-## Incremental uploads, jobs, and retention
-
-The CLI creates the same validated project manifest as the legacy archive path,
-addresses every file by SHA-256, asks the server for missing hashes, uploads
-only changed content, and commits a project snapshot to a bounded queue. Each
-job runs in a separate workspace. Result archives are available through the job
-API. The synchronous `POST /v1/compile` endpoint remains for v1 clients.
-
-`LATEXMK_STATE_DIR` defaults to `/tmp/latexmk-state`; container bundles normally
-use `/var/lib/latexmk`. `LATEXMK_MAX_STATE_BYTES` is a hard combined source-cache
-and result-archive limit. A periodic sweeper expires results, snapshots, and
-unreferenced blobs according to TTL settings while preserving data referenced by
-a live upload, current project snapshot, or queued/running job snapshot. The
-state directory never stores plaintext API tokens. The authenticated project
-cleanup API can remove retained data before its TTL; the CLI requires an
-explicit scope, previews by default, and requires `--yes` for deletion.
-
-## Dashboard
-
-```sh
-pnpm --filter @latexmk/dashboard dev
-```
-
-The development server proxies `/v1` to the local server. The console can use a
-different API URL and Bearer token, displays jobs and capabilities, downloads
-results, and manages users/tokens in administrator mode. Compilation remains
-submitted through the safe local CLI.
-
-## Metadata
-
-`GET /v1/meta` returns the protocol, server version, commit, build date, image
-profile, engines, resource and cache-retention limits, shell-escape/workspace/
-rc-file policies, toolchain versions, and Go/OS/architecture information. Each
-compile result also contains `serverVersion` and `imageProfile`.
-
-## Security boundaries and limitations
-
-- `latexmk -norc` ignores system, user, and project rc files.
-- Shell escape is disabled by default and compilers receive a restricted
-  environment rather than the PaaS process environment.
-- Upload archives reject absolute paths, `..`, backslashes, duplicates,
-  symlinks, hard links, and special files.
-- Each request gets a disposable directory. Compile process groups are fully
-  terminated after a timeout.
-- The container is non-root; generated Compose settings use a read-only root,
-  tmpfs, dropped capabilities, memory limits, and PID limits.
-- The root self-hosted Compose topology puts the server/TeX process only on an
-  internal backend network. A credential-free gateway publishes HTTP; client
-  containers have a separate egress network. Neither component grants the
-  server a default Internet route.
-- Logs, artifacts, uploads, sessions, queues, and state storage have hard
-  limits. Result artifacts must be workspace-local and allowed by `.fls` or a
-  valid job-name rule.
-
-Enabling shell escape is equivalent to allowing the uploader to run commands in
-the container. Do not enable it unless every compiler is trusted and the PaaS
-has no sensitive credentials, restricted networking, and strong isolation.
-
-Logs are delivered after a job completes; SSE/WebSocket streaming is not yet
-implemented. PGlite is a single-instance development database. Use full
-PostgreSQL for production multi-instance deployments, long retention, or higher
-concurrency.
-
-See `docs/` for full API, operations, and security documentation.
+The repository contains the Go client and server, an optional development
+Dashboard, deployment generators, and Agent integrations. The Dashboard is not
+embedded in the server and is not started by the default Compose quick start.
+Implementation details and selection reasons live in
+[Architecture](docs/ARCHITECTURE.md).
+
+## License
+
+[MIT](LICENSE)

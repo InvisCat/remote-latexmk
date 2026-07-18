@@ -1,6 +1,11 @@
-# Validation report
+# Historical validation report
 
 Validated on 2026-07-16 in the delivery environment.
+
+This report records an earlier implementation checkpoint. Current release
+candidates must run the repository's test, lint, build, Compose, and clean-clone
+quick-start checks again. Private source fixtures are not part of the
+repository.
 
 ## Passed
 
@@ -32,22 +37,19 @@ The slim image was built and exercised live as `latexmk:slim-e2e`.
 
 ### Live compilation checks
 
-- The supplied XeLaTeX project at
-  `~/Desktop/research/ehk_cas2026/tex` uploaded as 19 content-addressed source
-  blobs (972,851 bytes), was queued, compiled in the image, and returned its
-  log/archive artifacts. It reaches the Biber/BibLaTeX pass after loading all
-  document fonts and packages.
-- That exact project currently fails with `exit status 12` because
-  `references.bib` contains the unescaped LaTeX parameter character in
-  `title = {#Republic: ...}`. TeX Live 2026 reports `Illegal parameter number`
-  from the generated `main.bbl`; this is a source-data compatibility error, not
-  an upload, scheduler, font, or container start-up error.
-- Submitting the unchanged project a second time produced a new queued job but
-  left the source blob count, byte total, and blob digest unchanged. This
-  confirms that no source blobs were re-uploaded.
+- A private real-world XeLaTeX fixture, not included in this repository, was
+  uploaded through the content-addressed path, queued, compiled in the image,
+  and returned its log/archive artifacts. It reached the Biber/BibLaTeX pass
+  after loading its fonts and packages.
+- A source-level bibliography compatibility error was surfaced as a normal TeX
+  failure rather than being misclassified as an upload, scheduler, font, or
+  container start-up error.
+- Submitting the unchanged fixture a second time produced a new queued job but
+  left its source blob state unchanged. This confirms that no source blobs were
+  re-uploaded.
 - An isolated control project using the same XeLaTeX/fontspec/unicode-math
-  font setup completed successfully through the remote v2 API. Its downloaded
-  `main.pdf` is a valid PDF 1.7 artifact (5,292 bytes).
+  font setup completed successfully through the remote v2 API and returned a
+  valid PDF artifact.
 
 ## Not exercised here
 

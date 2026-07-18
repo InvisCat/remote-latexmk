@@ -89,7 +89,7 @@ jobs:
       matrix:
         include:
           - name: server
-            image: latexmk-server
+            image: remote-latexmk-server
             file: packages/deploy/templates/Dockerfile.slim
             platforms: linux/amd64
             extra_build_args: |
@@ -98,7 +98,7 @@ jobs:
               GO_IMAGE=golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
               TEXLIVE_IMAGE=texlive/texlive:latest-basic@sha256:eaf1c8098d8600f89a63c2c8b30364bdef2dedffe9ea93065fa8e6f4edcea52b
           - name: server-full
-            image: latexmk-server-full
+            image: remote-latexmk-server-full
             file: packages/deploy/templates/Dockerfile.full
             platforms: linux/amd64
             extra_build_args: |
@@ -107,7 +107,7 @@ jobs:
               GO_IMAGE=golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
               TEXLIVE_IMAGE=texlive/texlive:latest@sha256:d39efa547acfa518072600315280f92357ca8e0b9e295e09b6ccd5f5d82a1373
           - name: client
-            image: latexmk-client
+            image: remote-latexmk-client
             file: packages/cli/Dockerfile
             platforms: linux/amd64,linux/arm64
             extra_build_args: |
@@ -133,8 +133,8 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
           labels: |
-            org.opencontainers.image.title=latexmk ${{ matrix.name }}
-            org.opencontainers.image.description=Private remote LaTeX compiler ${{ matrix.name }} image
+            org.opencontainers.image.title=remote-latexmk ${{ matrix.name }}
+            org.opencontainers.image.description=Self-hosted remote LaTeX compiler ${{ matrix.name }} image
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.validate.outputs.version }}
@@ -200,5 +200,5 @@ jobs:
             gh release create "${GITHUB_REF_NAME}" dist/* \
               --verify-tag \
               --generate-notes \
-              --title "latexmk ${{ needs.validate.outputs.version }}"
+              --title "remote-latexmk ${{ needs.validate.outputs.version }}"
           fi

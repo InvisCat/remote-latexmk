@@ -19,7 +19,7 @@ test('release workflow is tag-only and pins third-party actions', async () => {
   for (const target of ['linux, goarch: amd64', 'linux, goarch: arm64', 'darwin, goarch: amd64', 'darwin, goarch: arm64', 'windows, goarch: amd64', 'windows, goarch: arm64']) {
     assert.ok(workflow.includes(`goos: ${target}`), `missing target ${target}`);
   }
-  for (const image of ['latexmk-server', 'latexmk-server-full', 'latexmk-client']) {
+  for (const image of ['remote-latexmk-server', 'remote-latexmk-server-full', 'remote-latexmk-client']) {
     assert.match(workflow, new RegExp(`image: ${image}(?:\\n|$)`));
   }
   assert.match(workflow, /SHA256SUMS/);
@@ -47,5 +47,11 @@ test('container inputs and GHCR compose path are pinned', async () => {
   const override = await readFile(path.join(root, 'compose.ghcr.yaml'), 'utf8');
   assert.equal((override.match(/pull_policy: always/g) ?? []).length, 3);
   assert.match(override, /ghcr\.io\/\$\{LATEXMK_GHCR_NAMESPACE/);
+  assert.match(override, /remote-latexmk-server/);
+  assert.match(override, /remote-latexmk-client/);
+  assert.match(override, /LATEXMK_GHCR_NAMESPACE:-OWNER/);
+  assert.match(override, /LATEXMK_GHCR_VERSION:-VERSION/);
+  assert.doesNotMatch(override, /billstark001/);
+  assert.doesNotMatch(override, /LATEXMK_GHCR_(?:NAMESPACE|VERSION):\?/);
   assert.doesNotMatch(override, /:latest/);
 });

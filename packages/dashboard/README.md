@@ -1,7 +1,8 @@
 # @latexmk/dashboard
 
-A Preact/Vite administration console for the job queue, server capabilities,
-and administrator user/token management.
+A development Preact/Vite administration console for the remote-latexmk job
+queue, server capabilities, and administrator user/token management. It is not
+included in the root Compose quick start or embedded in the server.
 
 ```sh
 pnpm --filter @latexmk/dashboard dev

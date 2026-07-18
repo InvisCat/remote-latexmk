@@ -48,7 +48,7 @@ function parseBundleOptions(args) {
     auth: 'token',
 		database: 'postgres',
     out: path.resolve(process.cwd(), 'dist', 'latexmk-paas'),
-    tag: 'latexmk-server:local',
+    tag: 'remote-latexmk-server:local',
     build: false,
     save: '',
     force: false,
@@ -286,7 +286,7 @@ ${stateMount}${depends}${database}${volumeSection}`;
 }
 
 function renderReadme(options) {
-  return `# latexmk PaaS bundle
+  return `# remote-latexmk PaaS bundle
 
 Profile: **${options.profile}**  
 Authentication: **${options.auth}**  

@@ -57,9 +57,14 @@ For a research-group instance start with:
 TikZ, complex fonts, Glossaries, Biber, and large images substantially increase
 CPU, memory, and temporary-disk requirements.
 
-## Important environment variables
+## Server binary environment defaults
 
-| Variable | Default |
+The values below are the defaults of the server process when an environment
+variable is absent. The root `compose.yaml` deliberately overrides several of
+them for the self-hosted profile. Use `.env.example` and `compose.yaml` as the
+source of truth for root Compose defaults.
+
+| Variable | Bare server default |
 |---|---|
 | `PORT` | `8080` |
 | `LATEXMK_AUTH_MODE` | `token` |
@@ -91,16 +96,21 @@ server startup instead of silently falling back. A CORS origin must be an exact
 
 ## Image pinning
 
-The examples use a floating TeX Live tag for first builds. Pin a production
-base image by digest:
+The root Compose file and Dockerfiles use readable base-image tags paired with
+immutable digests. When updating a base image, review the upstream release and
+change the tag and digest together. A direct slim server build from the
+repository root uses this command shape:
 
 ```sh
 docker build \
-  --build-arg TEXLIVE_IMAGE='texlive/texlive@sha256:...' \
+  --file packages/deploy/templates/Dockerfile.slim \
+  --build-arg SERVER_SOURCE=packages/server \
+  --build-arg DEPLOY_ASSETS=packages/deploy/templates \
+  --build-arg TEXLIVE_IMAGE='texlive/texlive:TAG@sha256:DIGEST' \
   --build-arg VERSION='0.1.0' \
   --build-arg COMMIT="$(git rev-parse HEAD)" \
   --build-arg BUILD_DATE="$(date -u +%FT%TZ)" \
-  -t registry.example.edu/latexmk:0.1.0 .
+  -t registry.example.edu/remote-latexmk-server:0.1.0 .
 ```
 
 Use `latexmk meta` to verify the remote toolchain actually running the image.

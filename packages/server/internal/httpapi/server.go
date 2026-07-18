@@ -78,7 +78,7 @@ func New(cfg config.Config, meta api.Metadata, runner *compile.Runner, authManag
 func (s *Server) Handler() http.Handler { return s.engine }
 
 func (s *Server) health(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "latexmk"})
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "remote-latexmk"})
 }
 
 func (s *Server) ready(c *gin.Context) {

@@ -45,7 +45,7 @@ func Collect(cfg config.Config, build BuildInfo) api.Metadata {
 	}
 	return api.Metadata{
 		ProtocolVersion: api.ProtocolVersion,
-		Service:         "latexmk",
+		Service:         "remote-latexmk",
 		Version:         build.Version,
 		Commit:          build.Commit,
 		BuildDate:       build.BuildDate,

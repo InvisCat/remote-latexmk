@@ -20,6 +20,8 @@ test('root Compose keeps the compiler server off egress networks', async () => {
   assert.doesNotMatch(gateway, /LATEXMK_API_TOKEN|latexmk-state/);
   assert.match(compose, /latexmk-backend:\n    internal: true/);
   assert.match(compose, /x-client-service:[\s\S]*?- client-egress/);
+  assert.match(server, /LATEXMK_IMAGE_PROFILE: \$\{LATEXMK_IMAGE_PROFILE:-xelatex-cjk-slim\}/);
+  assert.match(server, /LATEXMK_ENGINES: \$\{LATEXMK_ENGINES:-xelatex,pdflatex\}/);
 });
 
 test('HTTP gateway has a fixed internal upstream and no admin endpoint', async () => {
