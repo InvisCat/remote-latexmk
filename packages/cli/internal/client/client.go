@@ -49,12 +49,25 @@ type CompileOutput struct {
 	Warnings []string
 }
 
+type StartCompileOutput struct {
+	Job      protocol.Job
+	Warnings []string
+}
+
 // HTTPError preserves the status code without exposing request credentials.
 // CLI and MCP adapters use it to produce stable machine-readable errors.
 type HTTPError struct {
 	StatusCode int
 	Status     string
 	Message    string
+}
+
+type CapabilityError struct {
+	Capability string
+}
+
+func (e *CapabilityError) Error() string {
+	return fmt.Sprintf("server does not support %s", e.Capability)
 }
 
 func (e *HTTPError) Error() string {
@@ -293,6 +306,30 @@ func (c *Client) Compile(ctx context.Context, request protocol.CompileRequest, o
 	return output, nil
 }
 
+// StartCompile uploads one validated manifest and returns after the server has
+// committed it to an immutable queued job. It never polls or downloads a
+// result, so missing-file retries are left to the caller.
+func (c *Client) StartCompile(ctx context.Context, request protocol.CompileRequest) (StartCompileOutput, error) {
+	files, warnings, err := c.projectManifest(request.Entry, request.Engine)
+	if err != nil {
+		return StartCompileOutput{}, err
+	}
+	meta, err := c.Metadata(ctx)
+	if err != nil {
+		return StartCompileOutput{}, err
+	}
+	if !meta.Capabilities.IncrementalUpload || !meta.Capabilities.QueuedJobs {
+		return StartCompileOutput{}, &CapabilityError{Capability: "detached queued compilation"}
+	}
+	request.RecordInputs = meta.Capabilities.DependencyInputs
+	request.DetectMissingFiles = meta.Capabilities.NeedsFiles && (c.UploadMode == "" || c.UploadMode == "auto")
+	job, err := c.startQueued(ctx, request, files)
+	if err != nil {
+		return StartCompileOutput{Warnings: warnings}, err
+	}
+	return StartCompileOutput{Job: job, Warnings: warnings}, nil
+}
+
 func (c *Client) compileOnce(ctx context.Context, request protocol.CompileRequest, outputRoot string, files []projectarchive.File, meta protocol.Metadata) (CompileOutput, error) {
 	var output CompileOutput
 	var err error
@@ -353,42 +390,8 @@ func (c *Client) compileLegacy(ctx context.Context, request protocol.CompileRequ
 
 func (c *Client) compileQueued(ctx context.Context, request protocol.CompileRequest, outputRoot string, files []projectarchive.File) (CompileOutput, error) {
 	var out CompileOutput
-	if c.ProjectRoot == "" {
-		return out, errors.New("project root is not configured")
-	}
-	projectID := c.ProjectID
-	if projectID == "" {
-		resolvedID, resolveErr := ResolveProjectID(c.ProjectRoot, true)
-		if resolveErr != nil {
-			return out, resolveErr
-		}
-		projectID = resolvedID
-	} else if !validProjectID(projectID) {
-		return out, errors.New("configured project ID is invalid")
-	}
-	planRequest := protocol.UploadPlanRequest{ProjectID: projectID, Request: request, Files: make([]protocol.ProjectFile, 0, len(files))}
-	byDigest := make(map[string]string, len(files))
-	for _, file := range files {
-		planRequest.Files = append(planRequest.Files, protocol.ProjectFile{Path: file.Path, SHA256: file.SHA256, Size: file.Size})
-		if _, exists := byDigest[file.SHA256]; !exists {
-			byDigest[file.SHA256] = file.Source
-		}
-	}
-	var plan protocol.UploadPlan
-	if err := c.jsonRequest(ctx, http.MethodPost, "/v1/uploads/plans", planRequest, &plan); err != nil {
-		return out, err
-	}
-	for _, digest := range plan.Missing {
-		source, ok := byDigest[digest]
-		if !ok {
-			return out, fmt.Errorf("server requested digest absent from manifest: %s", digest)
-		}
-		if err := c.uploadBlob(ctx, plan.UploadID, digest, source); err != nil {
-			return out, err
-		}
-	}
-	var job protocol.Job
-	if err := c.jsonRequest(ctx, http.MethodPost, "/v1/uploads/"+url.PathEscape(plan.UploadID)+"/commit", nil, &job); err != nil {
+	job, err := c.startQueued(ctx, request, files)
+	if err != nil {
 		return out, err
 	}
 	for {
@@ -402,7 +405,8 @@ func (c *Client) compileQueued(ctx context.Context, request protocol.CompileRequ
 			return out, ctx.Err()
 		case <-timer.C:
 		}
-		if err := c.jsonRequest(ctx, http.MethodGet, "/v1/jobs/"+url.PathEscape(job.ID), nil, &job); err != nil {
+		job, err = c.GetJob(ctx, job.ID)
+		if err != nil {
 			return out, err
 		}
 	}
@@ -418,6 +422,48 @@ func (c *Client) compileQueued(ctx context.Context, request protocol.CompileRequ
 		return out, err
 	}
 	return out, nil
+}
+
+func (c *Client) startQueued(ctx context.Context, request protocol.CompileRequest, files []projectarchive.File) (protocol.Job, error) {
+	var job protocol.Job
+	if c.ProjectRoot == "" {
+		return job, errors.New("project root is not configured")
+	}
+	projectID := c.ProjectID
+	if projectID == "" {
+		resolvedID, resolveErr := ResolveProjectID(c.ProjectRoot, true)
+		if resolveErr != nil {
+			return job, resolveErr
+		}
+		projectID = resolvedID
+	} else if !validProjectID(projectID) {
+		return job, errors.New("configured project ID is invalid")
+	}
+	planRequest := protocol.UploadPlanRequest{ProjectID: projectID, Request: request, Files: make([]protocol.ProjectFile, 0, len(files))}
+	byDigest := make(map[string]string, len(files))
+	for _, file := range files {
+		planRequest.Files = append(planRequest.Files, protocol.ProjectFile{Path: file.Path, SHA256: file.SHA256, Size: file.Size})
+		if _, exists := byDigest[file.SHA256]; !exists {
+			byDigest[file.SHA256] = file.Source
+		}
+	}
+	var plan protocol.UploadPlan
+	if err := c.jsonRequest(ctx, http.MethodPost, "/v1/uploads/plans", planRequest, &plan); err != nil {
+		return job, err
+	}
+	for _, digest := range plan.Missing {
+		source, ok := byDigest[digest]
+		if !ok {
+			return job, fmt.Errorf("server requested digest absent from manifest: %s", digest)
+		}
+		if err := c.uploadBlob(ctx, plan.UploadID, digest, source); err != nil {
+			return job, err
+		}
+	}
+	if err := c.jsonRequest(ctx, http.MethodPost, "/v1/uploads/"+url.PathEscape(plan.UploadID)+"/commit", nil, &job); err != nil {
+		return job, err
+	}
+	return job, nil
 }
 
 func (c *Client) makeMultipart(request protocol.CompileRequest, files []projectarchive.File) (*os.File, string, error) {
