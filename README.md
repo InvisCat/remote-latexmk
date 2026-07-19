@@ -12,11 +12,10 @@ containers, and coding agents through a native client, Docker, or MCP. Preview
 dependency-aware uploads and receive PDFs, logs, and diagnostics without
 installing TeX Live in each environment.
 
-## Docker quick start from source
+## Docker quick start
 
-Current status: the release workflow is ready, but this branch has no public
-release tag or published GHCR image yet. The honest quick start therefore
-builds the server and client images from source.
+The current public release candidate is `v0.2.0-rc.1`. The copied `.env` uses
+its pinned server and client images by default.
 
 Requirements: Git, Docker, Docker Compose, and `curl` for the health check. You
 do not need local Go, Node.js, pnpm, Perl, latexmk, or TeX Live.
@@ -29,19 +28,26 @@ cp .env.example .env
 # Set LATEXMK_API_TOKEN in .env to a new random value of at least 24 characters.
 # For example, `openssl rand -hex 32` prints a suitable value.
 
-docker compose up -d --build
+docker compose up -d
 curl --fail --retry 15 --retry-connrefused --retry-delay 1 \
   http://127.0.0.1:8080/healthz
-docker compose run --rm --build client main.tex
+docker compose run --rm client main.tex
 ```
 
 The last command compiles `examples/basic/main.tex` and returns its PDF to the
-example directory. The first build downloads and builds a TeX Live image, so it
-can take time and use several gigabytes of Docker cache. Later starts reuse the
-image.
+example directory. The first pull can take time because the server image
+contains TeX Live. Later starts reuse the local image.
 
 The default service binds to `127.0.0.1:8080`. Do not expose it on a public
 interface without a private network, firewall, VPN, or TLS reverse proxy.
+
+To build the server and client from the current checkout instead, select only
+the source Compose file explicitly:
+
+```sh
+docker compose -f compose.yaml up -d --build
+docker compose -f compose.yaml run --rm --build client main.tex
+```
 
 ## Compile your own paper
 
@@ -115,10 +121,10 @@ therefore resets the local project identity.
 
 ### Release binaries
 
-After the first release is published, the workflow attaches checksum-protected
-client archives for Linux, macOS, and Windows on amd64 and arm64. Until then,
-do not present those archives as available downloads. See
-[Publishing](docs/PUBLISHING.md) for the release checklist.
+The [`v0.2.0-rc.1` prerelease](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.2.0-rc.1)
+provides client archives for Linux, macOS, and Windows on amd64 and arm64.
+Verify downloads with the attached `SHA256SUMS`. See
+[Publishing](docs/PUBLISHING.md) for the release process.
 
 ## AI agent setup
 
@@ -300,7 +306,8 @@ isolation. Read [Security](docs/SECURITY.md) before exposing the service.
 
 ## Prebuilt images and digest pinning
 
-After a release exists, set an exact namespace and version:
+The copied `.env` already selects the release pinned in `compose.ghcr.yaml`.
+To select an exact version explicitly, set:
 
 ```dotenv
 LATEXMK_GHCR_NAMESPACE=inviscat

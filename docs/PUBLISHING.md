@@ -1,9 +1,8 @@
 # Publishing remote-latexmk
 
-This repository is currently pre-release. There is no public release tag,
-GHCR image, or downloadable client binary assumed by the documentation. This
-checklist turns those paths on without advertising artifacts that do not yet
-exist.
+This repository is pre-release. The first public release candidate is
+`v0.2.0-rc.1`, with GHCR images and downloadable client archives. This guide
+keeps later release updates consistent with those published paths.
 
 ## Repository identity
 
@@ -43,7 +42,7 @@ Upload `docs/assets/remote-latexmk-social-preview.png` as the GitHub social
 preview. Its source is `docs/assets/remote-latexmk-hero.svg`. Keep the product
 name and main motivation readable when the preview is shown at a small size.
 
-## Before the first tag
+## Repository release checklist
 
 1. Create or rename the public fork to `remote-latexmk`.
 2. Confirm public links use `InvisCat/remote-latexmk` and GHCR image paths use

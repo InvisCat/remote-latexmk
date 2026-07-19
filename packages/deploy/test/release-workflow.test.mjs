@@ -55,6 +55,7 @@ test('container inputs and GHCR compose path are pinned', async () => {
     }
   }
   const override = await readFile(path.join(root, 'compose.ghcr.yaml'), 'utf8');
+  const envExample = await readFile(path.join(root, '.env.example'), 'utf8');
   assert.equal((override.match(/pull_policy: always/g) ?? []).length, 3);
   assert.match(override, /ghcr\.io\/\$\{LATEXMK_GHCR_NAMESPACE/);
   assert.match(override, /remote-latexmk-server/);
@@ -64,4 +65,6 @@ test('container inputs and GHCR compose path are pinned', async () => {
   assert.doesNotMatch(override, /billstark001/);
   assert.doesNotMatch(override, /LATEXMK_GHCR_(?:NAMESPACE|VERSION):\?/);
   assert.doesNotMatch(override, /:latest/);
+  assert.match(envExample, /^COMPOSE_PATH_SEPARATOR=:\s*$/m);
+  assert.match(envExample, /^COMPOSE_FILE=compose\.yaml:compose\.ghcr\.yaml\s*$/m);
 });
