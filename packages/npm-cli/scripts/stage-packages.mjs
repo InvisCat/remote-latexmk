@@ -51,8 +51,11 @@ async function rewriteSkillCommands(directory) {
     else if (entry.isFile() && entry.name.endsWith('.md')) {
       const content = await readFile(target, 'utf8');
       await writeFile(target, content
-        .replace('client command named `latexmk`', 'npm launcher command named `remote-latexmk`')
-        .replace(/\blatexmk(?= (?:doctor|meta|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, 'remote-latexmk'));
+        .replace(
+          /Use the remote-latexmk client command named `latexmk`\. Do not invoke the\s+unrelated TeX Live command with the same name\./g,
+          'Use the npm launcher command named `remote-latexmk`. Do not invoke the unrelated TeX Live `latexmk` command.',
+        )
+        .replace(/\blatexmk(?= (?:auth|setup|doctor|meta|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, 'remote-latexmk'));
     }
   }
 }
@@ -66,7 +69,7 @@ async function stageMain(options) {
   await cp(path.join(packageRoot, 'README.md'), path.join(target, 'README.md'));
   await cp(path.join(repositoryRoot, 'LICENSE'), path.join(target, 'LICENSE'));
   await mkdir(path.join(target, 'bundled-skills'), { recursive: true });
-  for (const name of ['remote-latex', 'remote-latex-maintenance']) {
+  for (const name of ['remote-latex', 'remote-latex-maintenance', 'remote-latex-server', 'remote-latex-setup']) {
     await cp(path.join(repositoryRoot, '.agents', 'skills', name), path.join(target, 'bundled-skills', name), { recursive: true });
   }
   await rewriteSkillCommands(path.join(target, 'bundled-skills'));

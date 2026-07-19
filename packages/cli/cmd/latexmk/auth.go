@@ -105,27 +105,7 @@ func verifyAuthLogin(server, token string, current config.FileConfig) (protocol.
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), authLoginTimeout)
 	defer cancel()
-	if err := remote.Health(ctx); err != nil {
-		return protocol.Metadata{}, fmt.Errorf("server health check failed: %w", err)
-	}
-	metadata, err := remote.Metadata(ctx)
-	if err != nil {
-		return protocol.Metadata{}, fmt.Errorf("server metadata check failed: %w", err)
-	}
-	if metadata.Service != "remote-latexmk" {
-		return protocol.Metadata{}, fmt.Errorf("server identifies as %q, not remote-latexmk", metadata.Service)
-	}
-	if metadata.ProtocolVersion != protocol.Version {
-		return protocol.Metadata{}, fmt.Errorf(
-			"server protocol v%d does not match client protocol v%d",
-			metadata.ProtocolVersion,
-			protocol.Version,
-		)
-	}
-	if _, err := remote.ListJobs(ctx, 1); err != nil {
-		return protocol.Metadata{}, fmt.Errorf("remote-latexmk API token verification failed: %w", err)
-	}
-	return metadata, nil
+	return verifyRemoteAccess(ctx, remote)
 }
 
 func parseAuthLoginArgs(args []string) (authLoginOptions, bool, error) {

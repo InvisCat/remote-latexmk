@@ -847,12 +847,12 @@ func runMeta(args []string, doctor bool) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	var meta protocol.Metadata
 	if doctor {
-		if err := c.Health(ctx); err != nil {
-			return fail(fmt.Errorf("health check failed: %w", err))
-		}
+		meta, err = verifyRemoteAccess(ctx, c)
+	} else {
+		meta, err = c.Metadata(ctx)
 	}
-	meta, err := c.Metadata(ctx)
 	if err != nil {
 		return fail(err)
 	}

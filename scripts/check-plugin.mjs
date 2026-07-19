@@ -29,9 +29,10 @@ assert.ok(!mcpConfig.args.includes('--project-root'));
 assert.equal(mcpConfig.env, undefined);
 
 for (const file of [
-  'skills/setup/SKILL.md',
   'skills/remote-latex/SKILL.md',
   'skills/remote-latex-maintenance/SKILL.md',
+  'skills/remote-latex-server/SKILL.md',
+  'skills/remote-latex-setup/SKILL.md',
 ]) {
   const content = await readFile(path.join(pluginRoot, file), 'utf8');
   assert.ok(!content.includes('[TODO:'), `${file} contains a TODO placeholder`);

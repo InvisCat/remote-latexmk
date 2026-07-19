@@ -187,7 +187,7 @@ async function installSkills(agents, options) {
   const sourceRoot = await skillSourceRoot();
   for (const agent of agents) {
     const destinationRoot = skillDestination(agent, os.homedir());
-    for (const name of ['remote-latex', 'remote-latex-maintenance']) {
+    for (const name of ['remote-latex', 'remote-latex-maintenance', 'remote-latex-server', 'remote-latex-setup']) {
       await installSkill(path.join(sourceRoot, name), path.join(destinationRoot, name), options);
     }
   }

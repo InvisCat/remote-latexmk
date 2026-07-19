@@ -55,8 +55,8 @@ npm exec --yes --ignore-scripts \
 
 The npm package selects a platform binary through `optionalDependencies`; it
 does not reimplement MCP or upload policy in JavaScript. The Codex and Claude
-Code Plugins bundle this command, the setup Skill, and the compile and
-maintenance Skills:
+Code Plugins bundle this command with separate client setup, server operation,
+compile, and maintenance Skills:
 
 ```sh
 codex plugin marketplace add InvisCat/remote-latexmk
@@ -74,8 +74,8 @@ npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 auth login --server https:/
 ```
 
 The MCP process reads the resulting user-level server URL and token-file path.
-The setup Skill can also preview and record an existing user-managed token file
-and optional private CA.
+The `remote-latex-setup` Skill can also preview and record an existing
+user-managed token file and optional private CA.
 
 For OpenCode or a host without native Plugin support, the project-bound Agent
 installer remains available:
@@ -136,7 +136,7 @@ The Compose client image contains the Go binary, Git, and CA certificates, but n
 | Tool | Effect |
 | --- | --- |
 | `project_manifest` | Build the exact filtered file set and issue a five-minute, one-use manifest ID |
-| `server_status` | Read health and public compiler metadata |
+| `server_status` | Verify health, service identity, protocol compatibility, configured authentication, and compiler metadata |
 | `job_list`, `job_get` | Read bounded job state |
 | `job_logs` | Read bounded stdout, stderr, or compiler logs |
 | `job_diagnostics` | Read the structured diagnostic index and raw-log locations |

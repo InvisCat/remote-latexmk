@@ -23,7 +23,7 @@ test('Agent installer rejects unknown agents and ambiguous names', () => {
   assert.throws(() => parseAgentInstallArgs(['--name', 'bad name'], {}), /unsupported characters/);
 });
 
-test('OpenCode setup preserves JSONC comments and installs both Skills', async () => {
+test('OpenCode setup preserves JSONC comments and installs all bundled Skills', async () => {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'remote-latexmk-agent-'));
   const project = path.join(temp, 'paper');
   const token = path.join(temp, 'token');
@@ -53,7 +53,7 @@ test('OpenCode setup preserves JSONC comments and installs both Skills', async (
   assert.equal(config.mcp['remote-latexmk'].type, 'local');
   assert.equal(config.mcp['remote-latexmk'].command[0], 'npm');
   assert.equal(config.mcp['remote-latexmk'].environment.LATEXMK_TOKEN_FILE, await realpath(token));
-  for (const skill of ['remote-latex', 'remote-latex-maintenance']) {
+  for (const skill of ['remote-latex', 'remote-latex-maintenance', 'remote-latex-server', 'remote-latex-setup']) {
     assert.match(await readFile(path.join(configRoot, 'opencode', 'skills', skill, 'SKILL.md'), 'utf8'), /^---/);
   }
   assert.equal((await readdir(path.dirname(configPath))).some((name) => name.startsWith('opencode.json.backup-')), true);

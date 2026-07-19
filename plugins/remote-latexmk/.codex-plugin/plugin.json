@@ -31,7 +31,7 @@
     "defaultPrompt": [
       "Check my saved Remote LaTeX login for this workspace.",
       "Preview and compile this LaTeX project.",
-      "Diagnose the latest LaTeX compile failure."
+      "Install or troubleshoot my private Remote LaTeX server."
     ],
     "brandColor": "#67E8C5"
   },

@@ -56,7 +56,7 @@ name and main motivation readable when the preview is shown at a small size.
    value only from the latest tree does not remove it from Git history.
 6. Run the full validation suite described in `VALIDATION.md`.
 7. Test the source-build Compose quick start from a clean clone.
-8. Test both Skills from a clean checkout and validate the native and Docker
+8. Test all four Skills from a clean checkout and validate the native and Docker
    MCP examples.
 9. Confirm that the release workflow has permission to write packages and
    create releases.
@@ -107,8 +107,8 @@ claude plugin validate plugins/remote-latexmk
 claude plugin validate .
 ```
 
-Run the Skill validator for `setup`, `remote-latex`, and
-`remote-latex-maintenance`. The root test command also runs
+Run the Skill validator for `remote-latex`, `remote-latex-maintenance`,
+`remote-latex-server`, and `remote-latex-setup`. The root test command also runs
 `sync-plugin-skills.mjs --check` so stale generated Plugin Skills fail CI.
 
 ## npm trusted publishing
@@ -156,6 +156,8 @@ Only after the artifacts exist:
    npx skills add InvisCat/remote-latexmk -g \
      --skill remote-latex \
      --skill remote-latex-maintenance \
+     --skill remote-latex-server \
+     --skill remote-latex-setup \
      --agent codex \
      --agent claude-code \
      --agent opencode

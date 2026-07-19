@@ -146,13 +146,14 @@ use the npm command. The repository's original Skills retain `latexmk` for
 native archive and source-build users.
 
 The repository also contains one Plugin directory shared by the Codex and
-Claude Code marketplace manifests. It bundles the npm-backed MCP command, a
-setup Skill, and generated copies of the compile and maintenance Skills. An
-interactive `auth login` command reads the token with terminal echo disabled,
-verifies the service and token through read-only endpoints, writes it to a
-private client file, and stores only that file path and the server URL in user
-configuration. The setup Skill can instead preview and record an existing
-token-file path; it never reads or stores the token value.
+Claude Code marketplace manifests. It bundles the npm-backed MCP command and
+generated copies of the client setup, server operation, compile, and
+maintenance Skills. An interactive `auth login` command reads the token with
+terminal echo disabled, verifies the service and token through read-only
+endpoints, writes it to a private client file, and stores only that file path
+and the server URL in user configuration. The client setup Skill can instead
+preview and record an existing token-file path; it never reads or stores the
+token value.
 
 The older Agent installer remains for OpenCode and custom fixed-root setups. It
 binds MCP to one resolved project root, accepts credentials only by token-file
@@ -353,15 +354,19 @@ not stored in a paper manifest or returned by metadata endpoints.
 
 ## Agent interfaces
 
-The repository provides two Agent Skills:
+The repository provides four Agent Skills:
 
 - `remote-latex` for manifest inspection, compilation, diagnostics, logs, and
   artifact download;
-- `remote-latex-maintenance` for previewed local or remote cleanup.
+- `remote-latex-maintenance` for previewed local or remote cleanup;
+- `remote-latex-server` for server deployment, operation, networking, TLS, and
+  server-side troubleshooting;
+- `remote-latex-setup` for client login, CA configuration, and connection
+  troubleshooting.
 
 Skills contain workflow instructions. They do not install the client or create
 a network connection by themselves. The separate npm Agent installer can copy
-those Skills and register an npm-backed local MCP command.
+the Skills and register an npm-backed local MCP command.
 
 The local STDIO MCP server exposes strict tools for manifests, jobs, bounded
 logs, diagnostics, artifacts, compile start, cancellation, and two-phase

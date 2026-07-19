@@ -20,8 +20,11 @@ test('npm staging requires an immutable semantic version', () => {
 });
 
 test('bundled npm Skills use the non-conflicting launcher command', async () => {
-  const skill = await readFile(path.join(packageRoot, 'bundled-skills', 'remote-latex', 'SKILL.md'), 'utf8');
-  assert.match(skill, /npm launcher command named `remote-latexmk`/);
-  assert.match(skill, /remote-latexmk doctor/);
-  assert.doesNotMatch(skill, /`latexmk doctor`/);
+  for (const name of ['remote-latex', 'remote-latex-maintenance', 'remote-latex-server', 'remote-latex-setup']) {
+    const skill = await readFile(path.join(packageRoot, 'bundled-skills', name, 'SKILL.md'), 'utf8');
+    assert.doesNotMatch(skill, /(?:^|[`\n])latexmk (?:auth|setup|doctor|meta|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)/m);
+  }
+  const compileSkill = await readFile(path.join(packageRoot, 'bundled-skills', 'remote-latex', 'SKILL.md'), 'utf8');
+  assert.match(compileSkill, /npm launcher command named `remote-latexmk`/);
+  assert.match(compileSkill, /remote-latexmk doctor/);
 });

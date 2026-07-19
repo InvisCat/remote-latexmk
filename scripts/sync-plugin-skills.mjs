@@ -1,20 +1,37 @@
-import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { access, cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sourceRoot = path.join(repositoryRoot, '.agents/skills');
 const destinationRoot = path.join(repositoryRoot, 'plugins/remote-latexmk/skills');
-const skillNames = ['remote-latex', 'remote-latex-maintenance'];
+const skillNames = [
+  'remote-latex',
+  'remote-latex-maintenance',
+  'remote-latex-server',
+  'remote-latex-setup',
+];
+const legacySkillNames = ['setup'];
 const launcher = 'npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1';
 const checkOnly = process.argv.includes('--check');
 
 if (checkOnly) {
+  for (const name of legacySkillNames) {
+    try {
+      await access(path.join(destinationRoot, name));
+      throw new Error(`Legacy Plugin Skill still exists: ${name}`);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
   for (const name of skillNames) {
     await checkSkill(path.join(sourceRoot, name), path.join(destinationRoot, name));
   }
 } else {
   await mkdir(destinationRoot, { recursive: true });
+  for (const name of legacySkillNames) {
+    await rm(path.join(destinationRoot, name), { recursive: true, force: true });
+  }
   for (const name of skillNames) {
     const destination = path.join(destinationRoot, name);
     await rm(destination, { recursive: true, force: true });
@@ -42,10 +59,10 @@ function rewriteMarkdown(content) {
       `Use the npm launcher for every CLI fallback. Confirm \`${launcher} help\` describes the remote compiler before continuing.`,
     )
     .replace(
-      'Use the remote-latexmk client command named `latexmk`. Do not invoke the unrelated TeX Live command with the same name.',
+      /Use the remote-latexmk client command named `latexmk`\. Do not invoke the\s+unrelated TeX Live command with the same name\./g,
       `Use the npm launcher \`${launcher}\` for CLI fallbacks. Do not invoke the unrelated TeX Live \`latexmk\` command.`,
     )
-    .replace(/\blatexmk(?= (?:doctor|meta|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, launcher);
+    .replace(/\blatexmk(?= (?:auth|setup|doctor|meta|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, launcher);
 }
 
 async function checkSkill(source, destination) {

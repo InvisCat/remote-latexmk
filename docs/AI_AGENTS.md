@@ -52,9 +52,10 @@ verifies the server and token before writing a private client token file and
 user configuration outside the paper. It does not put the token in shell
 history, a command argument, or `config.json`.
 
-Start a new Agent session from the paper directory after login. The `setup`
-Skill first checks the saved login. If login is missing, it tells the user to
-run the interactive command locally and never asks for the token in chat. The
+Start a new Agent session from the paper directory after login. The
+`remote-latex-setup` Skill checks service identity, protocol compatibility,
+and the saved authentication. If login is missing, it tells the user to run
+the interactive command locally and never asks for the token in chat. The
 older preview/apply setup path remains available for a user-managed token file
 or private CA.
 
@@ -108,7 +109,7 @@ selected for upload.
 ## 3. Other Agents and project-bound setup
 
 OpenCode and custom Agent environments can run the npm client directly. For a
-single paper, the older installer can add both Skills and a fixed-root MCP
+single paper, the older installer can add all bundled Skills and a fixed-root MCP
 entry to detected Codex, Claude Code, or OpenCode configurations:
 
 ```sh
@@ -132,12 +133,14 @@ List the available skills before installation if desired:
 npx skills add InvisCat/remote-latexmk --list
 ```
 
-Install both skills globally for Codex, Claude Code, and OpenCode:
+Install all skills globally for Codex, Claude Code, and OpenCode:
 
 ```sh
 npx skills add InvisCat/remote-latexmk -g \
   --skill remote-latex \
   --skill remote-latex-maintenance \
+  --skill remote-latex-server \
+  --skill remote-latex-setup \
   --agent codex \
   --agent claude-code \
   --agent opencode
@@ -152,9 +155,12 @@ The installed skills have separate responsibilities:
 | --- | --- |
 | `remote-latex` | Manifest review, compile start, job status, diagnostics, raw logs, and artifact download |
 | `remote-latex-maintenance` | Explicitly requested local or remote inspection and two-stage cleanup |
+| `remote-latex-server` | Native or Docker server deployment, service operation, private networking, TLS, and server-side troubleshooting |
+| `remote-latex-setup` | Client login, token and CA configuration, and connection-error routing |
 
-The maintenance skill is not part of a normal compile. Cleanup should start
-only when the user asks to inspect or delete state.
+The maintenance and server Skills are not part of a normal compile. Cleanup
+starts only when the user asks to inspect or delete state. Server deployment
+changes require a separate server-administration request.
 
 ### Manual installation fallback
 
@@ -169,17 +175,19 @@ are the native user-level locations:
 
 OpenCode also discovers the Agent Skills compatible locations
 `~/.agents/skills/` and `.agents/skills/`. For a manual global installation,
-copy both repository directories to the location used by the selected agent:
+copy the repository directories to the location used by the selected agent:
 
 ```text
 .agents/skills/remote-latex/
 .agents/skills/remote-latex-maintenance/
+.agents/skills/remote-latex-server/
+.agents/skills/remote-latex-setup/
 ```
 
 Restart the agent if newly installed skills do not appear. With Codex, mention
 `$remote-latex` explicitly. With Claude Code, use `/remote-latex`. OpenCode can
-load the skill when the request matches its description or when asked to use
-`remote-latex`.
+load a Skill when the request matches its description or when asked to use its
+name.
 
 ## Skills, MCP, and JSON CLI
 

@@ -9,7 +9,7 @@ const destination = path.join(packageRoot, 'bundled-skills');
 
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
-for (const name of ['remote-latex', 'remote-latex-maintenance']) {
+for (const name of ['remote-latex', 'remote-latex-maintenance', 'remote-latex-server', 'remote-latex-setup']) {
   await cp(path.join(source, name), path.join(destination, name), { recursive: true });
 }
 
@@ -20,8 +20,11 @@ async function rewriteCommands(directory) {
     else if (entry.isFile() && entry.name.endsWith('.md')) {
       const content = await readFile(target, 'utf8');
       const rewritten = content
-        .replace('client command named `latexmk`', 'npm launcher command named `remote-latexmk`')
-        .replace(/\blatexmk(?= (?:doctor|meta|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, 'remote-latexmk');
+        .replace(
+          /Use the remote-latexmk client command named `latexmk`\. Do not invoke the\s+unrelated TeX Live command with the same name\./g,
+          'Use the npm launcher command named `remote-latexmk`. Do not invoke the unrelated TeX Live `latexmk` command.',
+        )
+        .replace(/\blatexmk(?= (?:auth|setup|doctor|meta|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, 'remote-latexmk');
       await writeFile(target, rewritten);
     }
   }

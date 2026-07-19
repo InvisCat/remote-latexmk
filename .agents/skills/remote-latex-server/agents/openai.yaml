@@ -1,0 +1,4 @@
+interface:
+  display_name: "Remote LaTeX Server"
+  short_description: "Install and troubleshoot a private LaTeX server"
+  default_prompt: "Use $remote-latex-server to install or troubleshoot my remote-latexmk server."

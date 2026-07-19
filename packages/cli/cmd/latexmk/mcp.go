@@ -489,14 +489,11 @@ func (s *stdioMCPServer) callTool(name string, raw json.RawMessage) (any, error)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 		defer cancel()
-		if err := s.client.Health(ctx); err != nil {
-			return nil, err
-		}
-		meta, err := s.client.Metadata(ctx)
+		meta, err := verifyRemoteAccess(ctx, s.client)
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"healthy": true, "metadata": meta}, nil
+		return map[string]any{"healthy": true, "accessVerified": true, "metadata": meta}, nil
 	case "job_list":
 		var args struct {
 			Limit int `json:"limit"`
@@ -945,7 +942,7 @@ func mcpTools() []mcpTool {
 			"entry":  stringProp("Project-relative .tex entry file."),
 			"engine": map[string]any{"type": "string", "enum": []string{"xelatex", "lualatex", "pdflatex"}},
 		}, "entry"), Annotations: readOnly},
-		{Name: "server_status", Description: "Check service health and return public compiler metadata without credentials.", InputSchema: object(map[string]any{}), Annotations: readOnly},
+		{Name: "server_status", Description: "Check service health, identity, protocol compatibility, and configured authentication.", InputSchema: object(map[string]any{}), Annotations: readOnly},
 		{Name: "job_list", Description: "List recent compile jobs.", InputSchema: object(map[string]any{"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "default": 50}}), Annotations: readOnly},
 		{Name: "job_get", Description: "Get one compile job by opaque ID.", InputSchema: object(map[string]any{"jobId": stringProp("Opaque job ID.")}, "jobId"), Annotations: readOnly},
 		{Name: "job_logs", Description: "Read bounded stdout, stderr, or compiler log content for a terminal job.", InputSchema: object(map[string]any{

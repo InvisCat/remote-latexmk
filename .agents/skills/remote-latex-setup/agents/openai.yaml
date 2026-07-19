@@ -1,0 +1,4 @@
+interface:
+  display_name: "Remote LaTeX Setup"
+  short_description: "Connect a client to a private LaTeX server"
+  default_prompt: "Use $remote-latex-setup to connect my client to remote-latexmk."

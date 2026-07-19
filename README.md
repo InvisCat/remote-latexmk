@@ -204,6 +204,8 @@ client setups:
 npx skills add InvisCat/remote-latexmk -g \
   --skill remote-latex \
   --skill remote-latex-maintenance \
+  --skill remote-latex-server \
+  --skill remote-latex-setup \
   --agent codex --agent claude-code --agent opencode
 ```
 
