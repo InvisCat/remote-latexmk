@@ -23,6 +23,10 @@ test('release workflow is tag-only and pins third-party actions', async () => {
     assert.match(workflow, new RegExp(`image: ${image}(?:\\n|$)`));
   }
   assert.match(workflow, /SHA256SUMS/);
+  assert.match(workflow, /server-binaries:[\s\S]*?goarch: \[amd64, arm64\]/);
+  assert.match(workflow, /remote-latexmk-server_\*/);
+  assert.match(workflow, /scripts\/install-server\.sh dist\/install-server\.sh/);
+  assert.match(workflow, /test "\$\(wc -l < SHA256SUMS\)" -eq 9/);
   assert.match(workflow, /provenance: mode=max/);
   assert.match(workflow, /sbom: true/);
   assert.match(workflow, /attestations: write/);
@@ -35,7 +39,11 @@ test('release workflow is tag-only and pins third-party actions', async () => {
   assert.match(workflow, /publish-images:[\s\S]*?needs: \[validate, images, smoke-papers\]/);
   assert.match(workflow, /publish-images:[\s\S]*?packages: write/);
   assert.match(workflow, /publish-images:[\s\S]*?docker buildx imagetools create/);
-  assert.match(workflow, /needs: \[validate, binaries, publish-images\]/);
+  assert.match(workflow, /needs: \[validate, binaries, server-binaries, publish-images\]/);
+  assert.match(workflow, /npm-packages:[\s\S]*?if: vars\.NPM_PUBLISH_ENABLED == 'true'/);
+  assert.match(workflow, /stage-packages\.mjs/);
+  assert.match(workflow, /if \[\[ "\$\{package_version\}" == \*-\* \]\]; then/);
+  assert.match(workflow, /npm publish "\$\{package_dir\}" --access public --provenance --tag "\$\{npm_tag\}"/);
   const imagesJob = workflow.slice(workflow.indexOf('\n  images:'), workflow.indexOf('\n  smoke-papers:'));
   const publishJob = workflow.slice(workflow.indexOf('\n  publish-images:'), workflow.indexOf('\n  release:'));
   assert.doesNotMatch(imagesJob, /type=semver|value=latest/);

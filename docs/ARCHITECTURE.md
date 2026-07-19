@@ -122,6 +122,25 @@ does not need Go, Node.js, pnpm, TeX Live, or the upstream `latexmk` program at
 runtime. The client container adds Git and CA certificates, but still contains
 no TeX Live.
 
+### npm launcher
+
+`packages/npm-cli` is a small Node.js launcher around the same Go client. npm
+selects one of six OS/architecture packages through `optionalDependencies`.
+The launcher forwards normal CLI and MCP arguments to that native binary; it
+does not reimplement dependency discovery, upload policy, archive handling, or
+the HTTP protocol in JavaScript.
+
+The public command is `remote-latexmk`, not `latexmk`, so a global npm install
+does not replace the unrelated Perl program. Skills bundled in the npm package
+use the npm command. The repository's original Skills retain `latexmk` for
+native archive and source-build users.
+
+The Agent installer binds MCP to one resolved project root, accepts credentials
+only by token-file path, and installs complete Skill directories. Codex and
+Claude Code entries are created through their CLIs. OpenCode JSONC is updated
+structurally with the previous file backed up. Existing changed Skills require
+an explicit `--force` replacement.
+
 ### Server
 
 `packages/server` is a Go HTTP service. It uses Gin for routing, a bounded job
@@ -206,6 +225,22 @@ context, deployment metadata, and Compose configuration for selected image,
 authentication, database, and resource profiles. It is useful for PaaS or
 deployment systems that need a small independent build context. The root
 `compose.yaml` remains the direct self-hosted path.
+
+### Native server installer
+
+`scripts/install-server.sh` installs a tagged Linux server archive and a
+private TeX Live tree under `~/.remote-latexmk`. It verifies the release
+archive checksum, defaults to localhost and token authentication, and creates
+a systemd user service when available. That unit hides the rest of the user's
+home directory and exposes only the release, TeX Live, state, and temporary
+paths. A weaker PID-file fallback requires explicit selection when no user
+manager is available. The installer does not use root privileges or modify
+shell startup files.
+
+`scripts/remote-latexmkctl` owns start, stop, status, logs, explicit token
+display, tagged upgrades, and confirmation-based removal. Normal uninstall
+retains configuration, TeX Live, logs, and state. Purge is a separate explicit
+operation guarded by an installation marker.
 
 ## Queued compile flow
 
@@ -304,7 +339,8 @@ The repository provides two Agent Skills:
 - `remote-latex-maintenance` for previewed local or remote cleanup.
 
 Skills contain workflow instructions. They do not install the client or create
-a network connection by themselves.
+a network connection by themselves. The separate npm Agent installer can copy
+those Skills and register an npm-backed local MCP command.
 
 The local STDIO MCP server exposes strict tools for manifests, jobs, bounded
 logs, diagnostics, artifacts, compile start, cancellation, and two-phase

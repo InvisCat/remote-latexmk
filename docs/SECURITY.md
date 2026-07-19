@@ -94,6 +94,14 @@ referenced content-addressed blobs.
   suitable for a deliberately isolated local development instance.
 - Do not inject cloud-control-plane credentials into the compile container.
 - Restrict outbound network access, especially if shell escape is ever enabled.
+- The native systemd user unit hides the rest of the account's home directory
+  and exposes only its release, TeX Live, state, and temporary paths. Its
+  explicit PID-file fallback does not provide this filesystem boundary. Use a
+  dedicated Unix account if systemd user sandboxing is unavailable.
+- Native installation does not reproduce the Compose server's internal
+  no-egress network. Apply host firewall policy when outbound isolation is
+  required, and assume TeX can read ordinary system files visible to the
+  service account.
 - When adapting Compose for an external database, use a private, narrowly
   scoped database network instead of attaching the server to a general-purpose
   egress bridge.

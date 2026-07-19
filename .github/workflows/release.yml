@@ -75,6 +75,36 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  server-binaries:
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.5'
+          cache-dependency-path: packages/server/go.mod
+      - name: Build deterministic native server archive
+        working-directory: packages/server
+        run: |
+          go run ./cmd/release-builder \
+            --version '${{ needs.validate.outputs.version }}' \
+            --goarch '${{ matrix.goarch }}' \
+            --commit '${{ github.sha }}' \
+            --build-date '${{ needs.validate.outputs.build-date }}' \
+            --repo-root ../.. \
+            --out-dir ../../dist
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: server-linux-${{ matrix.goarch }}
+          path: dist/remote-latexmk-server_*
+          if-no-files-found: error
+          retention-days: 14
+
   images:
     needs: validate
     runs-on: ubuntu-latest
@@ -239,27 +269,35 @@ jobs:
           done <<< "${TARGET_TAGS}"
 
   release:
-    needs: [validate, binaries, publish-images]
+    needs: [validate, binaries, server-binaries, publish-images]
     runs-on: ubuntu-latest
     permissions:
       contents: write
       attestations: write
       id-token: write
     steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: client-*
           path: dist
           merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: server-*
+          path: dist
+          merge-multiple: true
+      - name: Add the versioned native installer
+        run: cp scripts/install-server.sh dist/install-server.sh
       - name: Generate SHA-256 checksums
         run: |
           set -euo pipefail
           cd dist
-          find . -maxdepth 1 -type f -name 'latexmk_*' -print0 \
+          find . -maxdepth 1 -type f \( -name 'latexmk_*' -o -name 'remote-latexmk-server_*' -o -name 'install-server.sh' \) -print0 \
             | sort -z \
             | xargs -0 sha256sum \
             | sed 's#  \./#  #' > SHA256SUMS
-          test "$(wc -l < SHA256SUMS)" -eq 6
+          test "$(wc -l < SHA256SUMS)" -eq 9
       - uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
         with:
           subject-path: dist/*
@@ -282,3 +320,50 @@ jobs:
             fi
             gh release create "${GITHUB_REF_NAME}" dist/* "${release_args[@]}"
           fi
+
+  npm-packages:
+    if: vars.NPM_PUBLISH_ENABLED == 'true'
+    needs: [validate, binaries, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: client-*
+          path: dist/client
+          merge-multiple: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Stage npm packages from tested native archives
+        run: |
+          node packages/npm-cli/scripts/stage-packages.mjs \
+            --version '${{ needs.validate.outputs.version }}' \
+            --artifacts dist/client \
+            --out dist/npm
+      - name: Publish platform packages, then the launcher
+        env:
+          NPM_CONFIG_PROVENANCE: 'true'
+        run: |
+          set -euo pipefail
+          publish_once() {
+            package_dir="$1"
+            package_name="$(node -p "require('./${package_dir}/package.json').name")"
+            package_version="$(node -p "require('./${package_dir}/package.json').version")"
+            npm_tag=latest
+            if [[ "${package_version}" == *-* ]]; then
+              npm_tag=next
+            fi
+            if npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
+              echo "${package_name}@${package_version} already exists; skipping"
+            else
+              npm publish "${package_dir}" --access public --provenance --tag "${npm_tag}"
+            fi
+          }
+          for package_dir in dist/npm/darwin-arm64 dist/npm/darwin-x64 dist/npm/linux-arm64 dist/npm/linux-x64 dist/npm/win32-arm64 dist/npm/win32-x64; do
+            publish_once "${package_dir}"
+          done
+          publish_once dist/npm/remote-latexmk

@@ -10,7 +10,44 @@ containers, and coding agents through a native client, Docker, or MCP. Preview
 dependency-aware uploads and receive PDFs, logs, and diagnostics without
 installing TeX Live in each environment.
 
-## Quick Start: Docker Compose from Source
+## Quick Start
+
+The native server installer keeps both the service and TeX Live under
+`~/.remote-latexmk`. It needs Linux on amd64 or arm64, but it does not need
+Docker, Go, Node.js, pnpm, or a system-wide TeX installation.
+
+```sh
+VERSION=v0.3.0-rc.1
+curl -fsSL \
+  "https://github.com/InvisCat/remote-latexmk/releases/download/${VERSION}/install-server.sh" \
+  | bash -s -- --version "${VERSION}" --profile full
+
+~/.remote-latexmk/bin/remote-latexmkctl status
+```
+
+The fixed-version command becomes available when `v0.3.0-rc.1` is published.
+Until then, use the source Compose path below. The installer defaults to
+`127.0.0.1:8080`, generates a private token, verifies the downloaded server
+archive, and does not use `sudo` or edit shell startup files. See
+[Native server installation](docs/NATIVE_INSTALL.md) before changing the
+listen address.
+
+On a laptop or Agent machine with Node.js, use the npm client without local TeX
+Live:
+
+```sh
+export LATEXMK_SERVER=http://your-private-server:8080
+export LATEXMK_TOKEN_FILE=/absolute/path/to/latexmk-token
+
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 files main.tex
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 main.tex
+```
+
+When npm publishing is enabled for the tag, the `remote-latexmk` package is
+published from the same tagged client archives. It uses npm platform packages
+and has no install script that fetches or executes a binary from another URL.
+
+### Docker Compose from source
 
 Requirements: Git, Docker, Docker Compose, and `curl` for the health check. You
 do not need local Go, Node.js, pnpm, Perl, latexmk, or TeX Live.
@@ -53,7 +90,7 @@ and Docker client from this checkout. The prebuilt release-image path is under
 `127.0.0.1:8080` by default; protect any non-local binding with a private
 network, firewall, VPN, or TLS reverse proxy.
 
-## Alternative: Install a Native Client
+## Alternative client installations
 
 The Quick Start already provides a complete Docker client. Nothing in this
 section is required for that path. Install a native client only when you want
@@ -104,25 +141,33 @@ therefore resets the local project identity.
 
 ## AI agent setup
 
-Install the client first, or configure the Docker MCP command below. The Skills
-guide agents through manifest review, queued compilation, diagnostics with raw
-log fallback, artifact download, and explicit cleanup previews.
+The npm package can install the client entry, both Skills, and one local MCP
+entry in a single command. It detects installed Agent CLIs unless `--agent` is
+given explicitly:
 
-Install both Skills into Codex, Claude Code, and OpenCode with the cross-Agent
-installer:
+```sh
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \
+  --project-root /absolute/path/to/paper \
+  --server https://latex.example.edu \
+  --token-file /absolute/path/to/latexmk-token
+```
+
+Pass `--dry-run` first to inspect the commands and destinations. The installer
+does not accept a raw bearer token. It uses the native `codex mcp` and
+`claude mcp` commands, and makes a structured, backed-up JSONC edit for
+OpenCode. Existing changed Skills are not overwritten unless `--force` is
+explicit. The maintenance Skill can propose destructive cleanup, but still
+requires a preview and explicit confirmation before apply.
+
+Until the npm package is published, install a tagged native client and use the
+cross-Agent Skills installer:
 
 ```sh
 npx skills add InvisCat/remote-latexmk -g \
   --skill remote-latex \
   --skill remote-latex-maintenance \
-  --agent codex \
-  --agent claude-code \
-  --agent opencode
+  --agent codex --agent claude-code --agent opencode
 ```
-
-Review third-party Skill instructions before installing them. The maintenance
-Skill can propose destructive cleanup, but requires a preview and explicit
-confirmation before apply.
 
 Manual user-level locations are:
 
@@ -341,7 +386,10 @@ docker compose -f compose.yaml -f compose.ghcr.yaml \
 
 The release workflow currently builds server images for `linux/amd64`, a
 client image for `linux/amd64` and `linux/arm64`, and native client archives for
-Linux, macOS, and Windows on amd64 and arm64.
+Linux, macOS, and Windows on amd64 and arm64. Starting with the next tagged
+release, it also builds native Linux server archives and the versioned server
+installer. npm publication is separately gated until trusted publishing is
+configured.
 
 ## Documentation
 
@@ -352,6 +400,7 @@ Linux, macOS, and Windows on amd64 and arm64.
 - [Agent-facing CLI and JSON contracts](docs/AGENT_CLI.md)
 - [HTTP API](docs/API.md)
 - [Operations and HTTPS](docs/OPERATIONS.md)
+- [Native server installation](docs/NATIVE_INSTALL.md)
 - [Security model](docs/SECURITY.md)
 - [Publishing, repository metadata, and social preview](docs/PUBLISHING.md)
 - [Advanced PaaS bundler](packages/deploy/README.md)

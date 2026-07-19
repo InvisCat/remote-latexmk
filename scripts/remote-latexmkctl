@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+install_root="${REMOTE_LATEXMK_HOME:-${HOME}/.remote-latexmk}"
+config_file="${install_root}/config/server.env"
+service_name="remote-latexmk.service"
+user_unit="${HOME}/.config/systemd/user/${service_name}"
+pid_file="${install_root}/run/server.pid"
+log_file="${install_root}/logs/server.log"
+
+die() {
+  echo "remote-latexmkctl: $*" >&2
+  exit 2
+}
+
+usage() {
+  cat <<'EOF'
+Usage: remote-latexmkctl <command> [options]
+
+Commands:
+  start                 Start the server
+  stop                  Stop the server
+  restart               Restart the server
+  status                Show service status
+  logs [-f]             Show server logs
+  doctor                Check the native installation
+  token                 Print the API token (explicit secret access)
+  foreground            Run the server in the foreground
+  upgrade --version V   Install a newer tagged release
+  uninstall [--yes]     Remove the service and programs, but keep user data
+  uninstall --purge     Remove the complete installation after confirmation
+EOF
+}
+
+load_config() {
+  [[ -f "${config_file}" ]] || die "missing ${config_file}; run the installer first"
+  set -a
+  # shellcheck disable=SC1090
+  source "${config_file}"
+  set +a
+  : "${REMOTE_LATEXMK_SERVER_BIN:?missing REMOTE_LATEXMK_SERVER_BIN in config}"
+}
+
+has_user_systemd() {
+  [[ "${REMOTE_LATEXMK_SERVICE_MODE:-}" == systemd ]] && [[ -f "${user_unit}" ]] && command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1
+}
+
+pid_is_running() {
+  [[ -f "${pid_file}" ]] || return 1
+  local pid recorded_start current_start
+  read -r pid recorded_start <"${pid_file}" || return 1
+  [[ "${pid}" =~ ^[0-9]+$ && "${recorded_start}" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "${pid}" 2>/dev/null || return 1
+  [[ -r "/proc/${pid}/stat" ]] || return 1
+  current_start="$(awk '{print $22}' "/proc/${pid}/stat")"
+  [[ "${current_start}" == "${recorded_start}" ]]
+}
+
+running_pid() {
+  local pid _
+  read -r pid _ <"${pid_file}"
+  printf '%s\n' "${pid}"
+}
+
+start_fallback() {
+  if pid_is_running; then
+    echo "remote-latexmk is already running (PID $(running_pid))"
+    return
+  fi
+  mkdir -p "${install_root}/run" "${install_root}/logs"
+  chmod 700 "${install_root}/run" "${install_root}/logs"
+  nohup "${REMOTE_LATEXMK_SERVER_BIN}" >>"${log_file}" 2>&1 &
+  local pid=$!
+  sleep 1
+  if ! kill -0 "${pid}" 2>/dev/null; then
+    echo "remote-latexmk failed to start; recent log output:" >&2
+    tail -n 30 "${log_file}" >&2 || true
+    rm -f "${pid_file}"
+    exit 1
+  fi
+  [[ -r "/proc/${pid}/stat" ]] || die "cannot read process identity from /proc/${pid}/stat"
+  printf '%s %s\n' "${pid}" "$(awk '{print $22}' "/proc/${pid}/stat")" >"${pid_file}"
+  chmod 600 "${pid_file}"
+  echo "remote-latexmk started (PID ${pid})"
+}
+
+stop_fallback() {
+  if ! pid_is_running; then
+    rm -f "${pid_file}"
+    echo "remote-latexmk is not running"
+    return
+  fi
+  local pid
+  pid="$(running_pid)"
+  kill "${pid}"
+  for _ in $(seq 1 50); do
+    if ! kill -0 "${pid}" 2>/dev/null; then
+      rm -f "${pid_file}"
+      echo "remote-latexmk stopped"
+      return
+    fi
+    sleep 0.1
+  done
+  echo "remote-latexmk did not stop in time; leaving PID file in place" >&2
+  return 1
+}
+
+command="${1:-help}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+
+case "${command}" in
+  start)
+    load_config
+    if has_user_systemd; then
+      systemctl --user enable --now "${service_name}"
+      sleep 1
+      if ! systemctl --user is-active --quiet "${service_name}"; then
+        systemctl --user --no-pager --full status "${service_name}" || true
+        die "systemd service failed to stay active"
+      fi
+      systemctl --user --no-pager --full status "${service_name}"
+    else
+      start_fallback
+    fi
+    ;;
+  stop)
+    load_config
+    if has_user_systemd; then
+      systemctl --user stop "${service_name}"
+    else
+      stop_fallback
+    fi
+    ;;
+  restart)
+    "$0" stop
+    "$0" start
+    ;;
+  status)
+    load_config
+    if has_user_systemd; then
+      systemctl --user --no-pager --full status "${service_name}"
+    elif pid_is_running; then
+      echo "remote-latexmk is running (PID $(running_pid), fallback service)"
+    else
+      echo "remote-latexmk is not running"
+      exit 3
+    fi
+    ;;
+  logs)
+    load_config
+    if has_user_systemd; then
+      if [[ "${1:-}" == "-f" ]]; then
+        exec journalctl --user -u "${service_name}" -f
+      fi
+      exec journalctl --user -u "${service_name}" -n 100 --no-pager
+    fi
+    [[ -f "${log_file}" ]] || die "no fallback log exists at ${log_file}"
+    if [[ "${1:-}" == "-f" ]]; then
+      exec tail -f "${log_file}"
+    fi
+    exec tail -n 100 "${log_file}"
+    ;;
+  doctor)
+    load_config
+    failures=0
+    for tool in "${REMOTE_LATEXMK_SERVER_BIN}" latexmk xelatex pdflatex; do
+      if command -v "${tool}" >/dev/null 2>&1 || [[ -x "${tool}" ]]; then
+        printf 'ok      %s\n' "${tool}"
+      else
+        printf 'missing %s\n' "${tool}" >&2
+        failures=$((failures + 1))
+      fi
+    done
+    if [[ ",${LATEXMK_ENGINES:-}," == *,lualatex,* ]]; then
+      command -v lualatex >/dev/null 2>&1 || { echo "missing lualatex" >&2; failures=$((failures + 1)); }
+    fi
+    printf 'config  %s\nlisten  %s\nstate   %s\n' "${config_file}" "${LATEXMK_ADDR:-unknown}" "${LATEXMK_STATE_DIR:-unknown}"
+    [[ "${failures}" -eq 0 ]]
+    ;;
+  token)
+    load_config
+    [[ -n "${LATEXMK_API_TOKEN:-}" ]] || die "token auth is not configured"
+    echo "Warning: this command prints the server secret." >&2
+    printf '%s\n' "${LATEXMK_API_TOKEN}"
+    ;;
+  foreground)
+    load_config
+    exec "${REMOTE_LATEXMK_SERVER_BIN}"
+    ;;
+  upgrade)
+    load_config
+    [[ "${1:-}" == "--version" && -n "${2:-}" ]] || die "usage: remote-latexmkctl upgrade --version vX.Y.Z"
+    installer="${install_root}/bin/install-server.sh"
+    [[ -x "${installer}" ]] || die "missing saved installer ${installer}"
+    service_mode=auto
+    if [[ "${REMOTE_LATEXMK_SERVICE_MODE:-}" == systemd ]]; then service_mode=systemd; fi
+    if [[ "${REMOTE_LATEXMK_SERVICE_MODE:-}" == fallback ]]; then service_mode=none; fi
+    exec "${installer}" --version "${2}" --install-dir "${install_root}" --profile "${REMOTE_LATEXMK_PROFILE:-full}" --listen "${LATEXMK_ADDR:-127.0.0.1:8080}" --service "${service_mode}"
+    ;;
+  uninstall)
+    purge=false
+    yes=false
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --purge) purge=true ;;
+        --yes) yes=true ;;
+        *) die "unknown uninstall option: $1" ;;
+      esac
+      shift
+    done
+    if [[ "${yes}" != true ]]; then
+      if [[ "${purge}" == true ]]; then
+        prompt="Remove the service and all files under ${install_root}? [y/N] "
+      else
+        prompt="Remove the service and programs but keep config, TeX Live, logs, and state? [y/N] "
+      fi
+      [[ -t 0 ]] || die "confirmation requires a terminal; pass --yes"
+      read -r -p "${prompt}" answer
+      [[ "${answer}" == y || "${answer}" == Y ]] || { echo "Cancelled."; exit 0; }
+    fi
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl --user disable --now "${service_name}" >/dev/null 2>&1 || true
+    fi
+    if [[ -f "${pid_file}" ]]; then
+      load_config
+      stop_fallback || true
+    fi
+    rm -f "${user_unit}"
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl --user daemon-reload >/dev/null 2>&1 || true
+    fi
+    [[ -f "${install_root}/.remote-latexmk-install" ]] || die "refusing removal: installation marker is missing"
+    if [[ "${purge}" == true ]]; then
+      rm -rf -- "${install_root}"
+      echo "Removed ${install_root}"
+    else
+      rm -rf -- "${install_root}/bin" "${install_root}/current" "${install_root}/releases"
+      echo "Removed programs. Config, TeX Live, logs, and state remain in ${install_root}."
+    fi
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    usage >&2
+    die "unknown command: ${command}"
+    ;;
+esac

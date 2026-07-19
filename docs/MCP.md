@@ -32,6 +32,34 @@ Most MCP clients accept the following command shape:
 
 Use a protected token file or the client's secret/environment facility. Do not put a token in `args`.
 
+## npm launcher and Agent setup
+
+An exact npm package version can launch the same Go MCP client without a prior
+global install:
+
+```sh
+npm exec --yes --ignore-scripts \
+  --package=remote-latexmk@0.3.0-rc.1 -- \
+  remote-latexmk mcp serve --stdio \
+  --project-root /absolute/path/to/paper
+```
+
+The npm package selects a platform binary through `optionalDependencies`; it
+does not reimplement MCP or upload policy in JavaScript. Its Agent installer
+can add this exact command and the two bundled Skills to detected Codex,
+Claude Code, and OpenCode installations:
+
+```sh
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \
+  --project-root /absolute/path/to/paper \
+  --server https://latex.example.edu \
+  --token-file /absolute/path/to/latexmk-token \
+  --dry-run
+```
+
+Remove `--dry-run` only after inspecting the plan. Raw token arguments are not
+accepted, and the token file must be outside the bound paper root.
+
 For Codex, the equivalent configuration is:
 
 ```toml

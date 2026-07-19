@@ -1,0 +1,52 @@
+{
+  "name": "remote-latexmk",
+  "version": "0.2.0-rc.1",
+  "private": true,
+  "description": "Native remote-latexmk client and MCP launcher for npm and npx.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "remote-latexmk": "bin/remote-latexmk.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "bundled-skills/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/prepare-skills.mjs",
+    "test": "node scripts/prepare-skills.mjs && node --test test/*.test.mjs",
+    "lint": "node --check bin/remote-latexmk.js && node --check lib/platform.js && node --check lib/agent-install.js",
+    "clean": "node -e \"require('fs').rmSync('bundled-skills',{recursive:true,force:true})\"",
+    "prepack": "node scripts/prepare-skills.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "jsonc-parser": "3.3.1"
+  },
+  "optionalDependencies": {
+    "@inviscat/remote-latexmk-darwin-arm64": "workspace:*",
+    "@inviscat/remote-latexmk-darwin-x64": "workspace:*",
+    "@inviscat/remote-latexmk-linux-arm64": "workspace:*",
+    "@inviscat/remote-latexmk-linux-x64": "workspace:*",
+    "@inviscat/remote-latexmk-win32-arm64": "workspace:*",
+    "@inviscat/remote-latexmk-win32-x64": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/InvisCat/remote-latexmk.git"
+  },
+  "homepage": "https://github.com/InvisCat/remote-latexmk#readme",
+  "bugs": "https://github.com/InvisCat/remote-latexmk/issues",
+  "keywords": [
+    "latex",
+    "texlive",
+    "mcp",
+    "codex",
+    "claude-code",
+    "opencode"
+  ]
+}

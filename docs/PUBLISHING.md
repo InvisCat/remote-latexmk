@@ -69,7 +69,11 @@ The tag workflow is designed to publish:
 - `remote-latexmk-server-full` for `linux/amd64`;
 - `remote-latexmk-client` for `linux/amd64` and `linux/arm64`;
 - native client archives for Linux, macOS, and Windows on amd64 and arm64;
-- `SHA256SUMS` for the native archives.
+- native server archives for Linux on amd64 and arm64;
+- a versioned `install-server.sh` release asset;
+- `SHA256SUMS` for all native archives and the installer;
+- optional npm launcher and platform packages when trusted publishing is
+  explicitly enabled.
 
 The full server image is intentionally separate because it is much larger than
 the default CJK-oriented image. Do not claim multi-platform server support
@@ -87,6 +91,26 @@ For a release candidate:
    generated release notes.
 5. Run one native client archive on each supported operating-system family.
 6. Record the published image digests in the release notes.
+
+## npm trusted publishing
+
+The npm job is disabled unless the GitHub repository variable
+`NPM_PUBLISH_ENABLED` is exactly `true`. This keeps a missing npm account or
+trusted-publisher setup from breaking GitHub Releases.
+
+Before enabling it:
+
+1. reserve the public `remote-latexmk` package and the six
+   `@inviscat/remote-latexmk-*` platform packages;
+2. configure each npm package to trust this repository's `release.yml`
+   workflow;
+3. confirm the npm account and scope ownership;
+4. test a prerelease tag before a stable release.
+
+The job stages platform packages from the same six deterministic client
+archives attached to the GitHub release. It publishes platform packages first
+and the main launcher last. None of the published packages has a lifecycle
+script that downloads executable code.
 
 ## Promote released paths in the README
 

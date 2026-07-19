@@ -5,9 +5,10 @@ compiler without installing TeX Live on the agent's machine. The repository
 ships Agent Skills, a local STDIO MCP server, and machine-readable JSON
 commands with a versioned Agent subset.
 
-The Agent Skills describe a safe workflow. They do not install the `latexmk`
-client, start a server, or contain credentials. Set up the server and client
-before installing the skills.
+The Agent Skills describe a safe workflow. They do not contain credentials or
+start a server. The npm Agent installer can install the Skills together with
+an npm-backed local MCP entry; manual Skill installation still requires a
+client to be configured separately.
 
 ## Good use cases
 
@@ -21,7 +22,24 @@ before installing the skills.
 The normal workflow is designed for an individual researcher or a small trusted
 lab that controls the paper, client, server, and network.
 
-## 1. Set up the client first
+## 1. Set up the npm client and MCP entry
+
+After the `remote-latexmk` npm package is published, one command can configure
+the detected Codex, Claude Code, and OpenCode installations:
+
+```sh
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \
+  --project-root /absolute/path/to/paper \
+  --server https://latex.example.edu \
+  --token-file /absolute/path/to/latexmk-token
+```
+
+Run it with `--dry-run` first to inspect the plan. Repeat `--agent` to limit the
+targets. A protected token file is required; raw token arguments are rejected.
+The generated MCP command uses `npm exec --ignore-scripts` with the exact npm
+package version, so the Agent machine needs Node.js but not Go or TeX Live.
+
+## 2. Native and Docker alternatives
 
 The command used by the skills is this repository's Go client, also named
 `latexmk`. It is not the unrelated TeX Live command with the same name.
@@ -61,7 +79,7 @@ latexmk doctor
 Do not paste a token into an agent prompt. Do not place it in a file that can be
 selected for upload.
 
-## 2. Install the Agent Skills
+## 3. Manual Agent Skill installation
 
 List the available skills before installation if desired:
 

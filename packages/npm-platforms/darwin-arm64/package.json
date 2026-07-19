@@ -1,0 +1,11 @@
+{
+  "name": "@inviscat/remote-latexmk-darwin-arm64",
+  "version": "0.2.0-rc.1",
+  "private": true,
+  "description": "remote-latexmk native client for macOS arm64.",
+  "license": "MIT",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "files": ["bin/", "README.md"],
+  "repository": "https://github.com/InvisCat/remote-latexmk"
+}
