@@ -477,7 +477,7 @@ on 2026-07-17.
 - Its deployment bundler targeted **PaaS and research-group deployments**, and
   it included an initial Agent Skill.
 
-### remote-latexmk 0.2.0 (pre-release)
+### remote-latexmk 0.2.0-rc.1
 
 - Added a root-level **Docker Compose quick start** so researchers and labs can
   run a private compiler without first learning the PaaS deployment bundler or
@@ -510,18 +510,21 @@ on 2026-07-17.
   checksums, provenance, attestations, and executable paper examples so
   published clients and images are easier to verify before deployment.
 
+### remote-latexmk 0.3.0-rc.1
+
+- Added a **version-pinned, non-root Linux server installer** with checksum
+  verification, a private TeX Live tree, loopback-only defaults, and user-level
+  status, upgrade, and uninstall commands.
+- Added **version-pinned npm launcher and platform packages** for the existing
+  Go client, without postinstall downloads or a local Go/TeX Live requirement.
+- Added installable **Codex and Claude Code Plugins** that bundle the Skills and
+  local MCP launcher, discover the current Agent workspace root, and reuse one
+  verified user-level login across paper projects.
+
 ## Roadmap
 
 This roadmap describes intended directions and does not promise release dates.
 
-- To make self-hosting practical on servers where Docker is unavailable or
-  unwanted, provide a **version-pinned, non-root Linux installer** with
-  checksum verification, localhost-only defaults, and user-level status,
-  upgrade, and uninstall commands.
-- To make the CLI and local MCP easier to start from Node-based coding-agent
-  environments without hidden executable downloads, publish
-  **version-pinned npm packages** for the existing native client with no
-  postinstall download scripts.
 - To avoid conflicts and confusion with the standard local Perl `latexmk`
   command, adopt a distinct remote-client command such as **`rlatexmk`**, keep
   `latexmk` as an optional compatibility alias during a documented transition,
