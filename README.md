@@ -52,7 +52,6 @@ or an SSH tunnel. For an SSH tunnel:
 
 ```sh
 ssh -N -L 18080:127.0.0.1:8080 user@your-private-server
-# Use http://127.0.0.1:18080 as the server URL.
 ```
 
 The installer prints its configured listen URL and a remote-latexmk API token.
