@@ -438,6 +438,10 @@ This roadmap describes intended directions and does not promise release dates.
   environments without hidden executable downloads, publish
   **version-pinned npm packages** for the existing native client with no
   postinstall download scripts.
+- To support Japanese journal and conference submissions that depend on
+  pLaTeX, validate and add **pLaTeX and upLaTeX workflows** with `dvipdfmx`,
+  including representative Japanese document classes, dependency discovery,
+  Docker image coverage, and server-controlled engine arguments.
 - To make released containers easier to reproduce and audit over time, pin
   **dated Debian and TeX Live package sources** in addition to the existing
   base image digests.
@@ -453,7 +457,7 @@ This roadmap describes intended directions and does not promise release dates.
   job **without outbound network access by default**, under a separate
   low-privilege identity, in a temporary per-job filesystem with explicit
   process, memory, time, log, and artifact limits.
-- To keep more complex papers on the minimal-upload path, broaden dependency
+- To keep more complex papers on the minimal-upload path, broaden
   **dependency discovery and diagnostic coverage** while keeping upload
   selection fail-closed and retaining bounded raw compiler logs as a fallback.
 
