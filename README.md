@@ -12,15 +12,13 @@ installing TeX Live in each environment.
 
 ## Quick Start
 
-Follow this two-step path to install the server and connect a local coding
-agent. The server needs Linux on amd64 or arm64. The client machine needs
-Node.js, but it does not need Go or TeX Live.
+Install the private server, then connect a coding agent. The server needs Linux
+on amd64 or arm64. The client needs Node.js 20+, but no Go or TeX Live.
 
 ### 1. Server
 
-The native server installer keeps both the service and TeX Live under
-`~/.remote-latexmk`. It needs Linux on amd64 or arm64, but it does not need
-Docker, Go, Node.js, pnpm, or a system-wide TeX installation.
+The native installer puts the service and TeX Live under
+`~/.remote-latexmk`. It uses no sudo, Docker, or system-wide TeX installation.
 
 ```sh
 VERSION=v0.3.0-rc.1
@@ -38,11 +36,8 @@ curl -fsSL \
 > host files to TeX. Use it only for trusted papers on a dedicated account or
 > server; LuaLaTeX remains opt-in. See [Security](docs/SECURITY.md).
 
-Without `--listen`, the server listens only on `127.0.0.1:8080`, so another
-computer cannot connect to it directly. For access from another computer on
-the same LAN or VPN, set `--listen` to this server's reachable LAN or VPN IP,
-for example `--listen 192.168.1.20:8080`. Keep the loopback default when using
-an SSH tunnel. See
+For direct access, pass the server's reachable private LAN or VPN address to
+`--listen`. Omit it to keep the `127.0.0.1:8080` default for an SSH tunnel. See
 [Native server installation](docs/NATIVE_INSTALL.md) for other deployments.
 
 ### 2. Client (Agent)
@@ -51,7 +46,7 @@ If the Agent cannot reach the server over the same private network, use a VPN
 or an SSH tunnel. For an SSH tunnel:
 
 ```sh
-ssh -N -L 18080:127.0.0.1:8080 user@your-private-server
+ssh -N -L 18080:192.168.1.20:8080 user@your-private-server
 ```
 
 The installer prints its configured listen URL and a remote-latexmk API token.
@@ -80,35 +75,27 @@ local endpoint when using the tunnel above:
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 auth login --server http://127.0.0.1:18080
 ```
 
-Paste the remote-latexmk API token at the hidden prompt. The command stores it
-in the client user's private configuration directory, not in shell history or
-the paper.
+Paste the remote-latexmk API token at the hidden prompt. The command verifies
+the server and token, then stores the login in the client user's private
+configuration directory, not in shell history or the paper.
 
 Start a new Agent session from the paper directory and ask:
 
 > Preview the Remote LaTeX upload, then compile this paper.
 
 The Agent can now inspect the upload manifest, compile the paper, read bounded
-diagnostics and logs, and download the PDF through the local MCP server. To use
-the same npm client directly from a shell, or from another Agent:
+diagnostics and logs, and download the PDF through the local MCP server.
 
-#### CLI usage and other Agents
+#### Direct CLI
 
-The `auth login` command above is also the one-time manual token setup for the
-direct CLI and other Agents. After login:
+The saved login also configures direct CLI use:
 
 ```sh
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 files main.tex
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 main.tex
 ```
 
-OpenCode, manual MCP configuration, and the older project-bound
-`agent install` command are documented under
-[AI coding agents](docs/AI_AGENTS.md).
-
-The `remote-latexmk` npm package uses the same tagged client archives and npm
-platform packages. It has no install script that fetches or executes a binary
-from another URL.
+For OpenCode and other Agent hosts, see [AI coding agents](docs/AI_AGENTS.md).
 
 ## Optional installation and usage paths
 
@@ -161,9 +148,12 @@ network, firewall, VPN, or TLS reverse proxy.
 
 ### Native client instead of npm
 
-Install a native client when you want to compile without Node.js or a client
-container. Choose either a release binary or a source build, then configure
-the client.
+The npm launcher used above selects the same tagged native client through npm
+platform packages. It has no install script that fetches or executes a binary
+from another URL. Install a native client when you do not want Node.js or a
+client container.
+
+Choose either a release binary or a source build, then configure the client.
 
 #### Download a release binary
 
@@ -191,12 +181,11 @@ HTTPS.
 
 #### Configure the native client
 
-Configure one paper and compile it against the Compose server:
+Save the server connection once, then compile a paper:
 
 ```sh
+latexmk auth login --server http://127.0.0.1:8080
 cd /absolute/path/to/paper
-latexmk init --server http://127.0.0.1:8080
-export LATEXMK_TOKEN='the same token from the server .env'
 latexmk cache ignore
 latexmk files main.tex
 latexmk main.tex
@@ -229,6 +218,9 @@ Manual user-level locations are:
 Codex and Claude Code users should normally use the native Plugin in the Quick
 Start. Manual Skill installation is mainly for OpenCode, Docker clients, or
 custom Agent setups.
+
+OpenCode, manual MCP configuration, and the older project-bound `agent install`
+path are documented in [AI coding agents](docs/AI_AGENTS.md).
 
 ### Run the local MCP server manually
 

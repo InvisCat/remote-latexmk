@@ -454,6 +454,22 @@ func WriteUser(cfg FileConfig) (string, error) {
 // WriteUserToken stores one token outside paper directories with private
 // permissions and without following a symlink at the target.
 func WriteUserToken(token string) (string, error) {
+	token, err := NormalizeUserToken(token)
+	if err != nil {
+		return "", err
+	}
+	path, err := UserTokenPath()
+	if err != nil {
+		return "", err
+	}
+	if err := writePrivateUserFile(path, []byte(token+"\n")); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// NormalizeUserToken validates one token before login attempts or storage.
+func NormalizeUserToken(token string) (string, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return "", errors.New("token must not be empty")
@@ -464,14 +480,7 @@ func WriteUserToken(token string) (string, error) {
 	if len(token) > maxTokenFileSize {
 		return "", fmt.Errorf("token exceeds %d bytes", maxTokenFileSize)
 	}
-	path, err := UserTokenPath()
-	if err != nil {
-		return "", err
-	}
-	if err := writePrivateUserFile(path, []byte(token+"\n")); err != nil {
-		return "", err
-	}
-	return path, nil
+	return token, nil
 }
 
 func writePrivateUserFile(path string, data []byte) error {

@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/billstark001/latexmk/packages/cli/internal/client"
 	"github.com/billstark001/latexmk/packages/cli/internal/config"
+	"github.com/billstark001/latexmk/packages/cli/internal/protocol"
 	"golang.org/x/term"
 )
 
@@ -16,6 +20,8 @@ type authLoginOptions struct {
 }
 
 var readLoginToken = readLoginTokenFromTerminal
+
+const authLoginTimeout = 15 * time.Second
 
 func runAuth(args []string) int {
 	if len(args) == 0 {
@@ -61,6 +67,14 @@ func runAuthLogin(args []string) int {
 	if err != nil {
 		return failAgent("auth.login", false, err)
 	}
+	token, err = config.NormalizeUserToken(token)
+	if err != nil {
+		return failAgentArguments("auth.login", false, err)
+	}
+	metadata, err := verifyAuthLogin(server, token, current)
+	if err != nil {
+		return failAgent("auth.login", false, err)
+	}
 	tokenPath, err := config.WriteUserToken(token)
 	if err != nil {
 		return failAgentArguments("auth.login", false, err)
@@ -73,9 +87,45 @@ func runAuthLogin(args []string) int {
 		return failAgent("auth.login", false, err)
 	}
 
+	fmt.Printf("verified:    %s %s (protocol v%d)\n", metadata.Service, metadata.Version, metadata.ProtocolVersion)
 	fmt.Printf("credentials saved for %s\ntoken file: %s\nconfig:     %s\n", server, tokenPath, configPath)
-	fmt.Println("run 'remote-latexmk doctor' to verify the connection")
 	return 0
+}
+
+func verifyAuthLogin(server, token string, current config.FileConfig) (protocol.Metadata, error) {
+	remote, err := client.New(
+		server,
+		token,
+		authLoginTimeout,
+		current.InsecureSkipVerify,
+		current.CAFile,
+	)
+	if err != nil {
+		return protocol.Metadata{}, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), authLoginTimeout)
+	defer cancel()
+	if err := remote.Health(ctx); err != nil {
+		return protocol.Metadata{}, fmt.Errorf("server health check failed: %w", err)
+	}
+	metadata, err := remote.Metadata(ctx)
+	if err != nil {
+		return protocol.Metadata{}, fmt.Errorf("server metadata check failed: %w", err)
+	}
+	if metadata.Service != "remote-latexmk" {
+		return protocol.Metadata{}, fmt.Errorf("server identifies as %q, not remote-latexmk", metadata.Service)
+	}
+	if metadata.ProtocolVersion != protocol.Version {
+		return protocol.Metadata{}, fmt.Errorf(
+			"server protocol v%d does not match client protocol v%d",
+			metadata.ProtocolVersion,
+			protocol.Version,
+		)
+	}
+	if _, err := remote.ListJobs(ctx, 1); err != nil {
+		return protocol.Metadata{}, fmt.Errorf("remote-latexmk API token verification failed: %w", err)
+	}
+	return metadata, nil
 }
 
 func parseAuthLoginArgs(args []string) (authLoginOptions, bool, error) {
@@ -122,9 +172,9 @@ func authUsage() {
 	fmt.Print(`Usage:
   remote-latexmk auth login --server URL
 
-The command reads the remote-latexmk API token from a hidden terminal prompt
-and stores it in the client user's private configuration directory. The token
-is not placed in the command line, shell history, paper directory, or user
-config JSON.
+The command reads the remote-latexmk API token from a hidden terminal prompt,
+verifies the server and token, then stores it in the client user's private
+configuration directory. The token is not placed in the command line, shell
+history, paper directory, or user config JSON.
 `)
 }

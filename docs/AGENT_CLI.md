@@ -88,10 +88,10 @@ latexmk auth login --server https://latex.example.edu
 ```
 
 The remote-latexmk API token is read from a hidden terminal prompt. This
-command is intentionally interactive and has no Agent JSON mode. Agents must
-not request the token or run the prompt on the user's behalf. The setup
-commands below remain the non-secret preview/apply interface for an existing
-token file.
+command verifies the server and token before saving either file. It is
+intentionally interactive and has no Agent JSON mode. Agents must not request
+the token or run the prompt on the user's behalf. The setup commands below
+remain the non-secret preview/apply interface for an existing token file.
 
 ```sh
 latexmk setup --server https://latex.example.edu \

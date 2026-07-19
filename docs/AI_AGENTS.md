@@ -48,9 +48,9 @@ npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 auth login --server https:/
 ```
 
 Paste the remote-latexmk API token at the hidden terminal prompt. The command
-writes a private client token file and user configuration outside the paper.
-It does not put the token in shell history, a command argument, or
-`config.json`.
+verifies the server and token before writing a private client token file and
+user configuration outside the paper. It does not put the token in shell
+history, a command argument, or `config.json`.
 
 Start a new Agent session from the paper directory after login. The `setup`
 Skill first checks the saved login. If login is missing, it tells the user to

@@ -16,7 +16,8 @@ Plugin. It bundles the Skills and this npm-backed MCP command. See the main
 Quick Start.
 
 Save the server URL and token once on the client. The token prompt disables
-terminal echo, and the command stores the token outside paper directories:
+terminal echo. The command verifies the server and token before storing the
+login outside paper directories:
 
 ```sh
 npx --yes --ignore-scripts remote-latexmk@VERSION auth login --server https://latex.example.edu
