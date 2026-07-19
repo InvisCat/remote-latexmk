@@ -28,12 +28,12 @@
     "jsonc-parser": "3.3.1"
   },
   "optionalDependencies": {
-    "@inviscat/remote-latexmk-darwin-arm64": "workspace:*",
-    "@inviscat/remote-latexmk-darwin-x64": "workspace:*",
-    "@inviscat/remote-latexmk-linux-arm64": "workspace:*",
-    "@inviscat/remote-latexmk-linux-x64": "workspace:*",
-    "@inviscat/remote-latexmk-win32-arm64": "workspace:*",
-    "@inviscat/remote-latexmk-win32-x64": "workspace:*"
+    "@rlatexmk/rlatexmk-darwin-arm64": "workspace:*",
+    "@rlatexmk/rlatexmk-darwin-x64": "workspace:*",
+    "@rlatexmk/rlatexmk-linux-arm64": "workspace:*",
+    "@rlatexmk/rlatexmk-linux-x64": "workspace:*",
+    "@rlatexmk/rlatexmk-win32-arm64": "workspace:*",
+    "@rlatexmk/rlatexmk-win32-x64": "workspace:*"
   },
   "repository": {
     "type": "git",

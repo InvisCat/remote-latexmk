@@ -5,12 +5,12 @@ import process from 'node:process';
 const require = createRequire(import.meta.url);
 
 const packages = new Map([
-  ['darwin/arm64', '@inviscat/remote-latexmk-darwin-arm64'],
-  ['darwin/x64', '@inviscat/remote-latexmk-darwin-x64'],
-  ['linux/arm64', '@inviscat/remote-latexmk-linux-arm64'],
-  ['linux/x64', '@inviscat/remote-latexmk-linux-x64'],
-  ['win32/arm64', '@inviscat/remote-latexmk-win32-arm64'],
-  ['win32/x64', '@inviscat/remote-latexmk-win32-x64'],
+  ['darwin/arm64', '@rlatexmk/rlatexmk-darwin-arm64'],
+  ['darwin/x64', '@rlatexmk/rlatexmk-darwin-x64'],
+  ['linux/arm64', '@rlatexmk/rlatexmk-linux-arm64'],
+  ['linux/x64', '@rlatexmk/rlatexmk-linux-x64'],
+  ['win32/arm64', '@rlatexmk/rlatexmk-win32-arm64'],
+  ['win32/x64', '@rlatexmk/rlatexmk-win32-x64'],
 ]);
 
 export function platformPackageName(platform = process.platform, arch = process.arch) {

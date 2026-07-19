@@ -1,5 +1,5 @@
 {
-  "name": "@inviscat/remote-latexmk-win32-arm64",
+  "name": "@rlatexmk/rlatexmk-win32-arm64",
   "version": "0.3.0-rc.1",
   "private": true,
   "description": "remote-latexmk native client for Windows arm64.",

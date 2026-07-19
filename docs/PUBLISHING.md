@@ -120,7 +120,7 @@ trusted-publisher setup from breaking GitHub Releases.
 Before enabling it:
 
 1. reserve the public `remote-latexmk` package and the six
-   `@inviscat/remote-latexmk-*` platform packages;
+   `@rlatexmk/rlatexmk-*` platform packages;
 2. configure each npm package to trust this repository's `release.yml`
    workflow;
 3. confirm the npm account and scope ownership;
