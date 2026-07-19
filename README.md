@@ -438,6 +438,11 @@ This roadmap describes intended directions and does not promise release dates.
   environments without hidden executable downloads, publish
   **version-pinned npm packages** for the existing native client with no
   postinstall download scripts.
+- To avoid conflicts and confusion with the standard local Perl `latexmk`
+  command, adopt a distinct remote-client command such as **`rlatexmk`**, keep
+  `latexmk` as an optional compatibility alias during a documented transition,
+  and update Docker examples, MCP configurations, Agent Skills, and release
+  packages together.
 - To support Japanese journal and conference submissions that depend on
   pLaTeX, validate and add **pLaTeX and upLaTeX workflows** with `dvipdfmx`,
   including representative Japanese document classes, dependency discovery,
