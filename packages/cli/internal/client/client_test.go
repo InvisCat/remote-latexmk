@@ -98,6 +98,20 @@ func TestNewRejectsUnsafeServerURLs(t *testing.T) {
 	}
 }
 
+func TestNewUsesBuildVersionInUserAgent(t *testing.T) {
+	original := version
+	version = "1.2.3-test"
+	t.Cleanup(func() { version = original })
+
+	c, err := New("https://example.test", "", time.Second, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.UserAgent != "latexmk-cli/1.2.3-test" {
+		t.Fatalf("User-Agent = %q", c.UserAgent)
+	}
+}
+
 func TestJobMethodsUseStablePathsAndOrdering(t *testing.T) {
 	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	newer := older.Add(time.Minute)

@@ -63,17 +63,16 @@ selected for upload.
 
 ## 2. Install the Agent Skills
 
-Replace `OWNER` with the GitHub account or organization that publishes the
-repository. List the available skills before installation if desired:
+List the available skills before installation if desired:
 
 ```sh
-npx skills add OWNER/remote-latexmk --list
+npx skills add InvisCat/remote-latexmk --list
 ```
 
 Install both skills globally for Codex, Claude Code, and OpenCode:
 
 ```sh
-npx skills add OWNER/remote-latexmk -g \
+npx skills add InvisCat/remote-latexmk -g \
   --skill remote-latex \
   --skill remote-latex-maintenance \
   --agent codex \

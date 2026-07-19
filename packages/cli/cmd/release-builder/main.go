@@ -88,7 +88,7 @@ func run(opts options) error {
 		binaryName += ".exe"
 	}
 	binaryPath := filepath.Join(tempDir, binaryName)
-	ldflags := fmt.Sprintf("-s -w -X main.version=%s -X main.commit=%s -X main.buildDate=%s", opts.version, opts.commit, opts.buildDate)
+	ldflags := fmt.Sprintf("-s -w -X main.version=%s -X main.commit=%s -X main.buildDate=%s -X github.com/billstark001/latexmk/packages/cli/internal/client.version=%s", opts.version, opts.commit, opts.buildDate, opts.version)
 	cmd := exec.Command("go", "build", "-trimpath", "-buildvcs=false", "-ldflags", ldflags, "-o", binaryPath, "./cmd/latexmk")
 	cmd.Dir = filepath.Join(root, "packages", "cli")
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS="+opts.goos, "GOARCH="+opts.goarch)

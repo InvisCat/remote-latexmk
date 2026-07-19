@@ -26,6 +26,16 @@ test('release workflow is tag-only and pins third-party actions', async () => {
   assert.match(workflow, /provenance: mode=max/);
   assert.match(workflow, /sbom: true/);
   assert.match(workflow, /attestations: write/);
+  assert.match(workflow, /release_args\+=\(--prerelease\)/);
+});
+
+test('CI installs pinned pnpm before setup-node enables pnpm caching', async () => {
+  const workflow = await readFile(path.join(root, '.github/workflows/ci.yml'), 'utf8');
+  const pnpmSetup = workflow.indexOf('pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1');
+  const nodeSetup = workflow.indexOf('actions/setup-node@');
+  assert.ok(pnpmSetup >= 0, 'missing pinned pnpm setup action');
+  assert.ok(nodeSetup > pnpmSetup, 'pnpm must be installed before setup-node resolves the pnpm cache');
+  assert.doesNotMatch(workflow, /corepack enable pnpm/);
 });
 
 test('container inputs and GHCR compose path are pinned', async () => {
@@ -49,8 +59,8 @@ test('container inputs and GHCR compose path are pinned', async () => {
   assert.match(override, /ghcr\.io\/\$\{LATEXMK_GHCR_NAMESPACE/);
   assert.match(override, /remote-latexmk-server/);
   assert.match(override, /remote-latexmk-client/);
-  assert.match(override, /LATEXMK_GHCR_NAMESPACE:-OWNER/);
-  assert.match(override, /LATEXMK_GHCR_VERSION:-VERSION/);
+  assert.match(override, /LATEXMK_GHCR_NAMESPACE:-inviscat/);
+  assert.match(override, /LATEXMK_GHCR_VERSION:-0\.2\.0-rc\.1/);
   assert.doesNotMatch(override, /billstark001/);
   assert.doesNotMatch(override, /LATEXMK_GHCR_(?:NAMESPACE|VERSION):\?/);
   assert.doesNotMatch(override, /:latest/);

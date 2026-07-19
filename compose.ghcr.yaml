@@ -1,13 +1,13 @@
 # Use with compose.yaml to pull a tagged remote-latexmk release instead of building locally.
 services:
   server:
-    image: ${LATEXMK_GHCR_SERVER_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-OWNER}/remote-latexmk-server:${LATEXMK_GHCR_VERSION:-VERSION}}
+    image: ${LATEXMK_GHCR_SERVER_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-inviscat}/remote-latexmk-server:${LATEXMK_GHCR_VERSION:-0.2.0-rc.1}}
     pull_policy: always
 
   client:
-    image: ${LATEXMK_GHCR_CLIENT_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-OWNER}/remote-latexmk-client:${LATEXMK_GHCR_VERSION:-VERSION}}
+    image: ${LATEXMK_GHCR_CLIENT_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-inviscat}/remote-latexmk-client:${LATEXMK_GHCR_VERSION:-0.2.0-rc.1}}
     pull_policy: always
 
   client-watch:
-    image: ${LATEXMK_GHCR_CLIENT_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-OWNER}/remote-latexmk-client:${LATEXMK_GHCR_VERSION:-VERSION}}
+    image: ${LATEXMK_GHCR_CLIENT_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-inviscat}/remote-latexmk-client:${LATEXMK_GHCR_VERSION:-0.2.0-rc.1}}
     pull_policy: always

@@ -46,8 +46,8 @@ name and main motivation readable when the preview is shown at a small size.
 ## Before the first tag
 
 1. Create or rename the public fork to `remote-latexmk`.
-2. Replace every documentation placeholder of the form `OWNER/remote-latexmk`
-   with the real GitHub namespace.
+2. Confirm public links use `InvisCat/remote-latexmk` and GHCR image paths use
+   the lowercase `inviscat` namespace.
 3. Set the Git remote to the public fork. Do not silently rewrite the Go module
    path in the same change; that is a separate compatibility decision.
 4. Add the description, topics, social preview, website URL if one exists, and
@@ -98,7 +98,7 @@ Only after the artifacts exist:
 5. Test the cross-Agent command with the public repository:
 
    ```sh
-   npx skills add OWNER/remote-latexmk -g \
+   npx skills add InvisCat/remote-latexmk -g \
      --skill remote-latex \
      --skill remote-latex-maintenance \
      --agent codex \
@@ -115,8 +115,8 @@ Human-readable versions are suitable for trying a release. Long-lived
 deployments should use complete image references with digests:
 
 ```dotenv
-LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/OWNER/remote-latexmk-server@sha256:SERVER_DIGEST
-LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/OWNER/remote-latexmk-client@sha256:CLIENT_DIGEST
+LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server@sha256:SERVER_DIGEST
+LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client@sha256:CLIENT_DIGEST
 ```
 
 Do not put `sha256:...` in `LATEXMK_GHCR_VERSION`; that produces an invalid

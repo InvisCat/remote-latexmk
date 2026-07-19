@@ -6,11 +6,11 @@ FROM ${GO_IMAGE} AS builder
 WORKDIR /src
 COPY packages/cli/go.mod ./
 COPY packages/cli/ ./
-ARG VERSION=0.1.0-local
+ARG VERSION=0.2.0-local
 ARG COMMIT=local
 ARG BUILD_DATE=unknown
 RUN CGO_ENABLED=0 go build -trimpath \
-    -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}" \
+    -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE} -X github.com/billstark001/latexmk/packages/cli/internal/client.version=${VERSION}" \
     -o /out/latexmk ./cmd/latexmk
 
 FROM ${CLIENT_BASE_IMAGE}

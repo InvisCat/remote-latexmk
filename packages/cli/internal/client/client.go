@@ -83,6 +83,8 @@ const (
 	maxNeedsFileBytes  = 64 << 20
 )
 
+var version = "0.2.0-dev"
+
 func New(baseURL, token string, timeout time.Duration, insecure bool, caFile string) (*Client, error) {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	parsed, err := url.Parse(baseURL)
@@ -113,7 +115,7 @@ func New(baseURL, token string, timeout time.Duration, insecure bool, caFile str
 		BaseURL:          baseURL,
 		Token:            token,
 		HTTP:             &http.Client{Timeout: timeout, Transport: transport},
-		UserAgent:        "latexmk-cli/0.1.0",
+		UserAgent:        "latexmk-cli/" + version,
 		RespectGitIgnore: true,
 	}, nil
 }

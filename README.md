@@ -22,7 +22,7 @@ Requirements: Git, Docker, Docker Compose, and `curl` for the health check. You
 do not need local Go, Node.js, pnpm, Perl, latexmk, or TeX Live.
 
 ```sh
-git clone https://github.com/OWNER/remote-latexmk.git
+git clone https://github.com/InvisCat/remote-latexmk.git
 cd remote-latexmk
 cp .env.example .env
 
@@ -35,7 +35,6 @@ curl --fail --retry 15 --retry-connrefused --retry-delay 1 \
 docker compose run --rm --build client main.tex
 ```
 
-Replace `OWNER` with the account or organization that publishes this fork.
 The last command compiles `examples/basic/main.tex` and returns its PDF to the
 example directory. The first build downloads and builds a TeX Live image, so it
 can take time and use several gigabytes of Docker cache. Later starts reuse the
@@ -127,11 +126,11 @@ Install the client first, or configure the Docker MCP command below. The Skills
 guide agents through manifest review, queued compilation, diagnostics with raw
 log fallback, artifact download, and explicit cleanup previews.
 
-After this fork is public, install both Skills into Codex, Claude Code, and
-OpenCode with the cross-Agent installer:
+Install both Skills into Codex, Claude Code, and OpenCode with the cross-Agent
+installer:
 
 ```sh
-npx skills add OWNER/remote-latexmk -g \
+npx skills add InvisCat/remote-latexmk -g \
   --skill remote-latex \
   --skill remote-latex-maintenance \
   --agent codex \
@@ -224,8 +223,8 @@ all three server policy values. Then use the base and GHCR Compose files shown
 under [Prebuilt images](#prebuilt-images-and-digest-pinning):
 
 ```dotenv
-LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/OWNER/remote-latexmk-server-full:VERSION
-LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/OWNER/remote-latexmk-client:VERSION
+LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server-full:0.2.0-rc.1
+LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client:0.2.0-rc.1
 LATEXMK_IMAGE_PROFILE=texlive-full
 LATEXMK_ENGINES=xelatex,lualatex,pdflatex
 ```
@@ -304,8 +303,8 @@ isolation. Read [Security](docs/SECURITY.md) before exposing the service.
 After a release exists, set an exact namespace and version:
 
 ```dotenv
-LATEXMK_GHCR_NAMESPACE=OWNER
-LATEXMK_GHCR_VERSION=0.1.0
+LATEXMK_GHCR_NAMESPACE=inviscat
+LATEXMK_GHCR_VERSION=0.2.0-rc.1
 ```
 
 ```sh
@@ -317,8 +316,8 @@ For immutable deployment pins, use full `@sha256:` references instead of
 putting a digest in `LATEXMK_GHCR_VERSION`:
 
 ```dotenv
-LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/OWNER/remote-latexmk-server@sha256:SERVER_DIGEST
-LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/OWNER/remote-latexmk-client@sha256:CLIENT_DIGEST
+LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server@sha256:SERVER_DIGEST
+LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client@sha256:CLIENT_DIGEST
 ```
 
 The release workflow currently builds server images for `linux/amd64`, a
