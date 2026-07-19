@@ -28,10 +28,19 @@ test('release workflow is tag-only and pins third-party actions', async () => {
   assert.match(workflow, /attestations: write/);
   assert.match(workflow, /release_args\+=\(--prerelease\)/);
   assert.match(workflow, /smoke-papers:[\s\S]*?run: make smoke-papers/);
-  assert.match(workflow, /needs: \[validate, binaries, images, smoke-papers\]/);
-  assert.match(workflow, /SMOKE_SLIM_SERVER_IMAGE: ghcr\.io/);
-  assert.match(workflow, /SMOKE_FULL_SERVER_IMAGE: ghcr\.io/);
-  assert.match(workflow, /SMOKE_CLIENT_IMAGE: ghcr\.io/);
+  assert.match(workflow, /tags: type=raw,value=candidate-\$\{\{ github\.sha \}\}/);
+  assert.match(workflow, /SMOKE_SLIM_SERVER_IMAGE: ghcr\.io[^\n]+:candidate-\$\{\{ github\.sha \}\}/);
+  assert.match(workflow, /SMOKE_FULL_SERVER_IMAGE: ghcr\.io[^\n]+:candidate-\$\{\{ github\.sha \}\}/);
+  assert.match(workflow, /SMOKE_CLIENT_IMAGE: ghcr\.io[^\n]+:candidate-\$\{\{ github\.sha \}\}/);
+  assert.match(workflow, /publish-images:[\s\S]*?needs: \[validate, images, smoke-papers\]/);
+  assert.match(workflow, /publish-images:[\s\S]*?packages: write/);
+  assert.match(workflow, /publish-images:[\s\S]*?docker buildx imagetools create/);
+  assert.match(workflow, /needs: \[validate, binaries, publish-images\]/);
+  const imagesJob = workflow.slice(workflow.indexOf('\n  images:'), workflow.indexOf('\n  smoke-papers:'));
+  const publishJob = workflow.slice(workflow.indexOf('\n  publish-images:'), workflow.indexOf('\n  release:'));
+  assert.doesNotMatch(imagesJob, /type=semver|value=latest/);
+  assert.match(publishJob, /type=semver/);
+  assert.match(publishJob, /value=latest/);
 });
 
 test('CI installs pinned pnpm before setup-node enables pnpm caching', async () => {

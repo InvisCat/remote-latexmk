@@ -127,11 +127,7 @@ jobs:
         with:
           images: ghcr.io/${{ needs.validate.outputs.owner }}/${{ matrix.image }}
           flavor: latest=false
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+          tags: type=raw,value=candidate-${{ github.sha }}
           labels: |
             org.opencontainers.image.title=remote-latexmk ${{ matrix.name }}
             org.opencontainers.image.description=Self-hosted remote LaTeX compiler ${{ matrix.name }} image
@@ -179,13 +175,71 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Compile executable slim and IEEE examples
         env:
-          SMOKE_SLIM_SERVER_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-server:${{ needs.validate.outputs.version }}
-          SMOKE_FULL_SERVER_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-server-full:${{ needs.validate.outputs.version }}
-          SMOKE_CLIENT_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-client:${{ needs.validate.outputs.version }}
+          SMOKE_SLIM_SERVER_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-server:candidate-${{ github.sha }}
+          SMOKE_FULL_SERVER_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-server-full:candidate-${{ github.sha }}
+          SMOKE_CLIENT_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-client:candidate-${{ github.sha }}
         run: make smoke-papers
 
+  publish-images:
+    needs: [validate, images, smoke-papers]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - remote-latexmk-server
+          - remote-latexmk-server-full
+          - remote-latexmk-client
+    steps:
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ needs.validate.outputs.owner }}/${{ matrix.image }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+      - name: Promote tested image tags
+        env:
+          SOURCE_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/${{ matrix.image }}:candidate-${{ github.sha }}
+          TARGET_TAGS: ${{ steps.meta.outputs.tags }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tags=()
+          while IFS= read -r tag; do
+            if [[ -n "${tag}" ]]; then
+              tags+=(--tag "${tag}")
+            fi
+          done <<< "${TARGET_TAGS}"
+          test "${#tags[@]}" -gt 0
+          docker buildx imagetools create "${tags[@]}" "${SOURCE_IMAGE}"
+
+          source_digest="$(docker buildx imagetools inspect "${SOURCE_IMAGE}" \
+            | awk '$1 == "Digest:" { print $2; exit }')"
+          test -n "${source_digest}"
+          while IFS= read -r tag; do
+            if [[ -z "${tag}" ]]; then
+              continue
+            fi
+            target_digest="$(docker buildx imagetools inspect "${tag}" \
+              | awk '$1 == "Digest:" { print $2; exit }')"
+            test "${target_digest}" = "${source_digest}"
+          done <<< "${TARGET_TAGS}"
+
   release:
-    needs: [validate, binaries, images, smoke-papers]
+    needs: [validate, binaries, publish-images]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -79,12 +79,12 @@ For a release candidate:
 
 1. Create an annotated version tag that matches the version rules in
    `.github/workflows/release.yml`.
-2. Let GitHub Actions build the images and client archives.
-3. Verify archive checksums, image architecture manifests, OCI labels, and the
+2. Let GitHub Actions build candidate images and client archives.
+3. The workflow runs `make smoke-papers` against commit-specific candidate
+   image tags. Only a passing run promotes those digests to the release's
+   semver tags and, for stable releases, `latest`.
+4. Verify archive checksums, image architecture manifests, OCI labels, and the
    generated release notes.
-4. Pull every published image by exact tag and run `make smoke-papers`. This
-   compiles the slim article fixture and the full IEEE fixture through the
-   public Compose path.
 5. Run one native client archive on each supported operating-system family.
 6. Record the published image digests in the release notes.
 
