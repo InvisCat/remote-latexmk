@@ -1,5 +1,3 @@
-# remote-latexmk — self-hosted remote LaTeX compiler
-
 <p align="center">
   <img src="docs/assets/remote-latexmk-hero.svg" alt="remote-latexmk connects CLI and local MCP coding-agent clients to a private TeX server and returns PDFs and diagnostics" width="100%">
 </p>
@@ -12,7 +10,7 @@ containers, and coding agents through a native client, Docker, or MCP. Preview
 dependency-aware uploads and receive PDFs, logs, and diagnostics without
 installing TeX Live in each environment.
 
-## Docker quick start
+## Quick Start: Docker Compose
 
 The current public release candidate is `v0.2.0-rc.1`. The copied `.env` uses
 its pinned server and client images by default.
