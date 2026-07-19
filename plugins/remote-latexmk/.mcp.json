@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "remote-latexmk": {
+      "command": "npx",
+      "args": [
+        "--yes",
+        "--ignore-scripts",
+        "remote-latexmk@0.3.0-rc.1",
+        "mcp",
+        "serve",
+        "--stdio",
+        "--root-from-client"
+      ]
+    }
+  }
+}

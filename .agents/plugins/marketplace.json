@@ -1,0 +1,20 @@
+{
+  "name": "remote-latexmk",
+  "interface": {
+    "displayName": "Remote LaTeX"
+  },
+  "plugins": [
+    {
+      "name": "remote-latexmk",
+      "source": {
+        "source": "local",
+        "path": "./plugins/remote-latexmk"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
+    }
+  ]
+}

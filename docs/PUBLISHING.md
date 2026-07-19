@@ -60,6 +60,8 @@ name and main motivation readable when the preview is shown at a small size.
    MCP examples.
 9. Confirm that the release workflow has permission to write packages and
    create releases.
+10. Validate the shared Codex/Claude Plugin directory and both marketplace
+    manifests. Install it from a clean temporary Agent home before publishing.
 
 ## Release artifacts
 
@@ -74,9 +76,10 @@ The tag workflow is designed to publish:
 - `SHA256SUMS` for all native archives and the installer;
 - optional npm launcher and platform packages when trusted publishing is
   explicitly enabled.
+- repository marketplace manifests for the Codex and Claude Code Plugin.
 
 The full server image is intentionally separate because it is much larger than
-the default CJK-oriented image. Do not claim multi-platform server support
+the default slim server image. Do not claim multi-platform server support
 until the server image matrix actually builds and passes on those platforms.
 
 For a release candidate:
@@ -91,6 +94,22 @@ For a release candidate:
    generated release notes.
 5. Run one native client archive on each supported operating-system family.
 6. Record the published image digests in the release notes.
+7. Confirm `plugins/remote-latexmk/.mcp.json`, both Plugin manifests, and the
+   npm launcher use the same release version.
+
+Validate Plugin metadata and generated Skills before tagging:
+
+```sh
+pnpm sync:plugin-skills
+python3 /path/to/plugin-creator/scripts/validate_plugin.py \
+  plugins/remote-latexmk
+claude plugin validate plugins/remote-latexmk
+claude plugin validate .
+```
+
+Run the Skill validator for `setup`, `remote-latex`, and
+`remote-latex-maintenance`. The root test command also runs
+`sync-plugin-skills.mjs --check` so stale generated Plugin Skills fail CI.
 
 ## npm trusted publishing
 
@@ -120,7 +139,18 @@ Only after the artifacts exist:
 2. Keep the source-build Compose path as a documented fallback.
 3. Link the release page and checksum file from the native client section.
 4. Remove the pre-release badge and statements that no public artifacts exist.
-5. Test the cross-Agent command with the public repository:
+5. Test native Plugin installation with the public repository:
+
+   ```sh
+   codex plugin marketplace add InvisCat/remote-latexmk
+   codex plugin add remote-latexmk@remote-latexmk
+
+   claude plugin marketplace add InvisCat/remote-latexmk
+   claude plugin install remote-latexmk@remote-latexmk
+   ```
+
+6. Test the manual cross-Agent Skill command used by OpenCode and advanced
+   setups:
 
    ```sh
    npx skills add InvisCat/remote-latexmk -g \
@@ -131,7 +161,7 @@ Only after the artifacts exist:
      --agent opencode
    ```
 
-6. Add Agent-specific GitHub topics only for the integrations that pass this
+7. Add Agent-specific GitHub topics only for the integrations that pass this
    test.
 
 ## Immutable deployment references

@@ -176,7 +176,7 @@ case "${command}" in
     if [[ ",${LATEXMK_ENGINES:-}," == *,lualatex,* ]]; then
       command -v lualatex >/dev/null 2>&1 || { echo "missing lualatex" >&2; failures=$((failures + 1)); }
     fi
-    printf 'config  %s\nlisten  %s\nstate   %s\n' "${config_file}" "${LATEXMK_ADDR:-unknown}" "${LATEXMK_STATE_DIR:-unknown}"
+    printf 'config  %s\nlisten  %s\nengines %s\nstate   %s\n' "${config_file}" "${LATEXMK_ADDR:-unknown}" "${LATEXMK_ENGINES:-unknown}" "${LATEXMK_STATE_DIR:-unknown}"
     [[ "${failures}" -eq 0 ]]
     ;;
   token)
@@ -197,7 +197,7 @@ case "${command}" in
     service_mode=auto
     if [[ "${REMOTE_LATEXMK_SERVICE_MODE:-}" == systemd ]]; then service_mode=systemd; fi
     if [[ "${REMOTE_LATEXMK_SERVICE_MODE:-}" == fallback ]]; then service_mode=none; fi
-    exec "${installer}" --version "${2}" --install-dir "${install_root}" --profile "${REMOTE_LATEXMK_PROFILE:-full}" --listen "${LATEXMK_ADDR:-127.0.0.1:8080}" --service "${service_mode}"
+    exec "${installer}" --version "${2}" --install-dir "${install_root}" --profile "${REMOTE_LATEXMK_PROFILE:-full}" --engines "${LATEXMK_ENGINES:-xelatex,pdflatex}" --listen "${LATEXMK_ADDR:-127.0.0.1:8080}" --service "${service_mode}"
     ;;
   uninstall)
     purge=false

@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -12,6 +14,8 @@ func isolateUserConfig(t *testing.T) string {
 	t.Setenv("XDG_CONFIG_HOME", dir)
 	t.Setenv("LATEXMK_TOKEN", "")
 	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	t.Setenv("LATEXMK_SERVER", "")
+	t.Setenv("LATEXMK_CA_FILE", "")
 	t.Setenv("LATEXMK_UPLOAD_MODE", "")
 	t.Setenv("LATEXMK_MANIFEST_FILE", "")
 	return dir
@@ -171,8 +175,8 @@ func TestLoadTokenPrecedence(t *testing.T) {
 	if cfg.Token != "user-token" {
 		t.Fatalf("token = %q, want user-token", cfg.Token)
 	}
-	if cfg.Server != "https://project.example" {
-		t.Fatalf("server = %q, want project config to override user config", cfg.Server)
+	if cfg.Server != "https://user.example" {
+		t.Fatalf("server = %q, want the endpoint bound to user credentials", cfg.Server)
 	}
 
 	tokenFile := filepath.Join(t.TempDir(), "token")
@@ -205,5 +209,141 @@ func TestReadTokenFileRejectsMultipleLines(t *testing.T) {
 	}
 	if _, err := ReadTokenFile(path); err == nil {
 		t.Fatal("expected multiple token lines to be rejected")
+	}
+}
+
+func TestLoadPrefersPrimaryUserConfigAndReadsTokenFile(t *testing.T) {
+	configHome := isolateUserConfig(t)
+	primaryDir := filepath.Join(configHome, userConfigDir)
+	legacyDir := filepath.Join(configHome, legacyUserConfigDir)
+	if err := os.MkdirAll(primaryDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(legacyDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	tokenPath := filepath.Join(primaryDir, "token")
+	if err := os.WriteFile(tokenPath, []byte("file-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(primaryDir, UserFileName), []byte(`{"server":"https://primary.example","tokenFile":"token"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacyDir, UserFileName), []byte(`{"server":"https://legacy.example","token":"legacy-token"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server != "https://primary.example" || cfg.Token != "file-token" || cfg.TokenFile != tokenPath {
+		t.Fatalf("resolved primary config = %#v", cfg)
+	}
+}
+
+func TestLoadBoundedDoesNotReadParentProjectConfig(t *testing.T) {
+	isolateUserConfig(t)
+	parent := t.TempDir()
+	workspace := filepath.Join(parent, "paper")
+	if err := os.Mkdir(workspace, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(parent, FileName), []byte(`{"server":"https://parent.example"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	unbounded, err := Load(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unbounded.Server != "https://parent.example" {
+		t.Fatalf("unbounded server = %q", unbounded.Server)
+	}
+	bounded, err := LoadBounded(workspace, workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bounded.Server != "http://127.0.0.1:8080" || bounded.ConfigPath != "" {
+		t.Fatalf("bounded config = %#v", bounded)
+	}
+}
+
+func TestLoadBoundedDoesNotLetProjectRedirectUserCredentials(t *testing.T) {
+	configHome := isolateUserConfig(t)
+	userDir := filepath.Join(configHome, userConfigDir)
+	if err := os.MkdirAll(userDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	tokenPath := filepath.Join(userDir, "token")
+	if err := os.WriteFile(tokenPath, []byte("user-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	userConfig := `{"server":"https://private.example","tokenFile":"token","caFile":"private-ca.pem"}`
+	if err := os.WriteFile(filepath.Join(userDir, UserFileName), []byte(userConfig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	projectConfig := `{"server":"https://attacker.example","token":"attacker-token","tokenFile":"../../secret","caFile":"attacker-ca.pem","insecureSkipVerify":true,"engine":"pdflatex"}`
+	if err := os.WriteFile(filepath.Join(workspace, FileName), []byte(projectConfig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadBounded(workspace, workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server != "https://private.example" || cfg.Token != "user-token" || cfg.TokenFile != tokenPath {
+		t.Fatalf("Agent connection config was redirected: %#v", cfg)
+	}
+	if cfg.CAFile != filepath.Join(userDir, "private-ca.pem") || cfg.InsecureSkipVerify {
+		t.Fatalf("Agent TLS config was redirected: %#v", cfg)
+	}
+	if cfg.Engine != "pdflatex" {
+		t.Fatalf("safe project setting was ignored: engine=%q", cfg.Engine)
+	}
+}
+
+func TestLoadBoundedRejectsSymlinkedProjectConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation may require privileges on Windows")
+	}
+	isolateUserConfig(t)
+	outside := filepath.Join(t.TempDir(), "outside.json")
+	if err := os.WriteFile(outside, []byte(`{"engine":"pdflatex"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(workspace, FileName)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadBounded(workspace, workspace); err == nil || !strings.Contains(err.Error(), "must not be a symlink") {
+		t.Fatalf("symlinked project config error = %v", err)
+	}
+}
+
+func TestWriteUserUsesPrimaryPathAndPrivatePermissions(t *testing.T) {
+	configHome := isolateUserConfig(t)
+	path, err := WriteUser(FileConfig{Server: "https://latex.example", TokenFile: "/secure/token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(configHome, userConfigDir, UserFileName)
+	if path != want {
+		t.Fatalf("path = %q, want %q", path, want)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("config mode = %o", info.Mode().Perm())
+	}
+	dirInfo, err := os.Stat(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dirInfo.Mode().Perm() != 0o700 {
+		t.Fatalf("config directory mode = %o", dirInfo.Mode().Perm())
 	}
 }

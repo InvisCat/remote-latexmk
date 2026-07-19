@@ -1,0 +1,39 @@
+{
+  "name": "remote-latexmk",
+  "version": "0.3.0-rc.1",
+  "description": "Compile LaTeX projects on a private remote TeX Live server.",
+  "author": {
+    "name": "InvisCat",
+    "url": "https://github.com/InvisCat"
+  },
+  "homepage": "https://github.com/InvisCat/remote-latexmk",
+  "repository": "https://github.com/InvisCat/remote-latexmk",
+  "license": "MIT",
+  "keywords": [
+    "latex",
+    "texlive",
+    "self-hosted",
+    "mcp",
+    "codex",
+    "claude-code"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Remote LaTeX",
+    "shortDescription": "Compile LaTeX on your private TeX server",
+    "longDescription": "Preview dependency-aware uploads, compile on a self-hosted TeX Live server, inspect diagnostics, and download artifacts without local TeX Live.",
+    "developerName": "InvisCat",
+    "category": "Development",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Set up Remote LaTeX for this workspace.",
+      "Preview and compile this LaTeX project.",
+      "Diagnose the latest LaTeX compile failure."
+    ],
+    "brandColor": "#67E8C5"
+  },
+  "mcpServers": "./.mcp.json"
+}

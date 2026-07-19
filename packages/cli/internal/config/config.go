@@ -14,11 +14,17 @@ import (
 const FileName = ".latexmk.json"
 const UserFileName = "config.json"
 
+const (
+	userConfigDir       = "remote-latexmk"
+	legacyUserConfigDir = "latexmk"
+)
+
 const maxTokenFileSize = 64 << 10
 
 type FileConfig struct {
 	Server             string   `json:"server"`
 	Token              string   `json:"token,omitempty"`
+	TokenFile          string   `json:"tokenFile,omitempty"`
 	ProjectRoot        string   `json:"projectRoot,omitempty"`
 	ProjectID          string   `json:"projectId,omitempty"`
 	RootMode           string   `json:"rootMode,omitempty"`
@@ -36,6 +42,7 @@ type FileConfig struct {
 type Resolved struct {
 	Server             string
 	Token              string
+	TokenFile          string
 	ProjectRoot        string
 	ProjectID          string
 	RootMode           string
@@ -89,6 +96,16 @@ func DefaultDeny() []string {
 }
 
 func Load(start string) (Resolved, error) {
+	return load(start, "")
+}
+
+// LoadBounded loads project configuration without walking above boundary.
+// It is used when an MCP host supplies the workspace security boundary.
+func LoadBounded(start, boundary string) (Resolved, error) {
+	return load(start, boundary)
+}
+
+func load(start, boundary string) (Resolved, error) {
 	respectGitIgnore := true
 	cfg := FileConfig{
 		Server:           "http://127.0.0.1:8080",
@@ -108,9 +125,20 @@ func Load(start string) (Resolved, error) {
 			return Resolved{}, err
 		}
 	}
+	userServer := cfg.Server
 	userToken := cfg.Token
+	userTokenFile := cfg.TokenFile
+	if userTokenFile != "" && !filepath.IsAbs(userTokenFile) {
+		userTokenFile = filepath.Join(filepath.Dir(userPath), userTokenFile)
+	}
+	userCAFile := cfg.CAFile
+	if userCAFile != "" && !filepath.IsAbs(userCAFile) {
+		userCAFile = filepath.Join(filepath.Dir(userPath), userCAFile)
+	}
+	userInsecureSkipVerify := cfg.InsecureSkipVerify
+	userHasCredentials := userToken != "" || userTokenFile != ""
 
-	path, err := findConfig(start)
+	path, err := findConfig(start, boundary)
 	if err != nil {
 		return Resolved{}, err
 	}
@@ -119,19 +147,56 @@ func Load(start string) (Resolved, error) {
 			return Resolved{}, err
 		}
 	}
-	if userToken != "" {
+	if boundary != "" {
+		// An Agent workspace may control project configuration, but it must not
+		// redirect user credentials or weaken the user's TLS settings.
+		cfg.Server = userServer
 		cfg.Token = userToken
+		cfg.TokenFile = userTokenFile
+		cfg.CAFile = userCAFile
+		cfg.InsecureSkipVerify = userInsecureSkipVerify
+	} else if userHasCredentials {
+		cfg.Server = userServer
+		cfg.Token = userToken
+		cfg.TokenFile = userTokenFile
+		cfg.CAFile = userCAFile
+		cfg.InsecureSkipVerify = userInsecureSkipVerify
 	}
 	cfg.Exclude = mergePatterns(cfg.Exclude, DefaultDeny())
 
 	if v := os.Getenv("LATEXMK_SERVER"); v != "" {
 		cfg.Server = v
 	}
+	if cfg.TokenFile != "" {
+		tokenFile := cfg.TokenFile
+		if !filepath.IsAbs(tokenFile) {
+			base := start
+			if path != "" {
+				base = filepath.Dir(path)
+			}
+			tokenFile = filepath.Join(base, tokenFile)
+		}
+		tokenFile, err = filepath.Abs(tokenFile)
+		if err != nil {
+			return Resolved{}, err
+		}
+		token, err := ReadTokenFile(tokenFile)
+		if err != nil {
+			return Resolved{}, fmt.Errorf("tokenFile: %w", err)
+		}
+		cfg.TokenFile = tokenFile
+		cfg.Token = token
+	}
 	if v := os.Getenv("LATEXMK_TOKEN_FILE"); v != "" {
-		token, err := ReadTokenFile(v)
+		absolute, err := filepath.Abs(v)
 		if err != nil {
 			return Resolved{}, fmt.Errorf("LATEXMK_TOKEN_FILE: %w", err)
 		}
+		token, err := ReadTokenFile(absolute)
+		if err != nil {
+			return Resolved{}, fmt.Errorf("LATEXMK_TOKEN_FILE: %w", err)
+		}
+		cfg.TokenFile = absolute
 		cfg.Token = token
 	}
 	if v, ok := os.LookupEnv("LATEXMK_TOKEN"); ok && v != "" {
@@ -200,6 +265,7 @@ func Load(start string) (Resolved, error) {
 	return Resolved{
 		Server:             cfg.Server,
 		Token:              cfg.Token,
+		TokenFile:          cfg.TokenFile,
 		ProjectRoot:        resolvedRoot,
 		ProjectID:          cfg.ProjectID,
 		RootMode:           cfg.RootMode,
@@ -228,7 +294,7 @@ func mergeFile(path string, cfg *FileConfig) error {
 	return nil
 }
 
-func findUserConfig() (string, error) {
+func userConfigBase() (string, error) {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
 		var err error
@@ -237,18 +303,50 @@ func findUserConfig() (string, error) {
 			return "", fmt.Errorf("find user config directory: %w", err)
 		}
 	}
-	path := filepath.Join(base, "latexmk", UserFileName)
-	st, err := os.Stat(path)
-	if err == nil {
-		if !st.Mode().IsRegular() {
-			return "", fmt.Errorf("user config %s is not a regular file", path)
+	return base, nil
+}
+
+// UserConfigPath returns the primary path used for new user configuration.
+func UserConfigPath() (string, error) {
+	base, err := userConfigBase()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, userConfigDir, UserFileName), nil
+}
+
+func findUserConfig() (string, error) {
+	base, err := userConfigBase()
+	if err != nil {
+		return "", err
+	}
+	for _, directory := range []string{userConfigDir, legacyUserConfigDir} {
+		path := filepath.Join(base, directory, UserFileName)
+		st, statErr := os.Stat(path)
+		if statErr == nil {
+			if !st.Mode().IsRegular() {
+				return "", fmt.Errorf("user config %s is not a regular file", path)
+			}
+			return path, nil
 		}
-		return path, nil
+		if !os.IsNotExist(statErr) {
+			return "", fmt.Errorf("stat user config %s: %w", path, statErr)
+		}
 	}
-	if os.IsNotExist(err) {
-		return "", nil
+	return "", nil
+}
+
+// ReadUserFile returns the existing primary or legacy user configuration.
+func ReadUserFile() (FileConfig, string, error) {
+	path, err := findUserConfig()
+	if err != nil || path == "" {
+		return FileConfig{}, path, err
 	}
-	return "", fmt.Errorf("stat user config %s: %w", path, err)
+	cfg := FileConfig{}
+	if err := mergeFile(path, &cfg); err != nil {
+		return FileConfig{}, path, err
+	}
+	return cfg, path, nil
 }
 
 // ReadTokenFile reads one bearer token from a regular file. Leading and
@@ -326,15 +424,87 @@ func Write(path string, cfg FileConfig) error {
 	return os.WriteFile(path, b, 0o600)
 }
 
-func findConfig(start string) (string, error) {
+// WriteUser writes a minimal user configuration atomically at the primary
+// remote-latexmk config path. It does not follow a symlink at the target.
+func WriteUser(cfg FileConfig) (string, error) {
+	path, err := UserConfigPath()
+	if err != nil {
+		return "", err
+	}
+	directory := filepath.Dir(path)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return "", fmt.Errorf("create user config directory: %w", err)
+	}
+	if err := os.Chmod(directory, 0o700); err != nil {
+		return "", fmt.Errorf("protect user config directory: %w", err)
+	}
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return "", fmt.Errorf("user config %s is not a regular file", path)
+		}
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("inspect user config %s: %w", path, err)
+	}
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	b = append(b, '\n')
+	temporary, err := os.CreateTemp(directory, ".config-*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("create temporary user config: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(0o600); err != nil {
+		temporary.Close()
+		return "", err
+	}
+	if _, err := temporary.Write(b); err != nil {
+		temporary.Close()
+		return "", err
+	}
+	if err := temporary.Sync(); err != nil {
+		temporary.Close()
+		return "", err
+	}
+	if err := temporary.Close(); err != nil {
+		return "", err
+	}
+	if err := replaceFile(temporaryPath, path); err != nil {
+		return "", fmt.Errorf("install user config: %w", err)
+	}
+	return path, nil
+}
+
+func findConfig(start, boundary string) (string, error) {
 	dir, err := filepath.Abs(start)
 	if err != nil {
 		return "", err
 	}
+	limit := ""
+	if boundary != "" {
+		limit, err = filepath.Abs(boundary)
+		if err != nil {
+			return "", err
+		}
+		rel, relErr := filepath.Rel(limit, dir)
+		if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return "", errors.New("configuration start is outside the workspace boundary")
+		}
+	}
 	for {
 		candidate := filepath.Join(dir, FileName)
-		if st, err := os.Stat(candidate); err == nil && st.Mode().IsRegular() {
-			return candidate, nil
+		if st, err := os.Lstat(candidate); err == nil {
+			if boundary != "" && st.Mode()&os.ModeSymlink != 0 {
+				return "", fmt.Errorf("project config %s must not be a symlink in Agent workspace mode", candidate)
+			}
+			if st.Mode().IsRegular() {
+				return candidate, nil
+			}
+		}
+		if limit != "" && dir == limit {
+			return "", nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {

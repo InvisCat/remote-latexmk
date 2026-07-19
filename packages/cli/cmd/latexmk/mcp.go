@@ -11,8 +11,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -37,15 +39,18 @@ var mcpSupportedProtocols = map[string]bool{
 }
 
 type mcpOptions struct {
-	projectRoot string
-	stdio       bool
+	projectRoot    string
+	rootFromClient bool
+	stdio          bool
 }
 
 type mcpRequest struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id,omitempty"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
+	JSONRPC string            `json:"jsonrpc"`
+	ID      json.RawMessage   `json:"id,omitempty"`
+	Method  string            `json:"method"`
+	Params  json.RawMessage   `json:"params,omitempty"`
+	Result  json.RawMessage   `json:"result,omitempty"`
+	Error   *mcpResponseError `json:"error,omitempty"`
 }
 
 type mcpResponse struct {
@@ -102,16 +107,22 @@ type mcpManifestFile struct {
 }
 
 type stdioMCPServer struct {
-	in          io.Reader
-	out         io.Writer
-	root        string
-	client      *client.Client
-	engine      string
-	timeout     time.Duration
-	now         func() time.Time
-	initialized bool
-	manifests   map[string]mcpManifest
-	remotePlans map[string]mcpRemoteCleanupPlan
+	in                  io.Reader
+	out                 io.Writer
+	root                string
+	client              *client.Client
+	engine              string
+	timeout             time.Duration
+	now                 func() time.Time
+	initialized         bool
+	manifests           map[string]mcpManifest
+	remotePlans         map[string]mcpRemoteCleanupPlan
+	runtimeReady        bool
+	rootFromClient      bool
+	clientSupportsRoots bool
+	rootRequestPending  bool
+	rootRequestID       json.RawMessage
+	rootErr             error
 }
 
 func runMCP(args []string) int {
@@ -124,6 +135,8 @@ func runMCP(args []string) int {
 		switch {
 		case a == "--stdio":
 			opts.stdio = true
+		case a == "--root-from-client":
+			opts.rootFromClient = true
 		case a == "--project-root" || strings.HasPrefix(a, "--project-root="):
 			if strings.Contains(a, "=") {
 				opts.projectRoot = strings.SplitN(a, "=", 2)[1]
@@ -140,9 +153,20 @@ func runMCP(args []string) int {
 	if !opts.stdio {
 		return fail(errors.New("mcp serve currently requires --stdio"))
 	}
+	if opts.rootFromClient && opts.projectRoot != "" {
+		return fail(errors.New("--root-from-client and --project-root cannot be combined"))
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fail(err)
+	}
+	if opts.rootFromClient {
+		server := newRootDiscoveringMCPServer(os.Stdin, os.Stdout)
+		if err := server.serve(); err != nil {
+			fmt.Fprintln(os.Stderr, "latexmk mcp:", err)
+			return 1
+		}
+		return 0
 	}
 	configStart := cwd
 	if opts.projectRoot != "" {
@@ -211,7 +235,14 @@ func newStdioMCPServer(in io.Reader, out io.Writer, root string, c *client.Clien
 	return &stdioMCPServer{
 		in: in, out: out, root: root, client: c, engine: engine,
 		timeout: timeout, now: time.Now, manifests: make(map[string]mcpManifest),
-		remotePlans: make(map[string]mcpRemoteCleanupPlan),
+		remotePlans: make(map[string]mcpRemoteCleanupPlan), runtimeReady: true,
+	}
+}
+
+func newRootDiscoveringMCPServer(in io.Reader, out io.Writer) *stdioMCPServer {
+	return &stdioMCPServer{
+		in: in, out: out, rootFromClient: true, now: time.Now,
+		manifests: make(map[string]mcpManifest), remotePlans: make(map[string]mcpRemoteCleanupPlan),
 	}
 }
 
@@ -238,13 +269,23 @@ func (s *stdioMCPServer) serve() error {
 }
 
 func (s *stdioMCPServer) handle(request mcpRequest) error {
-	if request.JSONRPC != "2.0" || request.Method == "" {
+	if request.JSONRPC != "2.0" {
 		if len(request.ID) == 0 {
 			return nil
 		}
 		return s.writeProtocolError(request.ID, -32600, "Invalid Request", nil)
 	}
+	if request.Method == "" {
+		return s.handleClientResponse(request)
+	}
 	if request.Method == "notifications/initialized" {
+		if s.rootFromClient {
+			return s.requestClientRoots()
+		}
+		return nil
+	}
+	if request.Method == "notifications/roots/list_changed" {
+		// The project boundary is fixed for the lifetime of this MCP process.
 		return nil
 	}
 	if request.Method == "notifications/cancelled" {
@@ -274,6 +315,9 @@ func (s *stdioMCPServer) handle(request mcpRequest) error {
 func (s *stdioMCPServer) handleInitialize(request mcpRequest) error {
 	var params struct {
 		ProtocolVersion string `json:"protocolVersion"`
+		Capabilities    struct {
+			Roots json.RawMessage `json:"roots"`
+		} `json:"capabilities"`
 	}
 	if err := json.Unmarshal(request.Params, &params); err != nil || params.ProtocolVersion == "" {
 		return s.writeProtocolError(request.ID, -32602, "Invalid initialize parameters", nil)
@@ -281,6 +325,9 @@ func (s *stdioMCPServer) handleInitialize(request mcpRequest) error {
 	selected := params.ProtocolVersion
 	if !mcpSupportedProtocols[selected] {
 		selected = mcpLatestProtocol
+	}
+	if s.rootFromClient {
+		s.clientSupportsRoots = len(bytes.TrimSpace(params.Capabilities.Roots)) > 0 && !bytes.Equal(bytes.TrimSpace(params.Capabilities.Roots), []byte("null"))
 	}
 	s.initialized = true
 	return s.writeResult(request.ID, map[string]any{
@@ -313,6 +360,109 @@ func (s *stdioMCPServer) handleToolCall(request mcpRequest) error {
 	return s.writeToolResult(request.ID, map[string]any{"ok": true, "data": data}, false)
 }
 
+func (s *stdioMCPServer) requestClientRoots() error {
+	if s.runtimeReady || s.rootRequestPending || s.rootErr != nil {
+		return nil
+	}
+	if !s.clientSupportsRoots {
+		s.rootErr = errors.New("the MCP client did not advertise workspace roots; configure an explicit project root instead")
+		return nil
+	}
+	s.rootRequestID = json.RawMessage(`"remote-latexmk-roots-1"`)
+	s.rootRequestPending = true
+	return s.writeRequest(s.rootRequestID, "roots/list", map[string]any{})
+}
+
+func (s *stdioMCPServer) handleClientResponse(response mcpRequest) error {
+	if !s.rootRequestPending || !bytes.Equal(bytes.TrimSpace(response.ID), bytes.TrimSpace(s.rootRequestID)) {
+		return nil
+	}
+	s.rootRequestPending = false
+	if response.Error != nil {
+		s.rootErr = fmt.Errorf("the MCP client rejected workspace root discovery: %s", response.Error.Message)
+		return nil
+	}
+	var result struct {
+		Roots []struct {
+			URI string `json:"uri"`
+		} `json:"roots"`
+	}
+	if err := json.Unmarshal(response.Result, &result); err != nil {
+		s.rootErr = errors.New("the MCP client returned an invalid roots/list response")
+		return nil
+	}
+	if len(result.Roots) != 1 {
+		s.rootErr = errors.New("remote-latexmk requires exactly one workspace root for each MCP session")
+		return nil
+	}
+	workspaceRoot, err := mcpFileURIPath(result.Roots[0].URI)
+	if err != nil {
+		s.rootErr = err
+		return nil
+	}
+	if err := s.configureDiscoveredRoot(workspaceRoot); err != nil {
+		s.rootErr = err
+	}
+	return nil
+}
+
+func mcpFileURIPath(value string) (string, error) {
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "file" || parsed.Opaque != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", errors.New("the MCP workspace root must be a local file URI")
+	}
+	if parsed.Host != "" && parsed.Host != "localhost" {
+		return "", errors.New("network file workspace roots are not supported")
+	}
+	path := filepath.FromSlash(parsed.Path)
+	if runtime.GOOS == "windows" && len(path) >= 3 && path[0] == filepath.Separator && path[2] == ':' {
+		path = path[1:]
+	}
+	if path == "" || !filepath.IsAbs(path) {
+		return "", errors.New("the MCP workspace root must be an absolute local path")
+	}
+	return resolveMCPRoot("", path)
+}
+
+func (s *stdioMCPServer) configureDiscoveredRoot(workspaceRoot string) error {
+	cfg, err := config.LoadBounded(workspaceRoot, workspaceRoot)
+	if err != nil {
+		return fmt.Errorf("load configuration inside the MCP workspace: %w", err)
+	}
+	effectiveRoot := workspaceRoot
+	if cfg.ProjectRoot != "" {
+		effectiveRoot, err = resolveMCPRoot(workspaceRoot, cfg.ProjectRoot)
+		if err != nil {
+			return err
+		}
+		if !pathWithin(workspaceRoot, effectiveRoot) {
+			return errors.New("configured project root is outside the MCP workspace")
+		}
+	}
+	c, err := client.New(cfg.Server, cfg.Token, cfg.Timeout, cfg.InsecureSkipVerify, cfg.CAFile)
+	if err != nil {
+		return err
+	}
+	c.ProjectRoot = effectiveRoot
+	c.ProjectID = cfg.ProjectID
+	c.Exclude = append([]string(nil), cfg.Exclude...)
+	c.RespectGitIgnore = cfg.RespectGitIgnore
+	c.UploadMode = cfg.UploadMode
+	c.ManifestFile = cfg.ManifestFile
+	c.IncludeFiles = append([]string(nil), cfg.IncludeFiles...)
+	s.root = effectiveRoot
+	s.client = c
+	s.engine = cfg.Engine
+	s.timeout = cfg.Timeout
+	s.runtimeReady = true
+	return nil
+}
+
+func pathWithin(root, candidate string) bool {
+	relative, err := filepath.Rel(root, candidate)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && !filepath.IsAbs(relative)
+}
+
 func knownMCPTool(name string) bool {
 	for _, tool := range mcpTools() {
 		if tool.Name == name {
@@ -323,6 +473,12 @@ func knownMCPTool(name string) bool {
 }
 
 func (s *stdioMCPServer) callTool(name string, raw json.RawMessage) (any, error) {
+	if !s.runtimeReady {
+		if s.rootErr != nil {
+			return nil, s.rootErr
+		}
+		return nil, errors.New("waiting for the MCP client to provide the workspace root")
+	}
 	switch name {
 	case "project_manifest":
 		return s.toolProjectManifest(raw)
@@ -750,6 +906,15 @@ func (s *stdioMCPServer) writeToolResult(id json.RawMessage, structured any, isE
 
 func (s *stdioMCPServer) writeResult(id json.RawMessage, result any) error {
 	return json.NewEncoder(s.out).Encode(mcpResponse{JSONRPC: "2.0", ID: id, Result: result})
+}
+
+func (s *stdioMCPServer) writeRequest(id json.RawMessage, method string, params any) error {
+	return json.NewEncoder(s.out).Encode(struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id"`
+		Method  string          `json:"method"`
+		Params  any             `json:"params"`
+	}{JSONRPC: "2.0", ID: id, Method: method, Params: params})
 }
 
 func (s *stdioMCPServer) writeProtocolError(id json.RawMessage, code int, message string, data any) error {

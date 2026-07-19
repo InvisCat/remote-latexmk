@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -97,6 +99,113 @@ func TestMCPRejectsCallsBeforeInitialize(t *testing.T) {
 	if !strings.Contains(stdout.String(), `"code":-32002`) {
 		t.Fatalf("response = %s", stdout.String())
 	}
+}
+
+func TestMCPDiscoversAndFixesOneClientWorkspaceRoot(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LATEXMK_SERVER", "")
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	root := t.TempDir()
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "main.tex"), []byte("\\documentclass{article}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rootURI := testMCPFileURI(root)
+	input := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{"roots":{"listChanged":true}},"clientInfo":{"name":"test","version":"1"}}}`,
+		`{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}`,
+		`{"jsonrpc":"2.0","id":"remote-latexmk-roots-1","result":{"roots":[{"uri":"` + rootURI + `","name":"paper"}]}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"project_manifest","arguments":{"entry":"main.tex"}}}`,
+	}, "\n") + "\n"
+	var stdout bytes.Buffer
+	server := newRootDiscoveringMCPServer(strings.NewReader(input), &stdout)
+	if err := server.serve(); err != nil {
+		t.Fatal(err)
+	}
+	if !server.runtimeReady || server.root != resolvedRoot || server.client == nil {
+		t.Fatalf("discovered runtime ready=%t root=%q client=%v", server.runtimeReady, server.root, server.client)
+	}
+	if strings.Contains(stdout.String(), resolvedRoot) {
+		t.Fatalf("MCP stdout leaked absolute root: %s", stdout.String())
+	}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 3 || !strings.Contains(lines[1], `"method":"roots/list"`) {
+		t.Fatalf("root discovery transcript: %s", stdout.String())
+	}
+	var result struct {
+		Result mcpToolResult `json:"result"`
+	}
+	if err := json.Unmarshal([]byte(lines[2]), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Result.IsError {
+		t.Fatalf("manifest failed after root discovery: %s", lines[2])
+	}
+}
+
+func TestMCPRootDiscoveryFailsClosedWithoutOneRoot(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	rootA := t.TempDir()
+	rootB := t.TempDir()
+	input := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{"roots":{}},"clientInfo":{"name":"test","version":"1"}}}`,
+		`{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}`,
+		`{"jsonrpc":"2.0","id":"remote-latexmk-roots-1","result":{"roots":[{"uri":"` + testMCPFileURI(rootA) + `"},{"uri":"` + testMCPFileURI(rootB) + `"}]}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"server_status","arguments":{}}}`,
+	}, "\n") + "\n"
+	var stdout bytes.Buffer
+	server := newRootDiscoveringMCPServer(strings.NewReader(input), &stdout)
+	if err := server.serve(); err != nil {
+		t.Fatal(err)
+	}
+	if server.runtimeReady || server.root != "" {
+		t.Fatalf("ambiguous roots were accepted: root=%q", server.root)
+	}
+	if !strings.Contains(stdout.String(), "requires exactly one workspace root") {
+		t.Fatalf("ambiguous-root error missing: %s", stdout.String())
+	}
+}
+
+func TestMCPRootDiscoveryRejectsProjectRootOutsideWorkspace(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	parent := t.TempDir()
+	root := filepath.Join(parent, "paper")
+	if err := os.Mkdir(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, config.FileName), []byte(`{"projectRoot":".."}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	input := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{"roots":{}},"clientInfo":{"name":"test","version":"1"}}}`,
+		`{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}`,
+		`{"jsonrpc":"2.0","id":"remote-latexmk-roots-1","result":{"roots":[{"uri":"` + testMCPFileURI(root) + `"}]}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"server_status","arguments":{}}}`,
+	}, "\n") + "\n"
+	var stdout bytes.Buffer
+	server := newRootDiscoveringMCPServer(strings.NewReader(input), &stdout)
+	if err := server.serve(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "configured project root is outside the MCP workspace") {
+		t.Fatalf("outside-root error missing: %s", stdout.String())
+	}
+}
+
+func testMCPFileURI(path string) string {
+	slash := filepath.ToSlash(path)
+	if runtime.GOOS == "windows" && !strings.HasPrefix(slash, "/") {
+		slash = "/" + slash
+	}
+	return (&url.URL{Scheme: "file", Path: slash}).String()
 }
 
 func TestMCPManifestIsOneUseAndInvalidAfterSourceChange(t *testing.T) {

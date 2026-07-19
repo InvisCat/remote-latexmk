@@ -14,7 +14,7 @@ step's JSON CLI fallback.
 
 ## Workflow
 
-1. Work from the paper directory. Keep `--project-root .` explicit unless the user selected another root.
+1. Use the current paper workspace as the project root. A Plugin MCP session is bound to the workspace root supplied by the Agent. On the CLI fallback, keep `--project-root .` explicit unless the user selected another root.
 2. Check `server_status` before the first compile. On the CLI fallback, run `latexmk doctor`; use `latexmk meta --json` only when machine-readable server metadata is needed.
 3. Build a `project_manifest`. On the CLI fallback, run `latexmk files --json --project-root . ENTRY.tex`. Inspect the actual selected paths before the first upload and after relevant source, manifest, ignore, exclude, or upload-policy changes.
 4. Stop if a secret, Git-ignored file, denied file, parent-directory file, or unexpected bulk selection appears. Never change the upload mode to `all` merely because dependency discovery failed.

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "remote-latexmk",
+  "owner": {
+    "name": "InvisCat",
+    "url": "https://github.com/InvisCat"
+  },
+  "metadata": {
+    "description": "Remote LaTeX compilation plugins.",
+    "version": "0.3.0-rc.1"
+  },
+  "plugins": [
+    {
+      "name": "remote-latexmk",
+      "source": "./plugins/remote-latexmk",
+      "description": "Compile LaTeX projects on a private remote TeX Live server.",
+      "version": "0.3.0-rc.1",
+      "author": {
+        "name": "InvisCat"
+      },
+      "homepage": "https://github.com/InvisCat/remote-latexmk",
+      "repository": "https://github.com/InvisCat/remote-latexmk",
+      "license": "MIT",
+      "keywords": [
+        "latex",
+        "texlive",
+        "self-hosted",
+        "mcp",
+        "claude-code"
+      ],
+      "category": "development"
+    }
+  ]
+}

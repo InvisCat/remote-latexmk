@@ -40,7 +40,8 @@ unrelated upstream Perl LatexMk distribution.
   interface for polling, logs, cancellation, and artifact download.
 - MCP runs locally inside the client process. This keeps filesystem selection,
   CA files, and bearer credentials on the client side and lets one process bind
-  its tools to one resolved paper root.
+  its tools to one resolved paper root. Plugin mode obtains that root from the
+  Agent host instead of storing an absolute paper path in the Plugin.
 - PostgreSQL is optional because a single static-token deployment does not need
   user administration. It becomes the persistent identity and job store when
   deployments need separate principals or restart-stable records.
@@ -57,13 +58,16 @@ flowchart LR
     Human["Human or script"]
     Agent["AI coding agent"]
     Skills["Agent Skills"]
+    Plugin["Codex or Claude Code Plugin"]
     CLI["Go CLI and JSON commands"]
     MCP["Local STDIO MCP server"]
     Policy["Root, Git-ignore, denylist,<br/>dependency, and size policy"]
 
     Human --> CLI
-    Agent --> Skills --> CLI
-    Agent --> MCP
+    Agent --> Plugin
+    Plugin --> Skills
+    Plugin --> MCP
+    Skills --> CLI
     CLI --> Policy
     MCP --> Policy
     Paper --> Policy
@@ -112,6 +116,12 @@ distribution. Its main responsibilities are:
 - watch the selected dependency and policy files for continuous compilation;
 - expose strict JSON commands and a project-root-bound STDIO MCP server.
 
+The Codex and Claude Code Plugin starts MCP in root-discovery mode. MCP asks the
+host for its workspace roots, accepts exactly one canonical local root, and
+does not search above it for project configuration. User-level server,
+credential, CA, and TLS verification settings cannot be replaced by project
+configuration in this mode.
+
 The default project root is the entry file's directory. A parent Git root is
 used only when the user selects that root mode or supplies a project root. This
 keeps a command in a paper subdirectory from silently selecting its parent
@@ -135,9 +145,15 @@ does not replace the unrelated Perl program. Skills bundled in the npm package
 use the npm command. The repository's original Skills retain `latexmk` for
 native archive and source-build users.
 
-The Agent installer binds MCP to one resolved project root, accepts credentials
-only by token-file path, and installs complete Skill directories. Codex and
-Claude Code entries are created through their CLIs. OpenCode JSONC is updated
+The repository also contains one Plugin directory shared by the Codex and
+Claude Code marketplace manifests. It bundles the npm-backed MCP command, a
+first-run setup Skill, and generated copies of the compile and maintenance
+Skills. The setup command writes the server and token-file path to user
+configuration after a preview; it never stores the token value there.
+
+The older Agent installer remains for OpenCode and custom fixed-root setups. It
+binds MCP to one resolved project root, accepts credentials only by token-file
+path, and installs complete Skill directories. OpenCode JSONC is updated
 structurally with the previous file backed up. Existing changed Skills require
 an explicit `--force` replacement.
 
@@ -235,7 +251,9 @@ a systemd user service when available. That unit hides the rest of the user's
 home directory and exposes only the release, TeX Live, state, and temporary
 paths. A weaker PID-file fallback requires explicit selection when no user
 manager is available. The installer does not use root privileges or modify
-shell startup files.
+shell startup files. The installed TeX Live package profile and the engines
+accepted by the server are separate settings. The full package profile keeps
+LuaLaTeX disabled by default unless it is explicitly selected.
 
 `scripts/remote-latexmkctl` owns start, stop, status, logs, explicit token
 display, tagged upgrades, and confirmation-based removal. Normal uninstall

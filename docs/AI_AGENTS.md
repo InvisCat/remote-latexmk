@@ -5,10 +5,10 @@ compiler without installing TeX Live on the agent's machine. The repository
 ships Agent Skills, a local STDIO MCP server, and machine-readable JSON
 commands with a versioned Agent subset.
 
-The Agent Skills describe a safe workflow. They do not contain credentials or
-start a server. The npm Agent installer can install the Skills together with
-an npm-backed local MCP entry; manual Skill installation still requires a
-client to be configured separately.
+The Codex and Claude Code Plugins are the main Agent path. Each Plugin bundles
+the Agent Skills and an npm-backed local MCP entry. The Skills contain no
+credentials and do not start the remote server. OpenCode and custom MCP hosts
+can use the same npm client through the advanced paths below.
 
 ## Good use cases
 
@@ -22,22 +22,43 @@ client to be configured separately.
 The normal workflow is designed for an individual researcher or a small trusted
 lab that controls the paper, client, server, and network.
 
-## 1. Set up the npm client and MCP entry
+## 1. Install the Plugin
 
-One command configures the detected Codex, Claude Code, and OpenCode
-installations:
+The Agent machine needs Node.js, but it does not need Go or TeX Live. Install
+the Plugin from this repository's marketplace.
+
+### Codex
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \
-  --project-root /absolute/path/to/paper \
-  --server https://latex.example.edu \
-  --token-file /absolute/path/to/latexmk-token
+codex plugin marketplace add InvisCat/remote-latexmk
+codex plugin add remote-latexmk@remote-latexmk
 ```
 
-Run it with `--dry-run` first to inspect the plan. Repeat `--agent` to limit the
-targets. A protected token file is required; raw token arguments are rejected.
-The generated MCP command uses `npm exec --ignore-scripts` with the exact npm
-package version, so the Agent machine needs Node.js but not Go or TeX Live.
+### Claude Code
+
+```sh
+claude plugin marketplace add InvisCat/remote-latexmk
+claude plugin install remote-latexmk@remote-latexmk
+```
+
+Start a new Agent session from the paper directory after installation. Ask the
+Agent to set up Remote LaTeX. The `setup` Skill asks for:
+
+- an `http://` or `https://` server URL;
+- an existing protected token file outside the paper;
+- an optional CA certificate file for a private CA.
+
+The Skill runs a preview first and asks for confirmation before it writes the
+user configuration. The command rejects raw token arguments. It stores the
+token file path under the user's configuration directory, not in the paper's
+`.latexmk.json`.
+
+The Plugin starts the local MCP server with `--root-from-client`. After MCP
+initialization, the server asks the Agent host for its workspace roots and
+requires exactly one local `file://` root. That canonical root is fixed for the
+MCP process. Project configuration cannot move the root outside the Agent
+workspace or redirect the user-configured server, token, CA file, or TLS
+verification setting.
 
 ## 2. Native and Docker alternatives
 
@@ -79,7 +100,26 @@ latexmk doctor
 Do not paste a token into an agent prompt. Do not place it in a file that can be
 selected for upload.
 
-## 3. Manual Agent Skill installation
+## 3. Other Agents and project-bound setup
+
+OpenCode and custom Agent environments can run the npm client directly. For a
+single paper, the older installer can add both Skills and a fixed-root MCP
+entry to detected Codex, Claude Code, or OpenCode configurations:
+
+```sh
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \
+  --project-root /absolute/path/to/paper \
+  --server https://latex.example.edu \
+  --token-file /absolute/path/to/latexmk-token \
+  --dry-run
+```
+
+Remove `--dry-run` only after inspecting the planned commands and files. Repeat
+`--agent` to limit the targets. This path is useful for an Agent without native
+Plugin support, but each generated MCP entry remains tied to that one absolute
+paper path. Raw token arguments are rejected.
+
+## 4. Manual Agent Skill installation
 
 List the available skills before installation if desired:
 
@@ -151,7 +191,17 @@ can call the typed tools. Without MCP, it follows the JSON CLI fallback.
 
 ### MCP setup
 
-Run one local MCP process per paper root:
+Plugin hosts that implement MCP workspace roots can let the Agent select the
+current root without storing an absolute paper path:
+
+```sh
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 \
+  mcp serve --stdio --root-from-client
+```
+
+The host must advertise the MCP `roots` capability and return exactly one local
+root. For generic clients without that capability, run one local MCP process
+per explicit paper root:
 
 ```sh
 latexmk mcp serve --stdio --project-root /absolute/path/to/paper

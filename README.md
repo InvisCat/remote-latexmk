@@ -24,30 +24,48 @@ Docker, Go, Node.js, pnpm, or a system-wide TeX installation.
 
 ```sh
 VERSION=v0.3.0-rc.1
+SERVER_LISTEN=192.168.1.20:8080 # Replace with this server's private address.
 curl -fsSL \
   "https://github.com/InvisCat/remote-latexmk/releases/download/${VERSION}/install-server.sh" \
-  | bash -s -- --version "${VERSION}" --profile full
+  | bash -s -- --version "${VERSION}" --profile full \
+      --engines xelatex,pdflatex --listen "${SERVER_LISTEN}"
 
 ~/.remote-latexmk/bin/remote-latexmkctl status
 ```
 
-The installer defaults to `127.0.0.1:8080`, generates a private token, verifies
-the downloaded server archive, and does not use `sudo` or edit shell startup
-files. The Quick Start keeps this loopback-only default and connects through
-SSH. See [Native server installation](docs/NATIVE_INSTALL.md) for direct
-private-network or TLS deployment.
+> [!WARNING]
+> Native mode has weaker isolation than Docker and may expose systemd-visible
+> host files to TeX. Use it only for trusted papers on a dedicated account or
+> server; LuaLaTeX remains opt-in. See [Security](docs/SECURITY.md).
+
+Without `--listen`, the server listens only on `127.0.0.1:8080`, so another
+computer cannot connect to it directly. For access from another computer on
+the same LAN or VPN, set `--listen` to this server's reachable LAN or VPN IP,
+for example `--listen 192.168.1.20:8080`. Keep the loopback default when using
+an SSH tunnel. See
+[Native server installation](docs/NATIVE_INSTALL.md) for other deployments.
 
 ### 2. Client (Agent)
 
-On the client machine, keep an SSH tunnel to the server open in a terminal:
+First choose how the client reaches the server:
 
-```sh
-ssh -N -L 18080:127.0.0.1:8080 user@your-private-server
-```
+- On the same LAN or VPN, use the server's reachable LAN or VPN address:
 
-In another terminal, move the generated token to a protected file outside the
-paper directory. This copies it directly over SSH without placing it in an
-Agent prompt:
+  ```sh
+  export SERVER_URL=http://192.168.1.20:8080
+  ```
+
+- Without a shared private network, keep the server on `127.0.0.1` and open an
+  SSH tunnel. Keep this command running and use its local endpoint:
+
+  ```sh
+  ssh -N -L 18080:127.0.0.1:8080 user@your-private-server
+  export SERVER_URL=http://127.0.0.1:18080
+  ```
+
+Next, move the generated token to a protected file outside the paper directory
+using a trusted channel. The following is one SSH-based transfer example; the
+network connection itself may use a LAN, VPN, or SSH tunnel:
 
 ```sh
 (
@@ -59,34 +77,51 @@ Agent prompt:
 )
 ```
 
-From the paper directory on a laptop or Agent machine, one npm command installs
-the client entry, both Skills, and a local MCP entry for detected Codex, Claude
-Code, and OpenCode installations:
+Install the native Plugin for the Agent you use. Each Plugin contains the
+Remote LaTeX Skills and a local MCP entry. The MCP client uses Node.js to launch
+the small remote-latexmk client; it does not install TeX Live.
+
+#### Codex
 
 ```sh
-cd /absolute/path/to/paper
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \
-  --project-root "$PWD" \
-  --server http://127.0.0.1:18080 \
-  --token-file "$HOME/.config/remote-latexmk/token"
+codex plugin marketplace add InvisCat/remote-latexmk
+codex plugin add remote-latexmk@remote-latexmk
 ```
 
-Pass `--dry-run` first to inspect the commands and destinations. Repeat
-`--agent` to limit the target Agents. The installer rejects raw token
-arguments, uses native Agent configuration commands where available, and
-backs up the OpenCode configuration before editing it.
+#### Claude Code
+
+```sh
+claude plugin marketplace add InvisCat/remote-latexmk
+claude plugin install remote-latexmk@remote-latexmk
+```
+
+Start a new Agent session from the paper directory and ask:
+
+> Set up Remote LaTeX for this workspace. Ask me for the server URL and token
+> file path.
+
+The setup Skill previews the user-level configuration and asks for confirmation
+before writing it. It stores only the token file path, not the token value. The
+Plugin MCP server then obtains the current paper root from the Agent, so the
+Plugin is not tied to one absolute project path.
 
 The Agent can now inspect the upload manifest, compile the paper, read bounded
 diagnostics and logs, and download the PDF through the local MCP server. To use
-the same npm client directly from a shell:
+the same npm client directly from a shell, or from another Agent:
+
+#### CLI usage and other Agents
 
 ```sh
-export LATEXMK_SERVER=http://127.0.0.1:18080
+export LATEXMK_SERVER="$SERVER_URL"
 export LATEXMK_TOKEN_FILE="$HOME/.config/remote-latexmk/token"
 
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 files main.tex
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 main.tex
 ```
+
+OpenCode, manual MCP configuration, and the older project-bound
+`agent install` command are documented under
+[AI coding agents](docs/AI_AGENTS.md).
 
 The `remote-latexmk` npm package uses the same tagged client archives and npm
 platform packages. It has no install script that fetches or executes a binary
@@ -208,9 +243,9 @@ Manual user-level locations are:
 | Claude Code | `~/.claude/skills/<skill-name>/SKILL.md` |
 | OpenCode | `~/.config/opencode/skills/<skill-name>/SKILL.md` or `~/.agents/skills/<skill-name>/SKILL.md` |
 
-Codex and OpenCode can discover this repository's checked-in `.agents/skills`
-directories directly. Claude Code needs its native directory, the installer,
-or a future plugin wrapper.
+Codex and Claude Code users should normally use the native Plugin in the Quick
+Start. Manual Skill installation is mainly for OpenCode, Docker clients, or
+custom Agent setups.
 
 ### Run the local MCP server manually
 
@@ -274,7 +309,7 @@ the manifest. See [Dependency discovery](docs/DEPENDENCIES.md).
 
 | Deployment | Default engines | Notes |
 |---|---|---|
-| Root source Compose | XeLaTeX, PDFLaTeX | Slim CJK-oriented TeX Live image |
+| Root source Compose | XeLaTeX, PDFLaTeX | Smaller TeX Live image |
 | Full server image | XeLaTeX, LuaLaTeX, PDFLaTeX | Larger TeX Live image; LuaLaTeX runs with `--safer` and `--nosocket` |
 
 When selecting a full GHCR image, set the matching released client image and

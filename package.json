@@ -26,9 +26,10 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "test": "pnpm -r test",
+    "test": "node scripts/sync-plugin-skills.mjs --check && node scripts/check-plugin.mjs && pnpm -r test",
     "lint": "pnpm -r lint",
     "clean": "pnpm -r clean",
+    "sync:plugin-skills": "node scripts/sync-plugin-skills.mjs",
     "test:smoke:papers": "bash scripts/smoke-compose-papers.sh",
     "bundle:slim": "pnpm --filter @latexmk/deploy build && node packages/deploy/dist/index.js bundle --profile slim --out dist/paas-slim",
     "bundle:full": "pnpm --filter @latexmk/deploy build && node packages/deploy/dist/index.js bundle --profile full --out dist/paas-full"

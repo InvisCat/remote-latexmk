@@ -1,7 +1,7 @@
 # Agent-facing CLI contract
 
-Status: version 1 implemented for detached compile, jobs, logs, diagnostics,
-artifacts, and local cache inspection/cleanup.
+Status: version 1 implemented for user setup, detached compile, jobs, logs,
+diagnostics, artifacts, and local cache inspection/cleanup.
 
 This contract is for local agents and scripts. The CLI uses the same token,
 CA, timeout, and HTTPS configuration as interactive commands. It never prints
@@ -9,8 +9,8 @@ the token or Authorization header.
 
 ## Compatibility
 
-Detached `compile --json`, jobs, logs, diagnostics, artifacts, and local cache
-commands use a versioned JSON envelope. Existing JSON success output from
+`setup --json`, detached `compile --json`, jobs, logs, diagnostics, artifacts,
+and local cache commands use a versioned JSON envelope. Existing JSON success output from
 synchronous `compile --json` (without `--detach`), `files`, and `meta` remains
 unchanged for now. `remote clean` also remains outside the versioned envelope;
 its two-stage preview and apply success shapes are documented below. These
@@ -77,6 +77,27 @@ Stable error codes currently include:
 - `result_not_ready`;
 - `result_unavailable`.
 - `artifact_not_found`.
+
+## User setup
+
+```sh
+latexmk setup --server https://latex.example.edu \
+  --token-file /absolute/path/to/latexmk-token --json
+latexmk setup --server https://latex.example.edu \
+  --token-file /absolute/path/to/latexmk-token --yes --json
+```
+
+The first command is preview-only and returns `setup.preview`. The second
+returns `setup.apply` and writes the primary user configuration atomically with
+mode `0600`. Both results include the server URL, user configuration path,
+token file path, and optional CA file path. Neither returns or stores the token
+value. Raw `--token` values are rejected. On Unix, the token file must not be
+readable by group or other users.
+
+The setup command accepts `--ca-file` for a private CA and
+`--clear-ca-file` to remove a previous CA setting. It preserves unrelated user
+options. An existing legacy user configuration is read for migration, while
+new writes go to the `remote-latexmk` user configuration directory.
 
 ## Detached compile
 
@@ -204,6 +225,8 @@ envelope.
 ## MCP mapping
 
 `latexmk mcp serve --stdio` exposes the same client operations as strict MCP
-tools. MCP success and error results contain structured JSON plus an equivalent
-text content item for older hosts. See [MCP.md](MCP.md) for tool schemas,
-manifest lifetime, cleanup plans, and native/Docker configuration.
+tools. `--project-root` fixes an explicit root; `--root-from-client` requests
+one local workspace root from a Plugin host and fixes that root for the
+process. MCP success and error results contain structured JSON plus an
+equivalent text content item for older hosts. See [MCP.md](MCP.md) for tool
+schemas, manifest lifetime, cleanup plans, and native/Docker configuration.

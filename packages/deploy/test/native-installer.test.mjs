@@ -57,7 +57,7 @@ test('native installer verifies a tagged archive and creates a private config', 
   assert.match(config, /LATEXMK_ADDR="127\.0\.0\.1:8080"/);
   assert.match(config, /LATEXMK_API_TOKEN="[0-9a-f]{64}"/);
   assert.match(config, /LATEXMK_ALLOW_SHELL_ESCAPE="false"/);
-  assert.match(config, /LATEXMK_ENGINES="xelatex,lualatex,pdflatex"/);
+  assert.match(config, /LATEXMK_ENGINES="xelatex,pdflatex"/);
   assert.match(config, /REMOTE_LATEXMK_SERVICE_MODE="fallback"/);
   assert.equal((await stat(configPath)).mode & 0o777, 0o600);
   assert.equal((await lstat(path.join(installRoot, 'bin/remote-latexmk-server'))).isSymbolicLink(), true);
@@ -71,6 +71,18 @@ test('native installer dry-run is non-mutating and requires a fixed tag', async 
   });
   assert.match(stdout, /linux\/arm64/);
   assert.match(stdout, /remote-latexmk-server_1\.2\.3_linux_arm64\.tar\.gz/);
+  assert.match(stdout, /engines:\s+xelatex,pdflatex/);
+
+  const { stdout: luaStdout } = await execFileAsync('bash', [path.join(root, 'scripts/install-server.sh'),
+    '--version', 'v1.2.3', '--profile', 'full', '--engines', 'xelatex,lualatex,pdflatex', '--dry-run'], {
+    env: { ...process.env, REMOTE_LATEXMK_TEST_OS: 'Linux', REMOTE_LATEXMK_TEST_ARCH: 'aarch64' },
+  });
+  assert.match(luaStdout, /engines:\s+xelatex,lualatex,pdflatex/);
+
+  await assert.rejects(execFileAsync('bash', [path.join(root, 'scripts/install-server.sh'),
+    '--version', 'v1.2.3', '--profile', 'slim', '--engines', 'lualatex', '--dry-run'], {
+    env: { ...process.env, REMOTE_LATEXMK_TEST_OS: 'Linux' },
+  }), /lualatex requires --profile full/);
 
   await assert.rejects(execFileAsync('bash', [path.join(root, 'scripts/install-server.sh'), '--version', 'main', '--dry-run'], {
     env: { ...process.env, REMOTE_LATEXMK_TEST_OS: 'Linux' },

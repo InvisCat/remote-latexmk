@@ -1,12 +1,21 @@
 # Local STDIO MCP server
 
-The client binary can run a local Model Context Protocol server:
+The client binary can run a local Model Context Protocol server with either an
+explicit project root or a root supplied by the Agent host:
 
 ```sh
 latexmk mcp serve --stdio --project-root /absolute/path/to/paper
+latexmk mcp serve --stdio --root-from-client
 ```
 
 It does not contain TeX Live. It reads the local paper through the same project-root, Git-ignore, denylist, dependency, token-file, CA, and HTTPS policies as the CLI, then calls the configured remote compiler. The project root is resolved once at startup and cannot be changed by a tool call.
+
+`--root-from-client` is the Plugin mode. After initialization, the server calls
+MCP `roots/list`, accepts exactly one local `file://` root, resolves symlinks,
+and fixes that boundary for the process. A project `.latexmk.json` may choose a
+subdirectory inside the workspace, but it cannot move outside the workspace or
+override the user-configured server, token, CA file, or TLS verification
+setting. Hosts without MCP roots support must use `--project-root`.
 
 The server supports MCP protocol versions `2025-11-25`, `2025-06-18`, and `2025-03-26`. STDIO is newline-delimited UTF-8 JSON-RPC. stdout contains protocol messages only; diagnostics are written to stderr. Messages are limited to 4 MiB.
 
@@ -32,7 +41,7 @@ Most MCP clients accept the following command shape:
 
 Use a protected token file or the client's secret/environment facility. Do not put a token in `args`.
 
-## npm launcher and Agent setup
+## Plugins and npm launcher
 
 An exact npm package version can launch the same Go MCP client without a prior
 global install:
@@ -41,13 +50,27 @@ global install:
 npm exec --yes --ignore-scripts \
   --package=remote-latexmk@0.3.0-rc.1 -- \
   remote-latexmk mcp serve --stdio \
-  --project-root /absolute/path/to/paper
+  --root-from-client
 ```
 
 The npm package selects a platform binary through `optionalDependencies`; it
-does not reimplement MCP or upload policy in JavaScript. Its Agent installer
-can add this exact command and the two bundled Skills to detected Codex,
-Claude Code, and OpenCode installations:
+does not reimplement MCP or upload policy in JavaScript. The Codex and Claude
+Code Plugins bundle this command, the setup Skill, and the compile and
+maintenance Skills:
+
+```sh
+codex plugin marketplace add InvisCat/remote-latexmk
+codex plugin add remote-latexmk@remote-latexmk
+
+claude plugin marketplace add InvisCat/remote-latexmk
+claude plugin install remote-latexmk@remote-latexmk
+```
+
+The Plugin contains no token. Its setup workflow writes a user-level server URL
+and token-file path after preview and confirmation.
+
+For OpenCode or a host without native Plugin support, the project-bound Agent
+installer remains available:
 
 ```sh
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \

@@ -7,6 +7,7 @@ texlive_url="${REMOTE_LATEXMK_TEXLIVE_URL:-https://mirror.ctan.org/systems/texli
 install_root="${REMOTE_LATEXMK_HOME:-${HOME}/.remote-latexmk}"
 version=""
 profile="full"
+engines="xelatex,pdflatex"
 listen="127.0.0.1:8080"
 service_mode="auto"
 start_server=true
@@ -27,6 +28,7 @@ Usage:
 Options:
   --version VERSION       Required immutable GitHub release tag
   --profile full|slim     TeX Live profile (default: full)
+  --engines LIST          Enabled engines (default: xelatex,pdflatex)
   --listen HOST:PORT      Listen address (default: 127.0.0.1:8080)
   --install-dir PATH      Installation root (default: ~/.remote-latexmk)
   --service auto|systemd|none
@@ -43,6 +45,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --version) [[ $# -ge 2 ]] || die "--version needs a value"; version="$2"; shift 2 ;;
     --profile) [[ $# -ge 2 ]] || die "--profile needs a value"; profile="$2"; shift 2 ;;
+    --engines) [[ $# -ge 2 ]] || die "--engines needs a value"; engines="$2"; shift 2 ;;
     --listen) [[ $# -ge 2 ]] || die "--listen needs a value"; listen="$2"; shift 2 ;;
     --install-dir) [[ $# -ge 2 ]] || die "--install-dir needs a value"; install_root="$2"; shift 2 ;;
     --service) [[ $# -ge 2 ]] || die "--service needs a value"; service_mode="$2"; shift 2 ;;
@@ -56,7 +59,24 @@ done
 [[ "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] || die "--version must be an immutable tag such as v0.3.0"
 [[ "${profile}" == full || "${profile}" == slim ]] || die "--profile must be full or slim"
 [[ "${service_mode}" == auto || "${service_mode}" == systemd || "${service_mode}" == none ]] || die "--service must be auto, systemd, or none"
-[[ "${listen}" != *$'\n'* && "${install_root}" != *$'\n'* ]] || die "paths and values must not contain newlines"
+[[ "${listen}" != *$'\n'* && "${install_root}" != *$'\n'* && "${engines}" != *$'\n'* ]] || die "paths and values must not contain newlines"
+
+normalized_engines=""
+IFS=',' read -r -a requested_engines <<<"${engines}"
+[[ ${#requested_engines[@]} -gt 0 ]] || die "--engines must not be empty"
+for engine in "${requested_engines[@]}"; do
+  case "${engine}" in
+    xelatex|pdflatex) ;;
+    lualatex)
+      [[ "${profile}" == full ]] || die "lualatex requires --profile full"
+      ;;
+    *) die "unsupported engine in --engines: ${engine}" ;;
+  esac
+  [[ ",${normalized_engines}," != *",${engine},"* ]] || die "duplicate engine in --engines: ${engine}"
+  if [[ -n "${normalized_engines}" ]]; then normalized_engines+=","; fi
+  normalized_engines+="${engine}"
+done
+engines="${normalized_engines}"
 os_name="${REMOTE_LATEXMK_TEST_OS:-$(uname -s)}"
 machine="${REMOTE_LATEXMK_TEST_ARCH:-$(uname -m)}"
 [[ "${os_name}" == Linux ]] || die "the native server installer currently supports Linux only; use Docker Compose on other systems"
@@ -94,6 +114,7 @@ if [[ "${dry_run}" == true ]]; then
 Would install remote-latexmk ${version} for linux/${arch}
   root:      ${install_root}
   profile:   ${profile}
+  engines:   ${engines}
   listen:    ${listen}
   server:    ${archive_url}
   checksums: ${checksums_url}
@@ -188,11 +209,8 @@ fi
 for tool in latexmk xelatex pdflatex; do
   [[ -x "${tex_bin}/${tool}" ]] || die "TeX Live installation is missing ${tool}"
 done
-if [[ "${profile}" == full ]]; then
-  engines="xelatex,lualatex,pdflatex"
+if [[ ",${engines}," == *,lualatex,* ]]; then
   [[ -x "${tex_bin}/lualatex" ]] || die "full TeX Live installation is missing lualatex"
-else
-  engines="xelatex,pdflatex"
 fi
 
 config_file="${install_root}/config/server.env"
@@ -319,6 +337,7 @@ cat <<EOF
 remote-latexmk ${version} is installed.
 
   Server:  http://${listen}
+  Engines: ${engines}
   Control: ${install_root}/bin/remote-latexmkctl
   Config:  ${config_file}
 

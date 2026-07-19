@@ -63,16 +63,26 @@ at the application and deployment layers.
 
 ## Agent and MCP boundary
 
-The local STDIO MCP server resolves one project root at startup. Tools cannot
-replace it, supply an absolute download directory, request an arbitrary URL or
-server file, pass a compiler argument list, enable shell escape, or read the
-token. Manifest IDs are random, short-lived, one-use, and invalid after the
-selected path/hash set changes.
+The local STDIO MCP server resolves one project root at startup. Plugin mode
+requests the current roots from the Agent host, requires exactly one local
+`file://` root, and does not read a parent project configuration. A project
+configuration cannot move the effective root outside that workspace or
+override user-level connection, credential, CA, or TLS verification settings.
+Tools cannot replace the fixed root, supply an absolute download directory,
+request an arbitrary URL or server file, pass a compiler argument list, enable
+shell escape, or read the token. Manifest IDs are random, short-lived, one-use,
+and invalid after the selected path/hash set changes.
 
 MCP tool input objects reject unknown fields. Project sources and logs remain
 untrusted data; instruction-like text inside them has no authority to invoke a
 tool or change upload, credential, compiler, or cleanup policy. Raw logs are
 bounded and artifacts are downloaded by opaque ID.
+
+When user configuration supplies a token or token file, the client also keeps
+the server URL, CA file, and TLS verification setting from that user
+configuration. A project `.latexmk.json` cannot pair a user credential with a
+different endpoint. Explicit environment variables can still override the
+connection for CI or an intentional one-off session.
 
 Local destructive cleanup uses an exact path/size/SHA-256 plan and revalidates
 all targets before deletion. Remote CLI and MCP cleanup bind the token-owned

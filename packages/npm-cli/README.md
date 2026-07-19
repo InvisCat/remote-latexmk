@@ -8,10 +8,16 @@ script. npm selects a platform package through `optionalDependencies`.
 npm exec --yes --ignore-scripts --package=remote-latexmk@VERSION -- \
   remote-latexmk version
 npm exec --yes --ignore-scripts --package=remote-latexmk@VERSION -- \
-  remote-latexmk mcp serve --stdio --project-root /absolute/paper
+  remote-latexmk mcp serve --stdio --root-from-client
 ```
 
-Install the Skills and a local MCP entry for detected coding agents:
+Codex and Claude Code users should normally install the repository's native
+Plugin. It bundles the Skills and this npm-backed MCP command. See the main
+Quick Start.
+
+For OpenCode, custom Agent environments, or a fixed-root setup, the legacy
+installer can install the Skills and a local MCP entry for detected coding
+agents:
 
 ```sh
 npm exec --yes --ignore-scripts --package=remote-latexmk@VERSION -- \

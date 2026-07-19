@@ -80,6 +80,8 @@ func run(args []string) int {
 			return 0
 		case "init":
 			return runInit(argv[1:])
+		case "setup":
+			return runSetup(argv[1:])
 		case "meta":
 			return runMeta(argv[1:], false)
 		case "doctor":
@@ -1187,6 +1189,7 @@ Usage:
   latexmk [latex-compatible-options] <main.tex>
   latexmk meta [--json]
   latexmk doctor
+  latexmk setup --server URL --token-file FILE [--ca-file FILE] [--yes] [--json]
   latexmk init [--server URL]
   latexmk clean [main.tex]
   latexmk cache inspect [--project-root DIR] [--json]
@@ -1202,7 +1205,7 @@ Usage:
   latexmk diagnostics JOB_ID [--json]
   latexmk artifacts list JOB_ID [--json]
   latexmk artifacts get JOB_ID ARTIFACT_ID [--out-dir DIR] [--json]
-  latexmk mcp serve --stdio [--project-root DIR]
+  latexmk mcp serve --stdio [--project-root DIR | --root-from-client]
   latexmk files [options] <main.tex>
   latexmk version
 

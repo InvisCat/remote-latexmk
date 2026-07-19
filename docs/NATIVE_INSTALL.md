@@ -17,7 +17,8 @@ archives, and `SHA256SUMS`:
 VERSION=v0.3.0-rc.1
 curl -fsSL \
   "https://github.com/InvisCat/remote-latexmk/releases/download/${VERSION}/install-server.sh" \
-  | bash -s -- --version "${VERSION}" --profile full
+  | bash -s -- --version "${VERSION}" --profile full \
+      --engines xelatex,pdflatex
 ```
 
 The installer verifies the native server archive against the release checksum.
@@ -26,9 +27,20 @@ Live's normal repository verification. For a more controlled deployment,
 download and inspect the installer first and set a trusted CTAN mirror with
 `REMOTE_LATEXMK_TEXLIVE_REPOSITORY`.
 
-The first full installation is large and can take time. `--profile slim`
-installs the smaller XeLaTeX/PDFLaTeX package set used by the default Compose
-image. Existing TeX Live files are reused during a server update.
+The TeX Live profile and enabled server engines are separate settings. The
+default full profile installs the complete package set, while the default
+engine policy enables only XeLaTeX and PDFLaTeX. Enable LuaLaTeX explicitly
+for trusted papers:
+
+```sh
+bash install-server.sh --version vX.Y.Z --profile full \
+  --engines xelatex,lualatex,pdflatex
+```
+
+LuaLaTeX receives `--safer` and `--nosocket`, but LuaTeX remains programmable
+and these flags are not a filesystem sandbox. `--profile slim` installs the
+smaller XeLaTeX/PDFLaTeX package set used by the default Compose image.
+Existing TeX Live files are reused during a server update.
 
 ## Installation layout
 
@@ -72,12 +84,15 @@ To listen on a private interface, pass an explicit address:
 
 ```sh
 bash install-server.sh --version vX.Y.Z \
-  --listen 192.0.2.10:8080
+  --listen 192.168.1.20:8080
 ```
 
-Do not expose the plain HTTP listener directly to an untrusted network. Put it
-behind a private VPN, firewall, SSH tunnel, or TLS reverse proxy. The generated
-bearer token is the only identity in the default single-user mode.
+There is no portable, reliable way to choose a private interface automatically:
+a server may have several LAN, VPN, container, public IPv4, or IPv6 addresses.
+Keep the loopback default unless one private address is known. If the client is
+not on the same private network, use a VPN, SSH tunnel, or TLS reverse proxy.
+Do not expose the plain HTTP listener directly to an untrusted network. The
+generated bearer token is the only identity in the default single-user mode.
 
 The native service also does not reproduce the Compose server's internal
 no-egress Docker network. Disabled shell escape and LuaTeX `--nosocket` still
