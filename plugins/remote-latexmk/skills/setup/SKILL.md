@@ -5,9 +5,9 @@ description: Connect the remote-latexmk Codex or Claude Code plugin to a private
 
 # Set Up Remote LaTeX
 
-Store the server URL and credential file path in the user's remote-latexmk
-configuration. Never write credentials to `.latexmk.json`, the Agent workspace,
-shell history, or command arguments.
+Use the client's saved remote-latexmk login. Never ask the user to paste a
+token into the Agent, and never write credentials to `.latexmk.json`, the
+Agent workspace, shell history, or command arguments.
 
 Use this launcher for every command in this workflow:
 
@@ -17,9 +17,15 @@ npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1
 
 ## Workflow
 
-1. Ask for the private server URL, the path of an existing token file, and an optional CA certificate file. Accept only an `http://` or `https://` URL. Prefer HTTPS or a private VPN/SSH tunnel.
-2. Do not ask the user to paste the token. Do not read, print, summarize, copy, or edit the token file. The file must contain one non-empty line and, on Unix, have mode `0600`.
-3. Preview the non-secret configuration without changing files:
+1. Run `npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 doctor`. If it succeeds, the saved client login is ready; do not ask for more connection details.
+2. If login is missing, ask only for the private server URL. Tell the user to run this command themselves in a local terminal:
+
+   ```sh
+   npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 auth login --server SERVER_URL
+   ```
+
+   The command uses a hidden token prompt. Do not run it through an Agent tool, ask the user for the token, or accept the token in chat. After the user finishes, run `doctor` again.
+3. If the user explicitly wants to use an existing token file or private CA instead of interactive login, ask for the token-file path and optional CA-file path. Do not read, print, summarize, copy, or edit either file. Preview the non-secret configuration:
 
    ```sh
    npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 setup --json --server SERVER_URL --token-file TOKEN_FILE
@@ -36,6 +42,7 @@ npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1
    Add the same `--ca-file CA_FILE` used in the preview when applicable.
 6. Run `npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 doctor`. If the server is unavailable, report the connection error. Do not weaken authentication, TLS verification, upload policy, or path boundaries to make the check pass.
 
-The setup command writes the user configuration outside the paper workspace. It
-stores only the token file path, never the token value. A later setup replaces
-the server and file paths only after another preview and confirmation.
+Interactive login writes a private token file and user configuration outside
+the paper workspace. The user configuration stores only the token file path,
+never the token value. The advanced setup command only records paths supplied
+by the user after preview and confirmation.

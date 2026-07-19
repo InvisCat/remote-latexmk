@@ -147,9 +147,11 @@ native archive and source-build users.
 
 The repository also contains one Plugin directory shared by the Codex and
 Claude Code marketplace manifests. It bundles the npm-backed MCP command, a
-first-run setup Skill, and generated copies of the compile and maintenance
-Skills. The setup command writes the server and token-file path to user
-configuration after a preview; it never stores the token value there.
+setup Skill, and generated copies of the compile and maintenance Skills. An
+interactive `auth login` command reads the token with terminal echo disabled,
+writes it to a private client file, and stores only that file path and the
+server URL in user configuration. The setup Skill can instead preview and
+record an existing token-file path; it never reads or stores the token value.
 
 The older Agent installer remains for OpenCode and custom fixed-root setups. It
 binds MCP to one resolved project root, accepts credentials only by token-file

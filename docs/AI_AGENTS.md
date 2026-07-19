@@ -41,17 +41,22 @@ claude plugin marketplace add InvisCat/remote-latexmk
 claude plugin install remote-latexmk@remote-latexmk
 ```
 
-Start a new Agent session from the paper directory after installation. Ask the
-Agent to set up Remote LaTeX. The `setup` Skill asks for:
+Save the connection once on the client before starting the Agent:
 
-- an `http://` or `https://` server URL;
-- an existing protected token file outside the paper;
-- an optional CA certificate file for a private CA.
+```sh
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 auth login --server https://latex.example.edu
+```
 
-The Skill runs a preview first and asks for confirmation before it writes the
-user configuration. The command rejects raw token arguments. It stores the
-token file path under the user's configuration directory, not in the paper's
-`.latexmk.json`.
+Paste the remote-latexmk API token at the hidden terminal prompt. The command
+writes a private client token file and user configuration outside the paper.
+It does not put the token in shell history, a command argument, or
+`config.json`.
+
+Start a new Agent session from the paper directory after login. The `setup`
+Skill first checks the saved login. If login is missing, it tells the user to
+run the interactive command locally and never asks for the token in chat. The
+older preview/apply setup path remains available for a user-managed token file
+or private CA.
 
 The Plugin starts the local MCP server with `--root-from-client`. After MCP
 initialization, the server asks the Agent host for its workspace roots and
@@ -86,9 +91,9 @@ Live. The paper is bind-mounted at `/workspace`. Agent Skills that invoke a
 plain `latexmk` command are simplest with the native client. An MCP host can
 launch the Docker client directly as described in [MCP.md](MCP.md).
 
-Configure the server URL and credentials through user configuration, protected
-environment facilities, or a token file. A token file is preferable to a token
-in a command-line argument:
+For a native client, the same interactive login is available as
+`latexmk auth login --server URL`. Protected environment facilities and an
+existing client-side token file remain available for automation:
 
 ```sh
 export LATEXMK_SERVER=https://latex.example.edu

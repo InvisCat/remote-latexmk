@@ -68,6 +68,8 @@ source of truth for root Compose defaults.
 |---|---|
 | `PORT` | `8080` |
 | `LATEXMK_AUTH_MODE` | `token` |
+| `LATEXMK_API_TOKEN` | unset; token value for token auth |
+| `LATEXMK_API_TOKEN_FILE` | unset; alternative file containing one token |
 | `LATEXMK_IMAGE_PROFILE` | `development` |
 | `LATEXMK_ENGINES` | `xelatex,lualatex,pdflatex` |
 | `LATEXMK_COMPILE_TIMEOUT` | `2m` |
@@ -93,6 +95,9 @@ source of truth for root Compose defaults.
 Invalid booleans, durations, byte sizes, resource limits, or CORS origins fail
 server startup instead of silently falling back. A CORS origin must be an exact
 `http://` or `https://` origin; `*` and path-bearing URLs are rejected.
+Set only one of `LATEXMK_API_TOKEN` and `LATEXMK_API_TOKEN_FILE`. The native
+installer uses the file form so the generated token is kept separately from
+the server settings.
 
 ## Image pinning
 

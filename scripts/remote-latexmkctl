@@ -41,6 +41,19 @@ load_config() {
   : "${REMOTE_LATEXMK_SERVER_BIN:?missing REMOTE_LATEXMK_SERVER_BIN in config}"
 }
 
+read_api_token() {
+  if [[ -n "${LATEXMK_API_TOKEN_FILE:-}" ]]; then
+    [[ -f "${LATEXMK_API_TOKEN_FILE}" ]] || die "missing token file ${LATEXMK_API_TOKEN_FILE}"
+    local token
+    token="$(<"${LATEXMK_API_TOKEN_FILE}")"
+    [[ -n "${token}" && "${token}" != *$'\n'* && "${token}" != *$'\r'* ]] || die "token file must contain one token"
+    printf '%s\n' "${token}"
+    return
+  fi
+  [[ -n "${LATEXMK_API_TOKEN:-}" ]] || die "token auth is not configured"
+  printf '%s\n' "${LATEXMK_API_TOKEN}"
+}
+
 has_user_systemd() {
   [[ "${REMOTE_LATEXMK_SERVICE_MODE:-}" == systemd ]] && [[ -f "${user_unit}" ]] && command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1
 }
@@ -181,9 +194,8 @@ case "${command}" in
     ;;
   token)
     load_config
-    [[ -n "${LATEXMK_API_TOKEN:-}" ]] || die "token auth is not configured"
     echo "Warning: this command prints the server secret." >&2
-    printf '%s\n' "${LATEXMK_API_TOKEN}"
+    read_api_token
     ;;
   foreground)
     load_config

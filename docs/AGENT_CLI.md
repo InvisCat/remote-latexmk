@@ -80,6 +80,19 @@ Stable error codes currently include:
 
 ## User setup
 
+Human users can create the client-side token file and user configuration in
+one interactive command:
+
+```sh
+latexmk auth login --server https://latex.example.edu
+```
+
+The remote-latexmk API token is read from a hidden terminal prompt. This
+command is intentionally interactive and has no Agent JSON mode. Agents must
+not request the token or run the prompt on the user's behalf. The setup
+commands below remain the non-secret preview/apply interface for an existing
+token file.
+
 ```sh
 latexmk setup --server https://latex.example.edu \
   --token-file /absolute/path/to/latexmk-token --json

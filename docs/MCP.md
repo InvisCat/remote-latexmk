@@ -66,8 +66,16 @@ claude plugin marketplace add InvisCat/remote-latexmk
 claude plugin install remote-latexmk@remote-latexmk
 ```
 
-The Plugin contains no token. Its setup workflow writes a user-level server URL
-and token-file path after preview and confirmation.
+The Plugin contains no token. Before starting the Agent, save the client login
+through a hidden terminal prompt:
+
+```sh
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 auth login --server https://latex.example.edu
+```
+
+The MCP process reads the resulting user-level server URL and token-file path.
+The setup Skill can also preview and record an existing user-managed token file
+and optional private CA.
 
 For OpenCode or a host without native Plugin support, the project-bound Agent
 installer remains available:

@@ -39,7 +39,7 @@ test('native installer verifies a tagged archive and creates a private config', 
   await execFileAsync('tar', ['-czf', archive, '-C', temp, prefix]);
   await writeFile(path.join(release, 'SHA256SUMS'), `${await sha256(archive)}  ${path.basename(archive)}\n`);
 
-  await execFileAsync('bash', [path.join(root, 'scripts/install-server.sh'),
+  const { stdout } = await execFileAsync('bash', [path.join(root, 'scripts/install-server.sh'),
     '--version', 'v9.8.7', '--install-dir', installRoot, '--profile', 'full', '--service', 'none', '--no-start'], {
     env: {
       ...process.env,
@@ -53,13 +53,31 @@ test('native installer verifies a tagged archive and creates a private config', 
   });
 
   const configPath = path.join(installRoot, 'config/server.env');
+  const tokenPath = path.join(installRoot, 'config/token');
   const config = await readFile(configPath, 'utf8');
+  const token = (await readFile(tokenPath, 'utf8')).trim();
   assert.match(config, /LATEXMK_ADDR="127\.0\.0\.1:8080"/);
-  assert.match(config, /LATEXMK_API_TOKEN="[0-9a-f]{64}"/);
+  assert.match(config, /LATEXMK_API_TOKEN=""/);
+  assert.ok(config.includes(`LATEXMK_API_TOKEN_FILE="${tokenPath}"`));
+  assert.doesNotMatch(config, new RegExp(token));
+  assert.match(token, /^[0-9a-f]{64}$/);
   assert.match(config, /LATEXMK_ALLOW_SHELL_ESCAPE="false"/);
   assert.match(config, /LATEXMK_ENGINES="xelatex,pdflatex"/);
   assert.match(config, /REMOTE_LATEXMK_SERVICE_MODE="fallback"/);
   assert.equal((await stat(configPath)).mode & 0o777, 0o600);
+  assert.equal((await stat(tokenPath)).mode & 0o777, 0o600);
+  assert.match(stdout, /remote-latexmk v9\.8\.7 is ready/);
+  assert.match(stdout, /codex plugin add remote-latexmk@remote-latexmk/);
+  assert.match(stdout, /claude plugin install remote-latexmk@remote-latexmk/);
+  assert.match(stdout, /remote-latexmk@9\.8\.7 auth login --server "http:\/\/127\.0\.0\.1:8080"/);
+  assert.match(stdout, /Server listen URL: http:\/\/127\.0\.0\.1:8080/);
+  assert.ok(stdout.indexOf('claude plugin install') < stdout.indexOf('| REMOTE-LATEXMK API TOKEN'));
+  assert.ok(stdout.indexOf('auth login --server') < stdout.indexOf('| REMOTE-LATEXMK API TOKEN'));
+  assert.match(stdout.trimEnd(), new RegExp(`\\| ${token} \\|\\n\\+[-]+\\+$`));
+  const shownToken = await execFileAsync(path.join(installRoot, 'bin/remote-latexmkctl'), ['token'], {
+    env: { ...process.env, REMOTE_LATEXMK_HOME: installRoot },
+  });
+  assert.equal(shownToken.stdout.trim(), token);
   assert.equal((await lstat(path.join(installRoot, 'bin/remote-latexmk-server'))).isSymbolicLink(), true);
 });
 
@@ -94,9 +112,13 @@ test('native systemd unit hides home and exposes only required writable state', 
   assert.match(installer, /ProtectHome=tmpfs/);
   assert.match(installer, /BindReadOnlyPaths=\$\{release_dir\}/);
   assert.match(installer, /BindReadOnlyPaths=\$\{tex_root\}/);
+  assert.match(installer, /BindReadOnlyPaths=\$\{install_root\}\/config/);
   assert.match(installer, /BindPaths=\$\{install_root\}\/state/);
   assert.match(installer, /BindPaths=\$\{install_root\}\/run/);
   assert.match(installer, /CapabilityBoundingSet=\n/);
+  assert.match(installer, /\[\[ -t 1 && "\$\{TERM:-dumb\}" != dumb && -z "\$\{NO_COLOR\+x\}" \]\]/);
+  assert.match(installer, /accent=\$'\\033\[1;38;2;103;232;197m'/);
+  assert.match(installer, /accent=\$'\\033\[1;36m'/);
 });
 
 test('fallback control binds a PID to its Linux process start time', { skip: process.platform !== 'linux' }, async (t) => {

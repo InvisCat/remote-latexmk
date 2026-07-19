@@ -214,20 +214,34 @@ if [[ ",${engines}," == *,lualatex,* ]]; then
 fi
 
 config_file="${install_root}/config/server.env"
-if [[ -f "${config_file}" ]]; then
+token_file="${install_root}/config/token"
+token=""
+if [[ -f "${token_file}" ]]; then
+  token="$(<"${token_file}")"
+  [[ -n "${token}" ]] || die "existing token file is empty: ${token_file}"
+elif [[ -f "${config_file}" ]]; then
+  # Migrate native installations that stored the token in server.env.
   # shellcheck disable=SC1090
   source "${config_file}"
-  token="${LATEXMK_API_TOKEN:-}"
-else
-  token=""
+  if [[ -n "${LATEXMK_API_TOKEN:-}" ]]; then
+    token="${LATEXMK_API_TOKEN}"
+  elif [[ -n "${LATEXMK_API_TOKEN_FILE:-}" ]]; then
+    [[ -f "${LATEXMK_API_TOKEN_FILE}" ]] || die "configured token file is missing: ${LATEXMK_API_TOKEN_FILE}"
+    token="$(<"${LATEXMK_API_TOKEN_FILE}")"
+  fi
 fi
-if [[ ${#token} -lt 24 ]]; then
+if [[ -z "${token}" ]]; then
   if command -v openssl >/dev/null 2>&1; then
     token="$(openssl rand -hex 32)"
   else
     token="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
   fi
 fi
+[[ ${#token} -ge 24 && "${token}" != *$'\n'* && "${token}" != *$'\r'* ]] || die "existing API token is invalid"
+
+printf '%s\n' "${token}" >"${token_file}.new"
+chmod 600 "${token_file}.new"
+mv "${token_file}.new" "${token_file}"
 
 escape_env() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 cat >"${config_file}.new" <<EOF
@@ -236,7 +250,8 @@ REMOTE_LATEXMK_SERVER_BIN="$(escape_env "${install_root}/bin/remote-latexmk-serv
 REMOTE_LATEXMK_PROFILE="${profile}"
 LATEXMK_ADDR="$(escape_env "${listen}")"
 LATEXMK_AUTH_MODE="token"
-LATEXMK_API_TOKEN="$(escape_env "${token}")"
+LATEXMK_API_TOKEN=""
+LATEXMK_API_TOKEN_FILE="$(escape_env "${token_file}")"
 LATEXMK_STATE_DIR="$(escape_env "${install_root}/state")"
 LATEXMK_TEMP_DIR="$(escape_env "${install_root}/run")"
 LATEXMK_IMAGE_PROFILE="native-${profile}"
@@ -286,6 +301,7 @@ ProtectSystem=strict
 ProtectHome=tmpfs
 BindReadOnlyPaths=${release_dir}
 BindReadOnlyPaths=${tex_root}
+BindReadOnlyPaths=${install_root}/config
 BindPaths=${install_root}/state
 BindPaths=${install_root}/run
 ReadWritePaths=${install_root}/state ${install_root}/run
@@ -334,16 +350,52 @@ fi
 
 cat <<EOF
 
-remote-latexmk ${version} is installed.
+========================================================================
+ remote-latexmk ${version} is ready
+========================================================================
+The remote-latexmk API token is also stored on this server at:
+  ${token_file}
 
-  Server:  http://${listen}
-  Engines: ${engines}
-  Control: ${install_root}/bin/remote-latexmkctl
-  Config:  ${config_file}
+Show the token again on this server:
+  ${install_root}/bin/remote-latexmkctl token
 
-The installer did not edit your shell startup files. Add this directory to PATH if desired:
-  ${install_root}/bin
+Server listen URL: http://${listen}
 
-To configure a client without printing the token, copy it directly to a protected token file.
-Run 'remote-latexmkctl token' only when you explicitly need to display it.
+Install the Plugin on the client:
+  Codex:
+    codex plugin marketplace add InvisCat/remote-latexmk
+    codex plugin add remote-latexmk@remote-latexmk
+
+  Claude Code:
+    claude plugin marketplace add InvisCat/remote-latexmk
+    claude plugin install remote-latexmk@remote-latexmk
+
+Save the connection on the client. Replace the URL with the VPN or tunnel
+endpoint when needed, then paste the remote-latexmk API token from the final
+box when prompted; terminal echo is disabled:
+  npx --yes --ignore-scripts remote-latexmk@${version#v} auth login --server "http://${listen}"
+
+Then start the Agent in the paper directory and ask it to compile the paper.
+
+The installer did not use sudo or edit shell startup files.
+Control command: ${install_root}/bin/remote-latexmkctl
 EOF
+
+box_width=64
+if (( ${#token} > box_width )); then box_width=${#token}; fi
+printf -v box_border '%*s' "$((box_width + 2))" ''
+box_border="${box_border// /-}"
+accent=''
+reset=''
+if [[ -t 1 && "${TERM:-dumb}" != dumb && -z "${NO_COLOR+x}" ]]; then
+  if [[ "${COLORTERM:-}" == truecolor || "${COLORTERM:-}" == 24bit ]]; then
+    accent=$'\033[1;38;2;103;232;197m'
+  else
+    accent=$'\033[1;36m'
+  fi
+  reset=$'\033[0m'
+fi
+printf '\n%b+%s+%b\n' "${accent}" "${box_border}" "${reset}"
+printf '%b| %-*s |%b\n' "${accent}" "${box_width}" 'REMOTE-LATEXMK API TOKEN' "${reset}"
+printf '%b| %-*s |%b\n' "${accent}" "${box_width}" "${token}" "${reset}"
+printf '%b+%s+%b\n' "${accent}" "${box_border}" "${reset}"

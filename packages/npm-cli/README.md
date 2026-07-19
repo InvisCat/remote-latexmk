@@ -15,6 +15,16 @@ Codex and Claude Code users should normally install the repository's native
 Plugin. It bundles the Skills and this npm-backed MCP command. See the main
 Quick Start.
 
+Save the server URL and token once on the client. The token prompt disables
+terminal echo, and the command stores the token outside paper directories:
+
+```sh
+npx --yes --ignore-scripts remote-latexmk@VERSION auth login --server https://latex.example.edu
+```
+
+Paste the remote-latexmk API token when prompted. Do not put it in the command
+itself.
+
 For OpenCode, custom Agent environments, or a fixed-root setup, the legacy
 installer can install the Skills and a local MCP entry for detected coding
 agents:

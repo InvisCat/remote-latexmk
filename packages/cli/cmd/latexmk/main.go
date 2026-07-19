@@ -82,6 +82,8 @@ func run(args []string) int {
 			return runInit(argv[1:])
 		case "setup":
 			return runSetup(argv[1:])
+		case "auth":
+			return runAuth(argv[1:])
 		case "meta":
 			return runMeta(argv[1:], false)
 		case "doctor":
@@ -1189,6 +1191,7 @@ Usage:
   latexmk [latex-compatible-options] <main.tex>
   latexmk meta [--json]
   latexmk doctor
+  latexmk auth login --server URL
   latexmk setup --server URL --token-file FILE [--ca-file FILE] [--yes] [--json]
   latexmk init [--server URL]
   latexmk clean [main.tex]

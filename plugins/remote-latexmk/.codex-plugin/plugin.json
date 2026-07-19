@@ -29,7 +29,7 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Set up Remote LaTeX for this workspace.",
+      "Check my saved Remote LaTeX login for this workspace.",
       "Preview and compile this LaTeX project.",
       "Diagnose the latest LaTeX compile failure."
     ],

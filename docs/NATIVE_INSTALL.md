@@ -48,7 +48,8 @@ The default root is `~/.remote-latexmk`:
 
 ```text
 bin/                 stable command symlinks
-config/server.env    server settings and generated token (mode 0600)
+config/server.env    server settings (mode 0600)
+config/token         generated bearer token (mode 0600)
 current/             symlink to the active tagged server release
 releases/            versioned native server files
 texlive/current/     private TeX Live installation
@@ -59,9 +60,10 @@ run/                 PID and temporary files
 
 The installer creates `~/.config/systemd/user/remote-latexmk.service` when a
 systemd user manager is available. That unit hides the rest of the user's home
-directory and exposes only the active server release, TeX Live, state, and
-temporary directory to the service. Add `~/.remote-latexmk/bin` to `PATH`
-yourself if you want the short command; this is deliberately not automatic.
+directory and exposes only the active server release, TeX Live, read-only
+configuration, state, and temporary directory to the service. Add
+`~/.remote-latexmk/bin` to `PATH` yourself if you want the short command; this
+is deliberately not automatic.
 The installer reports when systemd user lingering is disabled. In that case,
 the unit may stop after logout and will not start at boot until an administrator
 enables lingering for the service account.
@@ -113,9 +115,10 @@ remote-latexmkctl doctor
 remote-latexmkctl upgrade --version vX.Y.Z
 ```
 
-`remote-latexmkctl token` is the only command that prints the secret. Use it
-only for an explicit transfer into a protected client token file. Do not paste
-the token into an Agent prompt or store it inside a paper directory.
+The installer prints the generated token in its final setup summary and stores
+it in `~/.remote-latexmk/config/token`. Run `remote-latexmkctl token` to show it
+again. Copy it only into a protected client token file. Do not paste the token
+into an Agent prompt or store it inside a paper directory.
 
 ## Removal
 

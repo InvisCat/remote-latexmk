@@ -105,11 +105,15 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	apiToken, err := loadAPIToken()
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		Addr:                  ":" + env("PORT", "8080"),
 		AuthMode:              env("LATEXMK_AUTH_MODE", "token"),
-		APIToken:              os.Getenv("LATEXMK_API_TOKEN"),
+		APIToken:              apiToken,
 		BootstrapToken:        os.Getenv("LATEXMK_BOOTSTRAP_TOKEN"),
 		DatabaseURL:           os.Getenv("DATABASE_URL"),
 		ImageProfile:          env("LATEXMK_IMAGE_PROFILE", "development"),
@@ -142,6 +146,39 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+func loadAPIToken() (string, error) {
+	token := os.Getenv("LATEXMK_API_TOKEN")
+	path := os.Getenv("LATEXMK_API_TOKEN_FILE")
+	if token != "" && path != "" {
+		return "", fmt.Errorf("set only one of LATEXMK_API_TOKEN and LATEXMK_API_TOKEN_FILE")
+	}
+	if path == "" {
+		return token, nil
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("read LATEXMK_API_TOKEN_FILE: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("LATEXMK_API_TOKEN_FILE must be a regular file")
+	}
+	if info.Size() > 64<<10 {
+		return "", fmt.Errorf("LATEXMK_API_TOKEN_FILE is too large")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read LATEXMK_API_TOKEN_FILE: %w", err)
+	}
+	token = strings.TrimSpace(string(data))
+	if token == "" {
+		return "", fmt.Errorf("LATEXMK_API_TOKEN_FILE is empty")
+	}
+	if strings.ContainsAny(token, "\r\n") {
+		return "", fmt.Errorf("LATEXMK_API_TOKEN_FILE must contain one token")
+	}
+	return token, nil
 }
 
 func (c Config) Validate() error {

@@ -47,39 +47,18 @@ an SSH tunnel. See
 
 ### 2. Client (Agent)
 
-First choose how the client reaches the server:
-
-- On the same LAN or VPN, use the server's reachable LAN or VPN address:
-
-  ```sh
-  export SERVER_URL=http://192.168.1.20:8080
-  ```
-
-- Without a shared private network, keep the server on `127.0.0.1` and open an
-  SSH tunnel. Keep this command running and use its local endpoint:
-
-  ```sh
-  ssh -N -L 18080:127.0.0.1:8080 user@your-private-server
-  export SERVER_URL=http://127.0.0.1:18080
-  ```
-
-Next, move the generated token to a protected file outside the paper directory
-using a trusted channel. The following is one SSH-based transfer example; the
-network connection itself may use a LAN, VPN, or SSH tunnel:
+If the Agent cannot reach the server over the same private network, use a VPN
+or an SSH tunnel. For an SSH tunnel:
 
 ```sh
-(
-  umask 077
-  mkdir -p "$HOME/.config/remote-latexmk"
-  ssh user@your-private-server \
-    '~/.remote-latexmk/bin/remote-latexmkctl token' \
-    > "$HOME/.config/remote-latexmk/token"
-)
+ssh -N -L 18080:127.0.0.1:8080 user@your-private-server
+# Use http://127.0.0.1:18080 as the server URL.
 ```
 
-Install the native Plugin for the Agent you use. Each Plugin contains the
-Remote LaTeX Skills and a local MCP entry. The MCP client uses Node.js to launch
-the small remote-latexmk client; it does not install TeX Live.
+The installer prints its configured listen URL and a remote-latexmk API token.
+Use a URL reachable from the client, or the tunnel endpoint above. Install the
+Plugin for your Agent; it contains the Skills and local MCP client, and does
+not install TeX Live.
 
 #### Codex
 
@@ -95,15 +74,20 @@ claude plugin marketplace add InvisCat/remote-latexmk
 claude plugin install remote-latexmk@remote-latexmk
 ```
 
+Save the connection once on the client. Use the reachable server URL, or the
+local endpoint when using the tunnel above:
+
+```sh
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 auth login --server http://127.0.0.1:18080
+```
+
+Paste the remote-latexmk API token at the hidden prompt. The command stores it
+in the client user's private configuration directory, not in shell history or
+the paper.
+
 Start a new Agent session from the paper directory and ask:
 
-> Set up Remote LaTeX for this workspace. Ask me for the server URL and token
-> file path.
-
-The setup Skill previews the user-level configuration and asks for confirmation
-before writing it. It stores only the token file path, not the token value. The
-Plugin MCP server then obtains the current paper root from the Agent, so the
-Plugin is not tied to one absolute project path.
+> Preview the Remote LaTeX upload, then compile this paper.
 
 The Agent can now inspect the upload manifest, compile the paper, read bounded
 diagnostics and logs, and download the PDF through the local MCP server. To use
@@ -111,10 +95,10 @@ the same npm client directly from a shell, or from another Agent:
 
 #### CLI usage and other Agents
 
-```sh
-export LATEXMK_SERVER="$SERVER_URL"
-export LATEXMK_TOKEN_FILE="$HOME/.config/remote-latexmk/token"
+The `auth login` command above is also the one-time manual token setup for the
+direct CLI and other Agents. After login:
 
+```sh
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 files main.tex
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 main.tex
 ```

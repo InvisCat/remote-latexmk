@@ -315,6 +315,15 @@ func UserConfigPath() (string, error) {
 	return filepath.Join(base, userConfigDir, UserFileName), nil
 }
 
+// UserTokenPath returns the private token path used by interactive login.
+func UserTokenPath() (string, error) {
+	base, err := userConfigBase()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, userConfigDir, "token"), nil
+}
+
 func findUserConfig() (string, error) {
 	base, err := userConfigBase()
 	if err != nil {
@@ -431,50 +440,80 @@ func WriteUser(cfg FileConfig) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	directory := filepath.Dir(path)
-	if err := os.MkdirAll(directory, 0o700); err != nil {
-		return "", fmt.Errorf("create user config directory: %w", err)
-	}
-	if err := os.Chmod(directory, 0o700); err != nil {
-		return "", fmt.Errorf("protect user config directory: %w", err)
-	}
-	if info, err := os.Lstat(path); err == nil {
-		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return "", fmt.Errorf("user config %s is not a regular file", path)
-		}
-	} else if !os.IsNotExist(err) {
-		return "", fmt.Errorf("inspect user config %s: %w", path, err)
-	}
 	b, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return "", err
 	}
 	b = append(b, '\n')
+	if err := writePrivateUserFile(path, b); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// WriteUserToken stores one token outside paper directories with private
+// permissions and without following a symlink at the target.
+func WriteUserToken(token string) (string, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return "", errors.New("token must not be empty")
+	}
+	if strings.ContainsAny(token, "\r\n") {
+		return "", errors.New("token must contain exactly one line")
+	}
+	if len(token) > maxTokenFileSize {
+		return "", fmt.Errorf("token exceeds %d bytes", maxTokenFileSize)
+	}
+	path, err := UserTokenPath()
+	if err != nil {
+		return "", err
+	}
+	if err := writePrivateUserFile(path, []byte(token+"\n")); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func writePrivateUserFile(path string, data []byte) error {
+	directory := filepath.Dir(path)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return fmt.Errorf("create user config directory: %w", err)
+	}
+	if err := os.Chmod(directory, 0o700); err != nil {
+		return fmt.Errorf("protect user config directory: %w", err)
+	}
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return fmt.Errorf("user file %s is not a regular file", path)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("inspect user file %s: %w", path, err)
+	}
 	temporary, err := os.CreateTemp(directory, ".config-*.tmp")
 	if err != nil {
-		return "", fmt.Errorf("create temporary user config: %w", err)
+		return fmt.Errorf("create temporary user file: %w", err)
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
 	if err := temporary.Chmod(0o600); err != nil {
 		temporary.Close()
-		return "", err
+		return err
 	}
-	if _, err := temporary.Write(b); err != nil {
+	if _, err := temporary.Write(data); err != nil {
 		temporary.Close()
-		return "", err
+		return err
 	}
 	if err := temporary.Sync(); err != nil {
 		temporary.Close()
-		return "", err
+		return err
 	}
 	if err := temporary.Close(); err != nil {
-		return "", err
+		return err
 	}
 	if err := replaceFile(temporaryPath, path); err != nil {
-		return "", fmt.Errorf("install user config: %w", err)
+		return fmt.Errorf("install user file: %w", err)
 	}
-	return path, nil
+	return nil
 }
 
 func findConfig(start, boundary string) (string, error) {
