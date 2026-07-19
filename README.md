@@ -90,13 +90,13 @@ npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 main.tex
 
 For OpenCode and other Agent hosts, see [AI coding agents](docs/AI_AGENTS.md).
 
-## Optional installation and usage paths
+## Alternative Installation and Usage Paths
 
 The Quick Start above is a complete Server + Agent path. The options below are
 alternatives for users who prefer Docker, a native client, or manual Agent
 configuration.
 
-### Docker Compose from source
+### Docker Compose from Source
 
 Requirements: Git, Docker, Docker Compose, and `curl` for the health check. You
 do not need local Go, Node.js, pnpm, Perl, latexmk, or TeX Live.
@@ -139,7 +139,7 @@ and Docker client from this checkout. The prebuilt release-image path is under
 `127.0.0.1:8080` by default; protect any non-local binding with a private
 network, firewall, VPN, or TLS reverse proxy.
 
-### Native client instead of npm
+### Native Client Instead of npm
 
 The npm launcher used above selects the same tagged native client through npm
 platform packages. It has no install script that fetches or executes a binary
@@ -148,14 +148,14 @@ client container.
 
 Choose either a release binary or a source build, then configure the client.
 
-#### Download a release binary
+#### Download a Release Binary
 
 The [`v0.3.0-rc.1` prerelease](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.3.0-rc.1)
 provides client archives for Linux, macOS, and Windows on amd64 and arm64.
 Verify downloads with the attached `SHA256SUMS`. See
 [Publishing](docs/PUBLISHING.md) for the release process.
 
-#### Build the native client from source
+#### Build the Native Client from Source
 
 Building the native client requires Go 1.23+. The resulting binary does not
 need Go or TeX Live at runtime; it needs Git when Git-aware selection is active:
@@ -172,7 +172,7 @@ Add `$HOME/.local/bin` to the shell's startup configuration if it is not
 already on `PATH`. The client uses the operating-system CA store for normal
 HTTPS.
 
-#### Configure the native client
+#### Configure the Native Client
 
 Save the server connection once, then compile a paper:
 
@@ -188,7 +188,7 @@ latexmk main.tex
 `.gitignore` only when needed. `git clean -fdX` deletes ignored cache files and
 therefore resets the local project identity.
 
-### Install Agent Skills manually
+### Install Agent Skills Manually
 
 The repository-based Skills installer remains available for native and Docker
 client setups:
@@ -217,7 +217,7 @@ custom Agent setups.
 OpenCode, manual MCP configuration, and the older project-bound `agent install`
 path are documented in [AI coding agents](docs/AI_AGENTS.md).
 
-### Run the local MCP server manually
+### Run the Local MCP Server Manually
 
 The same client binary exposes strict STDIO MCP tools:
 
@@ -245,7 +245,7 @@ for arbitrary shell commands, URLs, server paths, compiler argument lists, or
 token reads. See [AI Agent integrations](docs/AI_AGENTS.md) and
 [the MCP contract](docs/MCP.md).
 
-## What gets uploaded?
+## What Gets Uploaded?
 
 The default `auto` mode starts from the entry file and discovers supported
 literal LaTeX dependencies. Successful remote compiles add workspace-local
@@ -275,7 +275,7 @@ complete. Use an exact manifest for sensitive or dynamic projects; use
 `--upload-mode all` only as an explicit compatibility fallback after reviewing
 the manifest. See [Dependency discovery](docs/DEPENDENCIES.md).
 
-## Engines and images
+## Engines and Images
 
 | Deployment | Default engines | Notes |
 |---|---|---|
@@ -293,7 +293,7 @@ LATEXMK_IMAGE_PROFILE=texlive-full
 LATEXMK_ENGINES=xelatex,lualatex,pdflatex
 ```
 
-## Executable paper examples
+## Executable Paper Examples
 
 The repository keeps two synthetic papers as both documentation and test
 fixtures. [`examples/slim`](examples/slim) uses the standard `article` class
@@ -313,7 +313,7 @@ PDFLaTeX, downloads their artifacts, checks result APIs, and renders the first
 pages when Poppler is available. It uses isolated Compose projects and removes
 only the temporary resources it creates.
 
-## Common workflows
+## Common Workflows
 
 ```sh
 # Compile once or watch selected dependencies.
@@ -363,7 +363,7 @@ clients can use `LATEXMK_CA_FILE`; the Compose client can mount the copied
 certificate. See [Operations](docs/OPERATIONS.md) for LAN, VPN, trusted
 certificate, resource, retention, and network guidance.
 
-## Security boundary
+## Security Boundary
 
 - Shell escape is disabled by default and `latexmk -norc` ignores rc files.
 - Every compile uses a fresh temporary workspace and a restricted environment.
@@ -382,7 +382,7 @@ process share one container identity. Do not run this as an anonymous compiler
 for hostile documents without a separate worker sandbox or stronger runtime
 isolation. Read [Security](docs/SECURITY.md) before exposing the service.
 
-## Prebuilt images and digest pinning
+## Prebuilt Images and Digest Pinning
 
 The current public release candidate is
 [`v0.3.0-rc.1`](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.3.0-rc.1).
@@ -461,7 +461,7 @@ Implementation details and selection reasons live in
 
 ## Changelog
 
-### Upstream 0.1.0 baseline
+### Upstream 0.1.0 Baseline
 
 remote-latexmk started as a fork of
 [`billstark001/latexmk`](https://github.com/billstark001/latexmk) at commit
