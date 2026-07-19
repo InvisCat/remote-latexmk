@@ -10,10 +10,7 @@ containers, and coding agents through a native client, Docker, or MCP. Preview
 dependency-aware uploads and receive PDFs, logs, and diagnostics without
 installing TeX Live in each environment.
 
-## Quick Start: Docker Compose
-
-The current public release candidate is `v0.2.0-rc.1`. The copied `.env` uses
-its pinned server and client images by default.
+## Quick Start: Docker Compose from Source
 
 Requirements: Git, Docker, Docker Compose, and `curl` for the health check. You
 do not need local Go, Node.js, pnpm, Perl, latexmk, or TeX Live.
@@ -26,66 +23,52 @@ cp .env.example .env
 # Set LATEXMK_API_TOKEN in .env to a new random value of at least 24 characters.
 # For example, `openssl rand -hex 32` prints a suitable value.
 
-docker compose up -d
-curl --fail --retry 15 --retry-connrefused --retry-delay 1 \
-  http://127.0.0.1:8080/healthz
-docker compose run --rm client main.tex
+docker compose -f compose.yaml up -d --build server gateway
+curl --fail --retry 30 --retry-all-errors --retry-delay 1 \
+  http://127.0.0.1:8080/readyz
+
+export LATEXMK_PROJECT_DIR="/absolute/path/to/your/paper"
+docker compose -f compose.yaml run --rm --no-deps --build client main.tex
 ```
 
-The last command compiles `examples/basic/main.tex` and returns its PDF to the
-example directory. The first pull can take time because the server image
-contains TeX Live. Later starts reuse the local image.
+The final command compiles `$LATEXMK_PROJECT_DIR/main.tex` and writes the
+returned artifacts into that paper directory. The client container contains
+Git and CA certificates, but no TeX Live. The first build can take time because
+it pulls a TeX Live base image; later builds and starts reuse Docker's cache.
+After the first client build, omit `--build` for normal recompiles.
 
-The default service binds to `127.0.0.1:8080`. Do not expose it on a public
-interface without a private network, firewall, VPN, or TLS reverse proxy.
-
-To build the server and client from the current checkout instead, select only
-the source Compose file explicitly:
+Preview the exact upload without contacting the server:
 
 ```sh
-docker compose -f compose.yaml up -d --build
-docker compose -f compose.yaml run --rm --build client main.tex
+docker compose -f compose.yaml run --rm --no-deps client files main.tex
 ```
 
-## Compile your own paper
+If the paper inherits ignore rules from a parent Git repository, set
+`LATEXMK_PROJECT_DIR` to that Git root and pass the entry path relative to it,
+for example `papers/my-paper/main.tex`.
 
-Mount an absolute paper directory and pass the entry path relative to that
-directory:
+The explicit `-f compose.yaml` selects the definitions that build the server
+and Docker client from this checkout. The prebuilt release-image path is under
+[Prebuilt images](#prebuilt-images-and-digest-pinning). The service binds to
+`127.0.0.1:8080` by default; protect any non-local binding with a private
+network, firewall, VPN, or TLS reverse proxy.
 
-```sh
-LATEXMK_PROJECT_DIR=/absolute/path/to/paper \
-  docker compose run --rm client main.tex
-```
+## Alternative: Install a Native Client
 
-If the paper uses ignore rules inherited from a parent Git repository, mount
-that Git root and pass a nested entry path. The client container contains Git
-and CA certificates, but no TeX Live.
+The Quick Start already provides a complete Docker client. Nothing in this
+section is required for that path. Install a native client only when you want
+to compile without running the client container.
 
-Preview exactly what would be uploaded:
+Choose either a release binary or a source build, then configure the client.
 
-```sh
-LATEXMK_PROJECT_DIR=/absolute/path/to/paper \
-  docker compose run --rm client files main.tex
-```
+### Download a release binary
 
-Use `--no-deps` when the container client points to an already-running remote
-server instead of the Compose server. Set `LATEXMK_CLIENT_SERVER`,
-`LATEXMK_CLIENT_TOKEN`, and any required `LATEXMK_CLIENT_CA_FILE` in `.env`
-first; keep `LATEXMK_PROJECT_DIR` set to the paper:
+The [`v0.2.0-rc.1` prerelease](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.2.0-rc.1)
+provides client archives for Linux, macOS, and Windows on amd64 and arm64.
+Verify downloads with the attached `SHA256SUMS`. See
+[Publishing](docs/PUBLISHING.md) for the release process.
 
-```sh
-docker compose run --rm --no-deps client main.tex
-```
-
-## Install a client
-
-### Docker client
-
-The Compose commands above are the shortest current path. They do not install
-software in the paper directory. They write only returned artifacts and small
-client state under `.latexmk-cache`.
-
-### Native client from source
+### Build the native client from source
 
 Building the native client requires Go 1.23+. The resulting binary does not
 need Go or TeX Live at runtime; it needs Git when Git-aware selection is active:
@@ -102,7 +85,9 @@ Add `$HOME/.local/bin` to the shell's startup configuration if it is not
 already on `PATH`. The client uses the operating-system CA store for normal
 HTTPS.
 
-Configure one paper and compile it:
+### Configure the native client
+
+Configure one paper and compile it against the Compose server:
 
 ```sh
 cd /absolute/path/to/paper
@@ -116,13 +101,6 @@ latexmk main.tex
 `latexmk cache ignore` is explicit. It appends `.latexmk-cache/` to the project
 `.gitignore` only when needed. `git clean -fdX` deletes ignored cache files and
 therefore resets the local project identity.
-
-### Release binaries
-
-The [`v0.2.0-rc.1` prerelease](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.2.0-rc.1)
-provides client archives for Linux, macOS, and Windows on amd64 and arm64.
-Verify downloads with the attached `SHA256SUMS`. See
-[Publishing](docs/PUBLISHING.md) for the release process.
 
 ## AI agent setup
 
@@ -172,6 +150,7 @@ server and its client token settings:
 
 ```sh
 docker compose --project-directory /absolute/path/to/remote-latexmk \
+  -f /absolute/path/to/remote-latexmk/compose.yaml \
   run --rm -T client mcp serve --stdio --project-root /workspace
 ```
 
@@ -324,8 +303,11 @@ isolation. Read [Security](docs/SECURITY.md) before exposing the service.
 
 ## Prebuilt images and digest pinning
 
-The copied `.env` already selects the release pinned in `compose.ghcr.yaml`.
-To select an exact version explicitly, set:
+The current public release candidate is
+[`v0.2.0-rc.1`](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.2.0-rc.1).
+The copied `.env` selects the release pinned in `compose.ghcr.yaml` for bare
+`docker compose` commands. The commands below list both files explicitly. To
+select an exact version, set:
 
 ```dotenv
 LATEXMK_GHCR_NAMESPACE=inviscat
@@ -333,8 +315,10 @@ LATEXMK_GHCR_VERSION=0.2.0-rc.1
 ```
 
 ```sh
+export LATEXMK_PROJECT_DIR="/absolute/path/to/your/paper"
 docker compose -f compose.yaml -f compose.ghcr.yaml up -d
-docker compose -f compose.yaml -f compose.ghcr.yaml run --rm client main.tex
+docker compose -f compose.yaml -f compose.ghcr.yaml \
+  run --rm --no-deps client main.tex
 ```
 
 For immutable deployment pins, use full `@sha256:` references instead of
@@ -343,6 +327,16 @@ putting a digest in `LATEXMK_GHCR_VERSION`:
 ```dotenv
 LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server@sha256:SERVER_DIGEST
 LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client@sha256:CLIENT_DIGEST
+```
+
+To use only the Docker client with an existing server, set
+`LATEXMK_CLIENT_SERVER`, `LATEXMK_CLIENT_TOKEN`, and any required
+`LATEXMK_CLIENT_CA_FILE` in `.env`, keep `LATEXMK_PROJECT_DIR` set to the paper,
+and run:
+
+```sh
+docker compose -f compose.yaml -f compose.ghcr.yaml \
+  run --rm --no-deps client main.tex
 ```
 
 The release workflow currently builds server images for `linux/amd64`, a
