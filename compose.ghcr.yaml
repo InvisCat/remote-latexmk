@@ -2,6 +2,9 @@
 services:
   server:
     image: ${LATEXMK_GHCR_SERVER_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-inviscat}/remote-latexmk-server:${LATEXMK_GHCR_VERSION:-0.2.0-rc.1}}
+    # Published server images are currently amd64-only. Docker Desktop can run
+    # them through emulation on arm64 hosts when the platform is explicit.
+    platform: ${LATEXMK_SERVER_PLATFORM:-linux/amd64}
     pull_policy: always
 
   client:

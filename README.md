@@ -233,6 +233,26 @@ LATEXMK_IMAGE_PROFILE=texlive-full
 LATEXMK_ENGINES=xelatex,lualatex,pdflatex
 ```
 
+## Executable paper examples
+
+The repository keeps two synthetic papers as both documentation and test
+fixtures. [`examples/slim`](examples/slim) uses the standard `article` class
+against the default slim image. [`examples/ieee`](examples/ieee) uses
+`IEEEtran`, BibTeX, an external figure, and several common paper packages
+against the full image. Both reveal in their acknowledgments that they are test
+data, not real academic papers.
+
+Run the complete Compose smoke flow without installing TeX Live locally:
+
+```sh
+make smoke-papers
+```
+
+The test previews the exact dependency manifests, compiles both papers with
+PDFLaTeX, downloads their artifacts, checks result APIs, and renders the first
+pages when Poppler is available. It uses isolated Compose projects and removes
+only the temporary resources it creates.
+
 ## Common workflows
 
 ```sh

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="title desc">
+  <title id="title">Remote LaTeX compilation flow</title>
+  <desc id="desc">Paper source files travel from a small client to a private TeX server, which returns a PDF.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#247b9e"/>
+    </marker>
+    <style>
+      .box { fill: #f5fafc; stroke: #247b9e; stroke-width: 5; }
+      .server { fill: #f2fbf7; stroke: #27856b; stroke-width: 5; }
+      .title { font: 700 34px sans-serif; fill: #173247; }
+      .detail { font: 24px sans-serif; fill: #425b6d; }
+      .line { fill: none; stroke: #247b9e; stroke-width: 8; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1200" height="440" rx="28" fill="#ffffff"/>
+  <rect class="box" x="42" y="62" width="290" height="316" rx="24"/>
+  <path d="M119 103h104l48 48v104H119z" fill="#dcecf3" stroke="#247b9e" stroke-width="4"/>
+  <path d="M223 103v50h48" fill="none" stroke="#247b9e" stroke-width="4"/>
+  <text class="title" x="187" y="311" text-anchor="middle">Paper sources</text>
+  <text class="detail" x="187" y="347" text-anchor="middle">.tex + .bib + figure</text>
+
+  <path class="line" d="M354 220 H515"/>
+  <text class="detail" x="434" y="180" text-anchor="middle">selected inputs</text>
+
+  <rect class="server" x="540" y="40" width="330" height="360" rx="28"/>
+  <rect x="615" y="88" width="180" height="48" rx="10" fill="#d8f1e7" stroke="#27856b" stroke-width="4"/>
+  <rect x="615" y="158" width="180" height="48" rx="10" fill="#d8f1e7" stroke="#27856b" stroke-width="4"/>
+  <rect x="615" y="228" width="180" height="48" rx="10" fill="#d8f1e7" stroke="#27856b" stroke-width="4"/>
+  <circle cx="645" cy="112" r="7" fill="#27856b"/>
+  <circle cx="645" cy="182" r="7" fill="#27856b"/>
+  <circle cx="645" cy="252" r="7" fill="#27856b"/>
+  <text class="title" x="705" y="340" text-anchor="middle">Private TeX server</text>
+
+  <path class="line" d="M892 220 H1018"/>
+  <text class="detail" x="955" y="180" text-anchor="middle">artifact</text>
+
+  <rect class="box" x="1042" y="76" width="120" height="288" rx="18"/>
+  <path d="M1066 113h48l24 24v107h-72z" fill="#dcecf3" stroke="#247b9e" stroke-width="4"/>
+  <path d="M1114 113v26h24" fill="none" stroke="#247b9e" stroke-width="4"/>
+  <text class="title" x="1102" y="318" text-anchor="middle">PDF</text>
+</svg>

@@ -1,4 +1,4 @@
-.PHONY: build test fmt vet bundle-slim bundle-full
+.PHONY: build test fmt vet bundle-slim bundle-full smoke-papers
 
 build:
 	go build ./packages/cli/cmd/latexmk
@@ -12,6 +12,9 @@ vet:
 
 test:
 	go test ./packages/cli/... ./packages/server/...
+
+smoke-papers:
+	bash scripts/smoke-compose-papers.sh
 
 bundle-slim:
 	corepack pnpm bundle:slim

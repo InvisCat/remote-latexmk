@@ -1,0 +1,50 @@
+\section{Method}
+
+The client selects literal project dependencies and sends them to a private
+TeX server. \Cref{fig:pipeline} is an external PNG file, so its presence checks
+both dependency discovery and binary artifact transport.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{remote-compilation}
+  \caption{The experimental apparatus. Sources go right; the PDF comes back.
+  This directional insight required a diagram.}
+  \label{fig:pipeline}
+\end{figure}
+
+Let each indicator below be one when the corresponding dependency is present
+and zero otherwise:
+
+\begin{equation}
+  S = I_{\mathrm{class}} I_{\mathrm{input}} I_{\mathrm{figure}}
+      I_{\mathrm{bib}} I_{\mathrm{engine}}.
+  \label{eq:success}
+\end{equation}
+
+\Cref{eq:success} predicts success only when every required part is
+available. Multiplying several ones still gives one, which is reassuring and
+also the main mathematical contribution of this paper.
+
+\begin{table}[H]
+  \caption{Dependencies and the evidence that they were not forgotten}
+  \label{tab:dependencies}
+  \centering
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    Dependency & Observable evidence \\
+    \midrule
+    Included sections & This sentence exists \\
+    External figure & \Cref{fig:pipeline} is visible \\
+    Equation labels & \Cref{eq:success} has a number \\
+    BibTeX database & Citations appear in the references \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Listing~\ref{lst:commands} is loaded from another file. It records the procedure
+without asking TeX to execute any command.
+
+\lstinputlisting[
+  caption={Commands used to observe the procedure. TeX only prints them.},
+  label={lst:commands}
+]{code/procedure.txt}

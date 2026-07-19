@@ -1,0 +1,54 @@
+% !TeX program = pdflatex
+\documentclass[conference]{IEEEtran}
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{cite}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{microtype}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+
+\graphicspath{{figures/}}
+\definecolor{codeblue}{RGB}{26,102,139}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{codeblue},
+  frame=single,
+  columns=fullflexible,
+  breaklines=true
+}
+
+\title{Why a Successful Remote Compilation Demonstrates\\
+That the Remote Compilation Succeeded}
+
+\author{\IEEEauthorblockN{The Authors}}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper studies the unsurprising hypothesis that a successful remote
+compilation produces a successfully compiled document. We model success as the
+conjunction of every condition required for success. The analysis finds that
+when every such condition holds, the expected output is observed. The result
+is intentionally modest, reproducible, and difficult to disagree with.
+\end{abstract}
+
+\begin{IEEEkeywords}
+remote compilation, reproducibility, carefully formatted tautology
+\end{IEEEkeywords}
+
+\input{sections/introduction}
+\input{sections/method}
+\input{sections/results}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

@@ -27,6 +27,11 @@ test('release workflow is tag-only and pins third-party actions', async () => {
   assert.match(workflow, /sbom: true/);
   assert.match(workflow, /attestations: write/);
   assert.match(workflow, /release_args\+=\(--prerelease\)/);
+  assert.match(workflow, /smoke-papers:[\s\S]*?run: make smoke-papers/);
+  assert.match(workflow, /needs: \[validate, binaries, images, smoke-papers\]/);
+  assert.match(workflow, /SMOKE_SLIM_SERVER_IMAGE: ghcr\.io/);
+  assert.match(workflow, /SMOKE_FULL_SERVER_IMAGE: ghcr\.io/);
+  assert.match(workflow, /SMOKE_CLIENT_IMAGE: ghcr\.io/);
 });
 
 test('CI installs pinned pnpm before setup-node enables pnpm caching', async () => {

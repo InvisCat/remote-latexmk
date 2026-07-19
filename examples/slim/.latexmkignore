@@ -1,0 +1,16 @@
+# Generated files are never source dependencies.
+.latexmk-cache/
+.smoke-download/
+.smoke-output/
+main.aux
+main.bbl
+main.blg
+main.fdb_latexmk
+main.fls
+main.log
+main.out
+main.pdf
+main.synctex.gz
+
+# The paper includes the rendered PNG, not the editable drawing.
+figures/remote-compilation.svg

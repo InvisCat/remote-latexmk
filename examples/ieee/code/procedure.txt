@@ -1,0 +1,3 @@
+latexmk files --json main.tex
+latexmk --engine pdflatex main.tex
+test -s main.pdf
