@@ -83,7 +83,7 @@ const (
 	maxNeedsFileBytes  = 64 << 20
 )
 
-var version = "0.2.0-dev"
+var version = "0.3.0-dev"
 
 func New(baseURL, token string, timeout time.Duration, insecure bool, caFile string) (*Client, error) {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")

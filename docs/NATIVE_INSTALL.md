@@ -14,11 +14,7 @@ Use a release tag that contains `install-server.sh`, two native server
 archives, and `SHA256SUMS`:
 
 ```sh
-VERSION=v0.3.0-rc.1
-curl -fsSL \
-  "https://github.com/InvisCat/remote-latexmk/releases/download/${VERSION}/install-server.sh" \
-  | bash -s -- --version "${VERSION}" --profile full \
-      --engines xelatex,pdflatex
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.1/install-server.sh | bash -s -- --version v0.3.0-rc.1 --profile full --engines xelatex,pdflatex
 ```
 
 The installer verifies the native server archive against the release checksum.
@@ -86,7 +82,7 @@ To listen on a private interface, pass an explicit address:
 
 ```sh
 bash install-server.sh --version vX.Y.Z \
-  --listen 192.168.1.20:8080
+  --listen PRIVATE_IP:8080
 ```
 
 There is no portable, reliable way to choose a private interface automatically:

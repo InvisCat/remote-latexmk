@@ -17,14 +17,11 @@ Docker, or shell-startup edits.
 ## Install
 
 Give the user this command with the release and private address chosen above.
-Omit `--listen` for the loopback default:
+The safe example keeps the loopback default. Add `--listen PRIVATE_IP:8080`
+only after the user chooses a known private interface:
 
 ```sh
-VERSION=v0.3.0-rc.1
-curl -fsSL \
-  "https://github.com/InvisCat/remote-latexmk/releases/download/${VERSION}/install-server.sh" \
-  | bash -s -- --version "${VERSION}" --profile full \
-      --engines xelatex,pdflatex --listen 192.168.1.20:8080
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.1/install-server.sh | bash -s -- --version v0.3.0-rc.1 --profile full --engines xelatex,pdflatex
 ```
 
 The full TeX Live profile and enabled engine policy are separate. Keep

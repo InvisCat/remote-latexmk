@@ -21,14 +21,7 @@ The native installer puts the service and TeX Live under
 `~/.remote-latexmk`. It uses no sudo, Docker, or system-wide TeX installation.
 
 ```sh
-VERSION=v0.3.0-rc.1
-SERVER_LISTEN=192.168.1.20:8080 # Replace with this server's private address.
-curl -fsSL \
-  "https://github.com/InvisCat/remote-latexmk/releases/download/${VERSION}/install-server.sh" \
-  | bash -s -- --version "${VERSION}" --profile full \
-      --engines xelatex,pdflatex --listen "${SERVER_LISTEN}"
-
-~/.remote-latexmk/bin/remote-latexmkctl status
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.1/install-server.sh | bash -s -- --version v0.3.0-rc.1 --profile full --engines xelatex,pdflatex
 ```
 
 > [!WARNING]
@@ -46,12 +39,12 @@ If the Agent cannot reach the server over the same private network, use a VPN
 or an SSH tunnel. For an SSH tunnel:
 
 ```sh
-ssh -N -L 18080:192.168.1.20:8080 user@your-private-server
+ssh -N -L 18080:127.0.0.1:8080 user@your-private-server
 ```
 
 The installer prints its configured listen URL and a remote-latexmk API token.
 Use a URL reachable from the client, or the tunnel endpoint above. Install the
-Plugin for your Agent; it contains the Skills and local MCP client, and does
+Plugin for your Agent; it contains the Skills and local MCP launcher, and does
 not install TeX Live.
 
 #### Codex
@@ -68,11 +61,11 @@ claude plugin marketplace add InvisCat/remote-latexmk
 claude plugin install remote-latexmk@remote-latexmk
 ```
 
-Save the connection once on the client. Use the reachable server URL, or the
-local endpoint when using the tunnel above:
+Save the connection once on the client. Replace `SERVER_URL` with the reachable
+server URL, or the local endpoint when using the tunnel above:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 auth login --server http://127.0.0.1:18080
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 auth login --server SERVER_URL
 ```
 
 Paste the remote-latexmk API token at the hidden prompt. The command verifies
@@ -157,7 +150,7 @@ Choose either a release binary or a source build, then configure the client.
 
 #### Download a release binary
 
-The [`v0.2.0-rc.1` prerelease](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.2.0-rc.1)
+The [`v0.3.0-rc.1` prerelease](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.3.0-rc.1)
 provides client archives for Linux, macOS, and Windows on amd64 and arm64.
 Verify downloads with the attached `SHA256SUMS`. See
 [Publishing](docs/PUBLISHING.md) for the release process.
@@ -294,8 +287,8 @@ all three server policy values. Then use the base and GHCR Compose files shown
 under [Prebuilt images](#prebuilt-images-and-digest-pinning):
 
 ```dotenv
-LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server-full:0.2.0-rc.1
-LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client:0.2.0-rc.1
+LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server-full:0.3.0-rc.1
+LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client:0.3.0-rc.1
 LATEXMK_IMAGE_PROFILE=texlive-full
 LATEXMK_ENGINES=xelatex,lualatex,pdflatex
 ```
@@ -392,14 +385,14 @@ isolation. Read [Security](docs/SECURITY.md) before exposing the service.
 ## Prebuilt images and digest pinning
 
 The current public release candidate is
-[`v0.2.0-rc.1`](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.2.0-rc.1).
+[`v0.3.0-rc.1`](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.3.0-rc.1).
 The copied `.env` selects the release pinned in `compose.ghcr.yaml` for bare
 `docker compose` commands. The commands below list both files explicitly. To
 select an exact version, set:
 
 ```dotenv
 LATEXMK_GHCR_NAMESPACE=inviscat
-LATEXMK_GHCR_VERSION=0.2.0-rc.1
+LATEXMK_GHCR_VERSION=0.3.0-rc.1
 ```
 
 ```sh
