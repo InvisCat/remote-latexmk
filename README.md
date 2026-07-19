@@ -12,6 +12,12 @@ installing TeX Live in each environment.
 
 ## Quick Start
 
+Follow this two-step path to install the server and connect a local coding
+agent. The server needs Linux on amd64 or arm64. The client machine needs
+Node.js, but it does not need Go or TeX Live.
+
+### 1. Server
+
 The native server installer keeps both the service and TeX Live under
 `~/.remote-latexmk`. It needs Linux on amd64 or arm64, but it does not need
 Docker, Go, Node.js, pnpm, or a system-wide TeX installation.
@@ -27,16 +33,56 @@ curl -fsSL \
 
 The installer defaults to `127.0.0.1:8080`, generates a private token, verifies
 the downloaded server archive, and does not use `sudo` or edit shell startup
-files. See
-[Native server installation](docs/NATIVE_INSTALL.md) before changing the
-listen address.
+files. The Quick Start keeps this loopback-only default and connects through
+SSH. See [Native server installation](docs/NATIVE_INSTALL.md) for direct
+private-network or TLS deployment.
 
-On a laptop or Agent machine with Node.js, use the npm client without local TeX
-Live:
+### 2. Client (Agent)
+
+On the client machine, keep an SSH tunnel to the server open in a terminal:
 
 ```sh
-export LATEXMK_SERVER=http://your-private-server:8080
-export LATEXMK_TOKEN_FILE=/absolute/path/to/latexmk-token
+ssh -N -L 18080:127.0.0.1:8080 user@your-private-server
+```
+
+In another terminal, move the generated token to a protected file outside the
+paper directory. This copies it directly over SSH without placing it in an
+Agent prompt:
+
+```sh
+(
+  umask 077
+  mkdir -p "$HOME/.config/remote-latexmk"
+  ssh user@your-private-server \
+    '~/.remote-latexmk/bin/remote-latexmkctl token' \
+    > "$HOME/.config/remote-latexmk/token"
+)
+```
+
+From the paper directory on a laptop or Agent machine, one npm command installs
+the client entry, both Skills, and a local MCP entry for detected Codex, Claude
+Code, and OpenCode installations:
+
+```sh
+cd /absolute/path/to/paper
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \
+  --project-root "$PWD" \
+  --server http://127.0.0.1:18080 \
+  --token-file "$HOME/.config/remote-latexmk/token"
+```
+
+Pass `--dry-run` first to inspect the commands and destinations. Repeat
+`--agent` to limit the target Agents. The installer rejects raw token
+arguments, uses native Agent configuration commands where available, and
+backs up the OpenCode configuration before editing it.
+
+The Agent can now inspect the upload manifest, compile the paper, read bounded
+diagnostics and logs, and download the PDF through the local MCP server. To use
+the same npm client directly from a shell:
+
+```sh
+export LATEXMK_SERVER=http://127.0.0.1:18080
+export LATEXMK_TOKEN_FILE="$HOME/.config/remote-latexmk/token"
 
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 files main.tex
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 main.tex
@@ -45,6 +91,12 @@ npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 main.tex
 The `remote-latexmk` npm package uses the same tagged client archives and npm
 platform packages. It has no install script that fetches or executes a binary
 from another URL.
+
+## Optional installation and usage paths
+
+The Quick Start above is a complete Server + Agent path. The options below are
+alternatives for users who prefer Docker, a native client, or manual Agent
+configuration.
 
 ### Docker Compose from source
 
@@ -89,22 +141,20 @@ and Docker client from this checkout. The prebuilt release-image path is under
 `127.0.0.1:8080` by default; protect any non-local binding with a private
 network, firewall, VPN, or TLS reverse proxy.
 
-## Alternative client installations
+### Native client instead of npm
 
-The Quick Start already provides a complete Docker client. Nothing in this
-section is required for that path. Install a native client only when you want
-to compile without running the client container.
+Install a native client when you want to compile without Node.js or a client
+container. Choose either a release binary or a source build, then configure
+the client.
 
-Choose either a release binary or a source build, then configure the client.
-
-### Download a release binary
+#### Download a release binary
 
 The [`v0.2.0-rc.1` prerelease](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.2.0-rc.1)
 provides client archives for Linux, macOS, and Windows on amd64 and arm64.
 Verify downloads with the attached `SHA256SUMS`. See
 [Publishing](docs/PUBLISHING.md) for the release process.
 
-### Build the native client from source
+#### Build the native client from source
 
 Building the native client requires Go 1.23+. The resulting binary does not
 need Go or TeX Live at runtime; it needs Git when Git-aware selection is active:
@@ -121,7 +171,7 @@ Add `$HOME/.local/bin` to the shell's startup configuration if it is not
 already on `PATH`. The client uses the operating-system CA store for normal
 HTTPS.
 
-### Configure the native client
+#### Configure the native client
 
 Configure one paper and compile it against the Compose server:
 
@@ -138,25 +188,7 @@ latexmk main.tex
 `.gitignore` only when needed. `git clean -fdX` deletes ignored cache files and
 therefore resets the local project identity.
 
-## AI agent setup
-
-The npm package can install the client entry, both Skills, and one local MCP
-entry in a single command. It detects installed Agent CLIs unless `--agent` is
-given explicitly:
-
-```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \
-  --project-root /absolute/path/to/paper \
-  --server https://latex.example.edu \
-  --token-file /absolute/path/to/latexmk-token
-```
-
-Pass `--dry-run` first to inspect the commands and destinations. The installer
-does not accept a raw bearer token. It uses the native `codex mcp` and
-`claude mcp` commands, and makes a structured, backed-up JSONC edit for
-OpenCode. Existing changed Skills are not overwritten unless `--force` is
-explicit. The maintenance Skill can propose destructive cleanup, but still
-requires a preview and explicit confirmation before apply.
+### Install Agent Skills manually
 
 The repository-based Skills installer remains available for native and Docker
 client setups:
@@ -180,7 +212,7 @@ Codex and OpenCode can discover this repository's checked-in `.agents/skills`
 directories directly. Claude Code needs its native directory, the installer,
 or a future plugin wrapper.
 
-### Local MCP server
+### Run the local MCP server manually
 
 The same client binary exposes strict STDIO MCP tools:
 
