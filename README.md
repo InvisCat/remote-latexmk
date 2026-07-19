@@ -1,41 +1,16 @@
 # remote-latexmk — self-hosted remote LaTeX compiler
 
 <p align="center">
-  <img src="docs/assets/remote-latexmk-hero.svg" alt="remote-latexmk keeps TeX Live on a private server and returns PDFs and diagnostics to lightweight clients" width="100%">
+  <img src="docs/assets/remote-latexmk-hero.svg" alt="remote-latexmk connects CLI and local MCP coding-agent clients to a private TeX server and returns PDFs and diagnostics" width="100%">
 </p>
 
 ![Status: pre-release](https://img.shields.io/badge/status-pre--release-e69f00)
 ![License: MIT](https://img.shields.io/badge/license-MIT-2f81f7)
 
-**Keep the large TeX Live installation on a server you control, instead of
-installing and maintaining it on every laptop, container, and AI agent
-environment.** Compile from a small native client, a Docker client, or a local
-MCP server. The client itself does not need TeX Live.
-
-- Start a private compilation service with Docker Compose.
-- Compile with XeLaTeX or PDFLaTeX by default; use the full image for LuaLaTeX.
-- Upload discovered dependencies rather than an entire paper repository.
-- Respect Git ignore rules, a built-in denylist, project roots, and symlink
-  boundaries.
-- Inspect the exact upload manifest before sending confidential work.
-- Use bounded logs, diagnostics, artifacts, JSON commands, MCP, and Agent
-  Skills with Codex, Claude Code, and OpenCode.
-
-[Docker quick start](#docker-quick-start-from-source) ·
-[Use your own paper](#compile-your-own-paper) ·
-[Install a client](#install-a-client) ·
-[AI agent setup](#ai-agent-setup) ·
-[Security model](docs/SECURITY.md)
-
-> remote-latexmk is intended for individual researchers and small trusted labs
-> that control the paper, server, and network. It is not a hostile-input public
-> TeX sandbox or an Overleaf-style collaborative editor.
-
-This repository is not the upstream Perl
-[`latexmk`](https://ctan.org/pkg/latexmk) distribution. The server runs that
-tool inside TeX Live; this project provides the remote service, policy-aware
-client, and Agent integrations. The client command remains `latexmk` for
-compatibility.
+**Compile on a private LaTeX server you control.** Connect from laptops,
+containers, and coding agents through a native client, Docker, or MCP. Preview
+dependency-aware uploads and receive PDFs, logs, and diagnostics without
+installing TeX Live in each environment.
 
 ## Docker quick start from source
 
