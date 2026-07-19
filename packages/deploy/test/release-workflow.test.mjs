@@ -31,7 +31,7 @@ test('release workflow is tag-only and pins third-party actions', async () => {
 
 test('CI installs pinned pnpm before setup-node enables pnpm caching', async () => {
   const workflow = await readFile(path.join(root, '.github/workflows/ci.yml'), 'utf8');
-  const pnpmSetup = workflow.indexOf('pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1');
+  const pnpmSetup = workflow.indexOf('pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271');
   const nodeSetup = workflow.indexOf('actions/setup-node@');
   assert.ok(pnpmSetup >= 0, 'missing pinned pnpm setup action');
   assert.ok(nodeSetup > pnpmSetup, 'pnpm must be installed before setup-node resolves the pnpm cache');
