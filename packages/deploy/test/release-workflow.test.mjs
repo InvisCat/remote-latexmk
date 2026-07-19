@@ -58,6 +58,7 @@ test('CI installs pinned pnpm before setup-node enables pnpm caching', async () 
   assert.ok(pnpmSetup >= 0, 'missing pinned pnpm setup action');
   assert.ok(nodeSetup > pnpmSetup, 'pnpm must be installed before setup-node resolves the pnpm cache');
   assert.doesNotMatch(workflow, /corepack enable pnpm/);
+  assert.match(workflow, /- run: pnpm test\n\s+- run: pnpm build/);
 });
 
 test('container inputs and GHCR compose path are pinned', async () => {

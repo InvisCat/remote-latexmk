@@ -27,4 +27,5 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+      - run: pnpm build
       - run: go vet ./packages/cli/... ./packages/server/...

@@ -25,10 +25,9 @@ curl -fsSL \
 ~/.remote-latexmk/bin/remote-latexmkctl status
 ```
 
-The fixed-version command becomes available when `v0.3.0-rc.1` is published.
-Until then, use the source Compose path below. The installer defaults to
-`127.0.0.1:8080`, generates a private token, verifies the downloaded server
-archive, and does not use `sudo` or edit shell startup files. See
+The installer defaults to `127.0.0.1:8080`, generates a private token, verifies
+the downloaded server archive, and does not use `sudo` or edit shell startup
+files. See
 [Native server installation](docs/NATIVE_INSTALL.md) before changing the
 listen address.
 
@@ -43,9 +42,9 @@ npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 files main.tex
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 main.tex
 ```
 
-When npm publishing is enabled for the tag, the `remote-latexmk` package is
-published from the same tagged client archives. It uses npm platform packages
-and has no install script that fetches or executes a binary from another URL.
+The `remote-latexmk` npm package uses the same tagged client archives and npm
+platform packages. It has no install script that fetches or executes a binary
+from another URL.
 
 ### Docker Compose from source
 
@@ -159,8 +158,8 @@ OpenCode. Existing changed Skills are not overwritten unless `--force` is
 explicit. The maintenance Skill can propose destructive cleanup, but still
 requires a preview and explicit confirmation before apply.
 
-Until the npm package is published, install a tagged native client and use the
-cross-Agent Skills installer:
+The repository-based Skills installer remains available for native and Docker
+client setups:
 
 ```sh
 npx skills add InvisCat/remote-latexmk -g \
@@ -384,12 +383,11 @@ docker compose -f compose.yaml -f compose.ghcr.yaml \
   run --rm --no-deps client main.tex
 ```
 
-The release workflow currently builds server images for `linux/amd64`, a
-client image for `linux/amd64` and `linux/arm64`, and native client archives for
-Linux, macOS, and Windows on amd64 and arm64. Starting with the next tagged
-release, it also builds native Linux server archives and the versioned server
-installer. npm publication is separately gated until trusted publishing is
-configured.
+The release workflow builds server images for `linux/amd64`, a client image for
+`linux/amd64` and `linux/arm64`, native client archives for Linux, macOS, and
+Windows on amd64 and arm64, native Linux server archives, and the versioned
+server installer. npm publication is separately controlled by the repository's
+trusted-publishing setting.
 
 ## Documentation
 

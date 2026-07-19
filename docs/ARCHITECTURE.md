@@ -392,9 +392,9 @@ flowchart TB
   inspect the manifest and keep secrets outside the project root or deny them.
 - The current root Compose deployment does not include the Dashboard or a
   PostgreSQL service.
-- The repository contains workflows and GHCR Compose overrides for releases,
-  but an image or binary is usable only after the corresponding tag and package
-  have actually been published.
+- Tag workflows create versioned images, archives, checksums, attestations, and
+  optionally npm packages. Branch CI validates the source implementation
+  without publishing external artifacts.
 
 See [SECURITY.md](SECURITY.md) for the operational threat model,
 [DEPENDENCIES.md](DEPENDENCIES.md) for discovery details, [API.md](API.md) for

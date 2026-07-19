@@ -24,8 +24,8 @@ lab that controls the paper, client, server, and network.
 
 ## 1. Set up the npm client and MCP entry
 
-After the `remote-latexmk` npm package is published, one command can configure
-the detected Codex, Claude Code, and OpenCode installations:
+One command configures the detected Codex, Claude Code, and OpenCode
+installations:
 
 ```sh
 npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \
