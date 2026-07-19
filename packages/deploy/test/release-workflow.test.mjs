@@ -49,6 +49,9 @@ test('release workflow is tag-only and pins third-party actions', async () => {
   assert.doesNotMatch(imagesJob, /type=semver|value=latest/);
   assert.match(publishJob, /type=semver/);
   assert.match(publishJob, /value=latest/);
+  assert.match(publishJob, /manifest_digest\(\)/);
+  assert.match(publishJob, /digest == "" \{ digest = \$2 \} END \{ if \(digest == ""\) exit 1; print digest \}/);
+  assert.doesNotMatch(publishJob, /print \$2; exit/);
 });
 
 test('CI installs pinned pnpm before setup-node enables pnpm caching', async () => {

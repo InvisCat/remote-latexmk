@@ -256,15 +256,17 @@ jobs:
           test "${#tags[@]}" -gt 0
           docker buildx imagetools create "${tags[@]}" "${SOURCE_IMAGE}"
 
-          source_digest="$(docker buildx imagetools inspect "${SOURCE_IMAGE}" \
-            | awk '$1 == "Digest:" { print $2; exit }')"
+          manifest_digest() {
+            docker buildx imagetools inspect "$1" \
+              | awk '$1 == "Digest:" && digest == "" { digest = $2 } END { if (digest == "") exit 1; print digest }'
+          }
+          source_digest="$(manifest_digest "${SOURCE_IMAGE}")"
           test -n "${source_digest}"
           while IFS= read -r tag; do
             if [[ -z "${tag}" ]]; then
               continue
             fi
-            target_digest="$(docker buildx imagetools inspect "${tag}" \
-              | awk '$1 == "Digest:" { print $2; exit }')"
+            target_digest="$(manifest_digest "${tag}")"
             test "${target_digest}" = "${source_digest}"
           done <<< "${TARGET_TAGS}"
 
