@@ -382,78 +382,80 @@ Implementation details and selection reasons live in
 remote-latexmk started as a fork of
 [`billstark001/latexmk`](https://github.com/billstark001/latexmk) at commit
 [`a338808`](https://github.com/billstark001/latexmk/commit/a338808)
-on 2026-07-17. The upstream packages reported version `0.1.0`.
+on 2026-07-17.
 
-- The upstream version provided a Go CLI and Go compilation server with
+- The upstream version provided a **Go CLI and Go compilation server** with
   shared-token and PostgreSQL authentication.
-- It supported content-addressed incremental uploads, queued jobs, retention
-  limits, result downloads, and a development dashboard.
-- It compiled each request in a disposable workspace with `latexmk -norc`,
+- It supported **content-addressed incremental uploads and queued jobs**,
+  retention limits, result downloads, and a development dashboard.
+- It compiled each request in a **disposable workspace** with `latexmk -norc`,
   shell escape disabled by default, path validation, and bounded resources.
-- Its deployment bundler targeted PaaS and research-group deployments, and it
-  included an initial Agent Skill.
+- Its deployment bundler targeted **PaaS and research-group deployments**, and
+  it included an initial Agent Skill.
 
 ### remote-latexmk 0.2.0 (pre-release)
 
-- Added a root-level Docker Compose quick start so researchers and labs can run
-  a private compiler without first learning the PaaS deployment bundler or
+- Added a root-level **Docker Compose quick start** so researchers and labs can
+  run a private compiler without first learning the PaaS deployment bundler or
   installing Go, Node.js, pnpm, or TeX Live.
-- Added a TeX-free Docker client, watch mode, native client archives, and GHCR
-  images so laptops, containers, and coding-agent environments can use one
+- Added a **TeX-free Docker client**, watch mode, native client archives, and
+  GHCR images so laptops, containers, and coding-agent environments can use one
   server-side TeX Live installation.
-- Added safer project boundaries, Git ignore handling, a built-in denylist,
+- Added **safer project boundaries**, Git ignore handling, a built-in denylist,
   manifest previews, and dry runs so users can inspect and limit uploads when a
   paper repository also contains unrelated or sensitive files.
-- Added static dependency discovery, explicit manifests, recorder input
+- Added **static dependency discovery and explicit manifests**, recorder input
   caching, and bounded missing-file retries so common papers can upload only
   the files they need without silently falling back to the whole repository.
-- Added immutable job snapshots and selected-dependency watching so queued jobs
-  compile the exact submitted version even when files change or several clients
-  use the same server.
-- Extended the existing compilation and deployment controls with hardened
-  LuaLaTeX options, restricted network egress for the root Compose server,
-  random local project identities, and bounded logs and artifacts. These
-  controls make private and shared lab deployments easier to operate under
-  local security and data-handling requirements.
-- Added preview-first cleanup for local caches and remote results, snapshots,
-  and projects so operators can apply their own retention, deletion, and
-  compliance policies without broad unreviewed deletion.
+- Added **immutable job snapshots** and selected-dependency watching so queued
+  jobs compile the exact submitted version even when files change or several
+  clients use the same server.
+- Extended the existing compilation and deployment controls with
+  **hardened LuaLaTeX options and restricted network egress**, random local
+  project identities, and bounded logs and artifacts. These controls make
+  private and shared lab deployments easier to operate under local security
+  and data-handling requirements.
+- Added **preview-first cleanup** for local caches and remote results,
+  snapshots, and projects so operators can apply their own retention, deletion,
+  and compliance policies without broad unreviewed deletion.
 - Added versioned JSON commands, detached jobs, structured diagnostics with raw
-  log locations, Agent Skills, and a local STDIO MCP server so coding agents can
-  compile and debug papers without local TeX Live or unrestricted server tools.
-- Added pinned release inputs, native release checksums, provenance,
-  attestations, executable paper examples, and release smoke tests so published
-  clients and images are easier to verify before deployment.
+  log locations, **Agent Skills, and a local STDIO MCP server** so coding agents
+  can compile and debug papers without local TeX Live or unrestricted server
+  tools.
+- Added **pinned release inputs and release smoke tests**, native release
+  checksums, provenance, attestations, and executable paper examples so
+  published clients and images are easier to verify before deployment.
 
 ## Roadmap
 
 This roadmap describes intended directions and does not promise release dates.
 
 - To make self-hosting practical on servers where Docker is unavailable or
-  unwanted, provide a version-pinned, non-root Linux installer with checksum
-  verification, localhost-only defaults, and user-level status, upgrade, and
-  uninstall commands.
+  unwanted, provide a **version-pinned, non-root Linux installer** with
+  checksum verification, localhost-only defaults, and user-level status,
+  upgrade, and uninstall commands.
 - To make the CLI and local MCP easier to start from Node-based coding-agent
-  environments without hidden executable downloads, publish version-pinned npm
-  packages for the existing native client with no postinstall download scripts.
+  environments without hidden executable downloads, publish
+  **version-pinned npm packages** for the existing native client with no
+  postinstall download scripts.
 - To make released containers easier to reproduce and audit over time, pin
-  dated Debian and TeX Live package sources in addition to the existing base
-  image digests.
+  **dated Debian and TeX Live package sources** in addition to the existing
+  base image digests.
 - To reduce client installation friction without weakening the current upload
-  policy, evaluate a pure TypeScript CLI/MCP only after it matches the Go
+  policy, evaluate a **pure TypeScript CLI/MCP** only after it matches the Go
   client's Git-ignore, manifest, path-boundary, dependency-discovery, cleanup,
   and cross-platform security behavior.
 - To support shared lab servers and deployments that require stronger process
-  and credential separation, add an optional compiler-worker profile where TeX
-  receives only an immutable job snapshot and cannot access API credentials,
-  database connections, or the complete service state.
+  and credential separation, add an **optional compiler-worker profile** where
+  TeX receives only an immutable job snapshot and cannot access API
+  credentials, database connections, or the complete service state.
 - To reduce the effect of unexpected TeX behavior inside that worker, run each
-  job without outbound network access by default, under a separate
+  job **without outbound network access by default**, under a separate
   low-privilege identity, in a temporary per-job filesystem with explicit
   process, memory, time, log, and artifact limits.
 - To keep more complex papers on the minimal-upload path, broaden dependency
-  discovery and diagnostic coverage while keeping upload selection fail-closed
-  and retaining bounded raw compiler logs as a fallback.
+  **dependency discovery and diagnostic coverage** while keeping upload
+  selection fail-closed and retaining bounded raw compiler logs as a fallback.
 
 ## License
 
