@@ -12,7 +12,8 @@ const skillNames = [
   'remote-latex-setup',
 ];
 const legacySkillNames = ['setup'];
-const launcher = 'npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2';
+const repositoryManifest = JSON.parse(await readFile(path.join(repositoryRoot, 'package.json'), 'utf8'));
+const launcher = `npx --yes --ignore-scripts remote-latexmk@${repositoryManifest.version}`;
 const checkOnly = process.argv.includes('--check');
 
 if (checkOnly) {

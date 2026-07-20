@@ -418,9 +418,9 @@ flowchart TB
   inspect the manifest and keep secrets outside the project root or deny them.
 - The current root Compose deployment does not include the Dashboard or a
   PostgreSQL service.
-- Tag workflows create versioned images, archives, checksums, attestations, and
-  optionally npm packages. Branch CI validates the source implementation
-  without publishing external artifacts.
+- A version-changing Release PR creates versioned images, archives, checksums,
+  attestations, and required npm packages after merge. Branch CI validates the
+  source implementation without publishing external artifacts.
 
 See [SECURITY.md](SECURITY.md) for the operational threat model,
 [DEPENDENCIES.md](DEPENDENCIES.md) for discovery details, [API.md](API.md) for
