@@ -54,6 +54,30 @@ test('release workflow is tag-only and pins third-party actions', async () => {
   assert.doesNotMatch(publishJob, /print \$2; exit/);
 });
 
+test('release recovery only republishes artifacts from the matching failed tag run', async () => {
+  const workflow = await readFile(path.join(root, '.github/workflows/release-recovery.yml'), 'utf8');
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /actions: read/);
+  assert.match(workflow, /contents: write/);
+  assert.match(workflow, /attestations: write/);
+  const uses = [...workflow.matchAll(/^\s*-?\s*uses:\s*([^\s]+)(?:\s+#.*)?$/gm)].map((match) => match[1]);
+  assert.ok(uses.length >= 4, `expected pinned actions, got ${uses.length}`);
+  for (const use of uses) {
+    assert.match(use, /@[0-9a-f]{40}$/, `action is not pinned to a full SHA: ${use}`);
+  }
+  assert.match(workflow, /git rev-parse "\$\{RELEASE_TAG\}\^\{commit\}"/);
+  assert.match(workflow, /test "\$\(jq -r '\.head_sha'/);
+  assert.match(workflow, /test "\$\(jq -r '\.path'/);
+  assert.match(workflow, /\.github\/workflows\/release\.yml/);
+  assert.match(workflow, /pattern: client-\*/);
+  assert.match(workflow, /pattern: server-\*/);
+  assert.equal((workflow.match(/run-id: \$\{\{ inputs\.run_id \}\}/g) ?? []).length, 2);
+  assert.equal((workflow.match(/github-token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/g) ?? []).length, 2);
+  assert.match(workflow, /test "\$\(wc -l < SHA256SUMS\)" -eq 9/);
+  assert.match(workflow, /gh release create "\$\{RELEASE_TAG\}" dist\/\*/);
+  assert.doesNotMatch(workflow, /go run|build-push-action|npm publish/);
+});
+
 test('CI installs pinned pnpm before setup-node enables pnpm caching', async () => {
   const workflow = await readFile(path.join(root, '.github/workflows/ci.yml'), 'utf8');
   const pnpmSetup = workflow.indexOf('pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271');
