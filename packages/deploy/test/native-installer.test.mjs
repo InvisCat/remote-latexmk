@@ -380,6 +380,9 @@ test('native upgrade verifies and runs the target installer while preserving ins
     '--engines', 'xelatex', '--listen', '10.20.30.40:9123', '--service', 'auto',
     '--no-start', '--non-interactive'], { env });
   const tokenBefore = await readFile(path.join(installRoot, 'config/token'), 'utf8');
+  const configBefore = await readFile(path.join(installRoot, 'config/server.env'), 'utf8');
+  const serviceModeBefore = configBefore.match(/^REMOTE_LATEXMK_SERVICE_MODE="[^"]+"$/m)?.[0];
+  assert.ok(serviceModeBefore);
   await writeFile(path.join(installRoot, 'state', 'keep-me'), 'state\n');
 
   await createNativeRelease(temp, '1.2.4', {
@@ -404,7 +407,7 @@ test('native upgrade verifies and runs the target installer while preserving ins
   assert.match(config, /REMOTE_LATEXMK_PROFILE="slim"/);
   assert.match(config, /LATEXMK_ENGINES="xelatex"/);
   assert.match(config, /LATEXMK_ADDR="10\.20\.30\.40:9123"/);
-  assert.match(config, /REMOTE_LATEXMK_SERVICE_MODE="stopped"/);
+  assert.ok(config.includes(serviceModeBefore));
   assert.match(await readFile(path.join(installRoot, 'config/install.env'), 'utf8'), /REMOTE_LATEXMK_ACTIVE_VERSION="v1\.2\.4"/);
   assert.equal((await execFileAsync(control, ['version'], { env: { ...env, REMOTE_LATEXMK_HOME: installRoot } })).stdout.trim(), 'v1.2.4');
 });
