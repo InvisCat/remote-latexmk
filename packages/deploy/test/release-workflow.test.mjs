@@ -6,10 +6,12 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
-test('release workflow is tag-only and pins third-party actions', async () => {
+test('release workflow is tag-triggered with guarded npm recovery and pinned actions', async () => {
   const workflow = await readFile(path.join(root, '.github/workflows/release.yml'), 'utf8');
   assert.match(workflow, /tags:\s*\n\s*- 'v\*'/);
-  assert.doesNotMatch(workflow, /pull_request:|workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /pull_request:/);
+  assert.match(workflow, /workflow_dispatch:[\s\S]*?tag:[\s\S]*?run_id:/);
+  assert.match(workflow, /validate:\s*\n\s*if: github\.event_name == 'push'/);
   const uses = [...workflow.matchAll(/^\s*-?\s*uses:\s*([^\s]+)(?:\s+#.*)?$/gm)].map((match) => match[1]);
   assert.ok(uses.length >= 10, `expected pinned actions, got ${uses.length}`);
   for (const use of uses) {
@@ -40,10 +42,22 @@ test('release workflow is tag-only and pins third-party actions', async () => {
   assert.match(workflow, /publish-images:[\s\S]*?packages: write/);
   assert.match(workflow, /publish-images:[\s\S]*?docker buildx imagetools create/);
   assert.match(workflow, /needs: \[validate, binaries, server-binaries, publish-images\]/);
-  assert.match(workflow, /npm-packages:[\s\S]*?if: vars\.NPM_PUBLISH_ENABLED == 'true'/);
+  assert.match(workflow, /npm-packages:[\s\S]*?if: github\.event_name == 'push' && vars\.NPM_PUBLISH_ENABLED == 'true'/);
   assert.match(workflow, /stage-packages\.mjs/);
   assert.match(workflow, /if \[\[ "\$\{package_version\}" == \*-\* \]\]; then/);
   assert.match(workflow, /npm publish "\$\{package_dir\}" --access public --provenance --tag "\$\{npm_tag\}"/);
+  assert.equal((workflow.match(/registry-url: 'https:\/\/registry\.npmjs\.org'/g) ?? []).length, 2);
+  assert.equal((workflow.match(/package-manager-cache: false/g) ?? []).length, 2);
+  const recoveryJob = workflow.slice(workflow.indexOf('\n  npm-recovery:'));
+  assert.match(recoveryJob, /if: github\.event_name == 'workflow_dispatch' && vars\.NPM_PUBLISH_ENABLED == 'true'/);
+  assert.match(recoveryJob, /actions: read/);
+  assert.match(recoveryJob, /id-token: write/);
+  assert.match(recoveryJob, /git rev-parse "\$\{RELEASE_TAG\}\^\{commit\}"/);
+  assert.match(recoveryJob, /test "\$\(jq -r '\.head_sha'/);
+  assert.match(recoveryJob, /\.github\/workflows\/release\.yml/);
+  assert.match(recoveryJob, /pattern: client-\*/);
+  assert.match(recoveryJob, /run-id: \$\{\{ inputs\.run_id \}\}/);
+  assert.doesNotMatch(recoveryJob, /go run|build-push-action/);
   const imagesJob = workflow.slice(workflow.indexOf('\n  images:'), workflow.indexOf('\n  smoke-papers:'));
   const publishJob = workflow.slice(workflow.indexOf('\n  publish-images:'), workflow.indexOf('\n  release:'));
   assert.doesNotMatch(imagesJob, /type=semver|value=latest/);
