@@ -112,3 +112,68 @@ func TestSetupRejectsDryRunWithApply(t *testing.T) {
 		t.Fatalf("dry-run apply code=%d stderr=%q", code, stderr)
 	}
 }
+
+func TestSetupNormalizesServerShorthand(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LATEXMK_SERVER", "")
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenPath, []byte("secret-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, stderr := captureCommandOutput(t, func() int {
+		return run([]string{"latexmk", "setup", "--server", "conoha", "--token-file", tokenPath, "--yes", "--json"})
+	})
+	if code != 0 || stderr != "" {
+		t.Fatalf("setup code=%d stderr=%q stdout=%q", code, stderr, stdout)
+	}
+	userConfig, _, err := config.ReadUserFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if userConfig.Server != "http://conoha:8080" {
+		t.Fatalf("stored server = %q", userConfig.Server)
+	}
+}
+
+func TestSetupMarksExplicitTokenFileAsUserManaged(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("LATEXMK_SERVER", "")
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	managed, err := config.WriteUserToken("old-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.WriteUser(config.FileConfig{
+		Server:           "http://old.example:8080",
+		TokenFile:        managed,
+		TokenFileManaged: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	custom := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(custom, []byte("custom-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	resolvedCustom, err := filepath.EvalSymlinks(custom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, _, stderr := captureCommandOutput(t, func() int {
+		return run([]string{"latexmk", "setup", "--server", "new.example", "--token-file", custom, "--yes"})
+	})
+	if code != 0 || stderr != "" {
+		t.Fatalf("setup code=%d stderr=%q", code, stderr)
+	}
+	userConfig, _, err := config.ReadUserFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if userConfig.TokenFile != resolvedCustom || userConfig.TokenFileManaged {
+		t.Fatalf("explicit token file ownership = %#v", userConfig)
+	}
+}

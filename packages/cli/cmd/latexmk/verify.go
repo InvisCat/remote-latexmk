@@ -8,11 +8,10 @@ import (
 	"github.com/billstark001/latexmk/packages/cli/internal/protocol"
 )
 
-// verifyRemoteAccess checks the public service identity and one authenticated,
-// read-only endpoint without returning job data.
-func verifyRemoteAccess(ctx context.Context, remote *client.Client) (protocol.Metadata, error) {
+// verifyRemoteService checks public endpoints before asking for a secret.
+func verifyRemoteService(ctx context.Context, remote *client.Client) (protocol.Metadata, error) {
 	if err := remote.Health(ctx); err != nil {
-		return protocol.Metadata{}, fmt.Errorf("server health check failed: %w", err)
+		return protocol.Metadata{}, fmt.Errorf("server health check failed for %s: %w", remote.BaseURL, err)
 	}
 	metadata, err := remote.Metadata(ctx)
 	if err != nil {
@@ -28,8 +27,26 @@ func verifyRemoteAccess(ctx context.Context, remote *client.Client) (protocol.Me
 			protocol.Version,
 		)
 	}
+	return metadata, nil
+}
+
+// verifyRemoteAuthentication checks one authenticated, read-only endpoint
+// without returning job data.
+func verifyRemoteAuthentication(ctx context.Context, remote *client.Client) error {
 	if _, err := remote.ListJobs(ctx, 1); err != nil {
-		return protocol.Metadata{}, fmt.Errorf("remote-latexmk API token verification failed: %w", err)
+		return fmt.Errorf("remote-latexmk API token verification failed: %w", err)
+	}
+	return nil
+}
+
+// verifyRemoteAccess checks the public service identity and configured token.
+func verifyRemoteAccess(ctx context.Context, remote *client.Client) (protocol.Metadata, error) {
+	metadata, err := verifyRemoteService(ctx, remote)
+	if err != nil {
+		return protocol.Metadata{}, err
+	}
+	if err := verifyRemoteAuthentication(ctx, remote); err != nil {
+		return protocol.Metadata{}, err
 	}
 	return metadata, nil
 }

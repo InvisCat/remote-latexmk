@@ -83,7 +83,6 @@ func TestUnpackResponseDoesNotInstallHashMismatch(t *testing.T) {
 
 func TestNewRejectsUnsafeServerURLs(t *testing.T) {
 	for _, raw := range []string{
-		"localhost:8080",
 		"ftp://example.test",
 		"https://user:pass@example.test",
 		"https://example.test?token=secret",
@@ -95,6 +94,13 @@ func TestNewRejectsUnsafeServerURLs(t *testing.T) {
 	}
 	if _, err := New("https://example.test/api", "", 0, false, ""); err != nil {
 		t.Fatalf("expected valid URL: %v", err)
+	}
+	client, err := New("localhost", "", 0, false, "")
+	if err != nil {
+		t.Fatalf("expected host shorthand: %v", err)
+	}
+	if client.BaseURL != "http://localhost:8080" {
+		t.Fatalf("normalized URL = %q", client.BaseURL)
 	}
 }
 
@@ -599,6 +605,38 @@ func TestProjectManifestUsesExplicitManifestWithoutHistory(t *testing.T) {
 	}
 	if len(warnings) != 1 {
 		t.Fatalf("explicit manifest warnings = %#v", warnings)
+	}
+}
+
+func TestProjectEntriesUseTheUploadPolicyManifest(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.tex"), []byte("\\documentclass{article}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "private.tex"), []byte("\\documentclass{book}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "section.tex"), []byte("section"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := New("http://127.0.0.1:1", "", time.Second, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.ProjectRoot = root
+	c.Exclude = []string{"private.tex"}
+
+	result, err := c.ProjectEntries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Unambiguous || result.Selected != "main.tex" || result.TexFileCount != 2 {
+		t.Fatalf("entry discovery = %#v", result)
+	}
+	for _, candidate := range result.Candidates {
+		if candidate.Path == "private.tex" {
+			t.Fatal("excluded root candidate was returned")
+		}
 	}
 }
 

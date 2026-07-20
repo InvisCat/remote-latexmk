@@ -48,7 +48,7 @@ global install:
 
 ```sh
 npm exec --yes --ignore-scripts \
-  --package=remote-latexmk@0.3.0-rc.4 -- \
+  --package=remote-latexmk@0.3.0-rc.5 -- \
   remote-latexmk mcp serve --stdio \
   --root-from-client
 ```
@@ -58,7 +58,7 @@ does not reimplement MCP or upload policy in JavaScript. Codex Desktop can
 install the Plugin without Codex CLI:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.4 plugin install codex
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 plugin install codex
 ```
 
 Codex CLI and Claude Code can install it from the repository marketplace:
@@ -75,7 +75,7 @@ The Plugin contains no token. Before starting the Agent, save the client login
 through a hidden terminal prompt:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.4 auth login --server https://latex.example.edu
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 auth login --server https://latex.example.edu
 ```
 
 The MCP process reads the resulting user-level server URL and token-file path.
@@ -86,7 +86,7 @@ For OpenCode or a host without native Plugin support, the project-bound Agent
 installer remains available:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.4 agent install \
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 agent install \
   --project-root /absolute/path/to/paper \
   --server https://latex.example.edu \
   --token-file /absolute/path/to/latexmk-token \
@@ -140,6 +140,7 @@ The Compose client image contains the Go binary, Git, and CA certificates, but n
 
 | Tool | Effect |
 | --- | --- |
+| `project_entries` | Find policy-approved root TeX candidates when the entry is unknown; select only an unambiguous result |
 | `project_manifest` | Build the exact filtered file set and issue a five-minute, one-use manifest ID |
 | `server_status` | Verify health, service identity, protocol compatibility, configured authentication, and compiler metadata |
 | `job_list`, `job_get` | Read bounded job state |
@@ -152,7 +153,23 @@ The Compose client image contains the Go binary, Git, and CA certificates, but n
 | `cleanup_preview` | Create a ten-minute local or remote cleanup plan |
 | `cleanup_apply` | Consume the same plan after target/report revalidation |
 
-`project_manifest` binds the entry, engine, selected paths, sizes, and hashes. `compile_start` re-runs selection and rejects the ID if the manifest changed. The ID is deleted before the network request, so retries require a fresh manifest. Shell escape is always false and is not part of the tool schema.
+Call `project_entries` only when the user has not named an entry. If it does not
+return one unambiguous `selected` path, ask the user to choose from its bounded
+candidate list. Do not make a second candidate list with filesystem searches
+or source reads.
+
+`project_manifest` is the sole authority for the upload dependency set. Do not
+add, remove, or replace its paths with Agent reasoning or other filesystem
+tools. It binds the entry, engine, selected paths, sizes, and hashes.
+`compile_start` re-runs selection and rejects the ID if the manifest changed.
+The ID is deleted before the network request, so retries require a fresh
+manifest. Shell escape is always false and is not part of the tool schema.
+
+The `tools/call` protocol envelope accepts standard MCP `_meta`, including a
+client progress token. Tool `arguments` remain strict and reject unknown
+business fields. This server does not advertise task support, so a received
+`task` augmentation is ignored and the tool call runs synchronously, as
+required for a receiver without task capability.
 
 Local cleanup plans store every relative target path, size, and SHA-256 outside the paper. Apply validates all targets before deleting any. `local-client-cache` preserves `.latexmk-cache/project-id`.
 

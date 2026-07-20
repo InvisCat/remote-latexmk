@@ -1,7 +1,8 @@
 # Security boundaries
 
 - The project root is an upload boundary. Never widen it to a parent directory without explicit user intent.
-- Review `files --json` before the first upload and after manifest changes.
+- When the entry is unknown, use `project_entries` or `entries --json`. Use a unique selected result or ask the user when candidates are ambiguous. Do not create a second candidate list with filesystem searches or source reads.
+- Treat `project_manifest` or `files --json` as the only authority for the upload dependency set. Review that returned set before the first upload and after manifest changes. Never add or remove upload paths because an Agent inferred a dependency.
 - Git ignore, built-in deny rules, configured excludes, and dependency selection form the upload policy. Do not bypass them to make a compile pass.
 - The only upload modes are `auto`, `manifest`, and `all`. Static parsing and recorder history are dependency sources inside `auto`, not upload modes. Do not silently fall back to `all` when dependency selection is unresolved.
 - `.latexmk-cache` contains local identity and dependency state and is never uploadable.

@@ -24,11 +24,19 @@ test('npm staging requires an immutable semantic version', () => {
 test('bundled npm Skills use the non-conflicting launcher command', async () => {
   for (const name of ['remote-latex', 'remote-latex-maintenance', 'remote-latex-server', 'remote-latex-setup']) {
     const skill = await readFile(path.join(packageRoot, 'bundled-skills', name, 'SKILL.md'), 'utf8');
-    assert.doesNotMatch(skill, /(?:^|[`\n])latexmk (?:auth|setup|doctor|meta|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)/m);
+    assert.doesNotMatch(skill, /(?:^|[`\n])latexmk (?:auth|setup|doctor|meta|entries|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)/m);
   }
   const compileSkill = await readFile(path.join(packageRoot, 'bundled-skills', 'remote-latex', 'SKILL.md'), 'utf8');
   assert.match(compileSkill, /npm launcher command named `remote-latexmk`/);
   assert.match(compileSkill, /remote-latexmk doctor/);
+  assert.match(compileSkill, /remote-latexmk entries --json --project-root \./);
+  assert.doesNotMatch(compileSkill, /remote-latexmk help/);
+
+  const cliReference = await readFile(path.join(packageRoot, 'bundled-skills', 'remote-latex', 'references', 'cli.md'), 'utf8');
+  assert.doesNotMatch(cliReference, /packages\/cli\/dist\/latexmk/);
+  assert.match(cliReference, /remote-latexmk entries --json --project-root \./);
+  assert.match(cliReference, /only authority for upload dependencies/);
+  assert.doesNotMatch(cliReference, /remote-latexmk help/);
 });
 
 test('bundled Codex Plugin pins its manifest, MCP launcher, and Skills to the npm version', async () => {

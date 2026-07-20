@@ -11,8 +11,8 @@ the token or Authorization header.
 
 `setup --json`, detached `compile --json`, jobs, logs, diagnostics, artifacts,
 and local cache commands use a versioned JSON envelope. Existing JSON success output from
-synchronous `compile --json` (without `--detach`), `files`, and `meta` remains
-unchanged for now. `remote clean` also remains outside the versioned envelope;
+synchronous `compile --json` (without `--detach`), `entries`, `files`, and
+`meta` remains unchanged for now. `remote clean` also remains outside the versioned envelope;
 its two-stage preview and apply success shapes are documented below. These
 compatibility commands will move to the versioned contract only through an
 explicit compatibility mechanism. Their top-level success shapes will not
@@ -111,6 +111,38 @@ The setup command accepts `--ca-file` for a private CA and
 `--clear-ca-file` to remove a previous CA setting. It preserves unrelated user
 options. An existing legacy user configuration is read for migration, while
 new writes go to the `remote-latexmk` user configuration directory.
+
+The server address is normalized before any token prompt. A bare host or an
+explicit `http://` URL without a port uses port 8080. An `https://` URL without
+a port uses standard port 443. `auth login` checks public health, service
+identity, and protocol compatibility before reading the token, then verifies
+authenticated read access before saving the login.
+
+## Entry discovery and upload manifest
+
+When the entry is unknown, use the deterministic, policy-filtered entry
+discovery command:
+
+```sh
+latexmk entries --project-root . --json
+```
+
+Its compatibility JSON result contains `status`, `selected`, `unambiguous`,
+bounded `candidates`, counts, and optional warnings. Use `selected` only when
+`unambiguous` is true. Ask the user to choose when candidates are ambiguous.
+Do not build another candidate list by searching or reading project files.
+
+After choosing the entry, use the normal manifest command:
+
+```sh
+latexmk files --project-root . --json main.tex
+```
+
+The returned file set is the sole authority for upload dependencies. An Agent
+must not add, remove, or replace paths with its own filesystem searches, file
+reads, or model reasoning. Both `entries` and `files` keep their documented
+unversioned compatibility success shapes; check process status and stderr on
+failure.
 
 ## Detached compile
 

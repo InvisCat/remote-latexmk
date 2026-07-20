@@ -53,10 +53,14 @@ async function rewriteSkillCommands(directory) {
       const content = await readFile(target, 'utf8');
       await writeFile(target, content
         .replace(
+          'Select the repository binary at `packages/cli/dist/latexmk` while developing this repository. Otherwise use the installed client binary. Do not run an extra `help` probe during a normal compile workflow.',
+          'Use the npm launcher command named `remote-latexmk` for CLI fallbacks. Do not run an extra `help` probe during a normal compile workflow.',
+        )
+        .replace(
           /Use the remote-latexmk client command named `latexmk`\. Do not invoke the\s+unrelated TeX Live command with the same name\./g,
           'Use the npm launcher command named `remote-latexmk`. Do not invoke the unrelated TeX Live `latexmk` command.',
         )
-        .replace(/\blatexmk(?= (?:auth|setup|doctor|meta|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, 'remote-latexmk'));
+        .replace(/\blatexmk(?= (?:auth|setup|doctor|meta|entries|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, 'remote-latexmk'));
     }
   }
 }

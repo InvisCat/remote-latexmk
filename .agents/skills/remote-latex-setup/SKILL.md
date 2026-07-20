@@ -13,9 +13,9 @@ Never ask the user to paste a token into the Agent. Never write credentials to
 
 ## Workflow
 
-1. Run `latexmk doctor`. It checks service health and identity, protocol compatibility, configured authentication, and local project-cache Git policy.
-2. If login is missing or the server changed, ask only for the server URL. Tell the user to run `latexmk auth login --server SERVER_URL` themselves in a trusted interactive terminal.
-3. Explain that `auth login` reads the remote-latexmk API token with terminal echo disabled. It verifies the server and token before saving them. A verification failure does not replace the saved login.
+1. If a saved login exists, run `latexmk doctor`. It checks service health and identity, protocol compatibility, configured authentication, and local project-cache Git policy.
+2. If login is missing or the server changed, ask only for the server address. Tell the user to run `latexmk auth login --server SERVER` themselves in a trusted interactive terminal. A bare host and an explicit `http://` URL without a port use HTTP port 8080. An `https://` URL without a port uses the standard HTTPS port. Explicit schemes and ports are preserved.
+3. Explain the order of `auth login`: it normalizes the address, checks public health, service identity, and protocol compatibility, and only then opens the hidden remote-latexmk API-token prompt. It verifies authenticated read access before saving the login. A failure does not replace the saved login.
 4. If login fails, ask for the exact error text but never the token. Read [references/login-errors.md](references/login-errors.md) and give the narrow matching correction. Do not weaken TLS, authentication, network policy, or path boundaries.
 5. After a successful login, run `latexmk doctor` once to check the remaining local policy. Do not ask for more connection details when it succeeds.
 

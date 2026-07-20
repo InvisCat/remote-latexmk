@@ -56,14 +56,14 @@ async function rewriteCommands(directory) {
 function rewriteMarkdown(content) {
   return content
     .replace(
-      'Select the repository binary at `packages/cli/dist/latexmk` while developing this repository. Otherwise use the installed client binary. Confirm `latexmk help` describes the remote compiler before continuing.',
-      `Use the npm launcher for every CLI fallback. Confirm \`${launcher} help\` describes the remote compiler before continuing.`,
+      'Select the repository binary at `packages/cli/dist/latexmk` while developing this repository. Otherwise use the installed client binary. Do not run an extra `help` probe during a normal compile workflow.',
+      `Use the npm launcher \`${launcher}\` for every CLI fallback. Do not run an extra \`help\` probe during a normal compile workflow.`,
     )
     .replace(
       /Use the remote-latexmk client command named `latexmk`\. Do not invoke the\s+unrelated TeX Live command with the same name\./g,
       `Use the npm launcher \`${launcher}\` for CLI fallbacks. Do not invoke the unrelated TeX Live \`latexmk\` command.`,
     )
-    .replace(/\blatexmk(?= (?:auth|setup|doctor|meta|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, launcher);
+    .replace(/\blatexmk(?= (?:auth|setup|doctor|meta|entries|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, launcher);
 }
 
 async function checkSkill(source, destination) {

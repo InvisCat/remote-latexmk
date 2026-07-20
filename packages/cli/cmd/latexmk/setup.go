@@ -3,13 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/billstark001/latexmk/packages/cli/internal/config"
+	"github.com/billstark001/latexmk/packages/cli/internal/serverurl"
 )
 
 type setupOptions struct {
@@ -50,11 +50,13 @@ func runSetup(args []string) int {
 	if server == "" {
 		server = current.Server
 	}
-	if err := validateSetupServer(server); err != nil {
-		return failAgentArguments("setup", opts.jsonOutput, err)
+	server, err = serverurl.Normalize(server)
+	if err != nil {
+		return failAgentArguments("setup", opts.jsonOutput, fmt.Errorf("--server: %w", err))
 	}
 
 	tokenFile := opts.tokenFile
+	tokenFileExplicit := tokenFile != ""
 	if tokenFile == "" {
 		tokenFile = current.TokenFile
 		if tokenFile != "" && !filepath.IsAbs(tokenFile) && existingPath != "" {
@@ -103,6 +105,9 @@ func runSetup(args []string) int {
 		current.Server = server
 		current.Token = ""
 		current.TokenFile = tokenFile
+		if tokenFileExplicit {
+			current.TokenFileManaged = false
+		}
 		current.CAFile = caFile
 		writtenPath, writeErr := config.WriteUser(current)
 		if writeErr != nil {
@@ -179,23 +184,6 @@ func parseSetupArgs(args []string) (setupOptions, error) {
 		return setupOptions{}, errors.New("--dry-run and --yes cannot be combined")
 	}
 	return opts, nil
-}
-
-func validateSetupServer(value string) error {
-	if value == "" {
-		return errors.New("--server is required for the first setup")
-	}
-	parsed, err := url.Parse(value)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return errors.New("--server must be an absolute http or https URL")
-	}
-	if parsed.User != nil {
-		return errors.New("--server must not contain credentials")
-	}
-	if parsed.RawQuery != "" || parsed.Fragment != "" {
-		return errors.New("--server must not contain a query or fragment")
-	}
-	return nil
 }
 
 func validateSetupTokenFile(path string) (string, error) {

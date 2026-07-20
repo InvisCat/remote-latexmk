@@ -1,16 +1,16 @@
 # Use with compose.yaml to pull a tagged remote-latexmk release instead of building locally.
 services:
   server:
-    image: ${LATEXMK_GHCR_SERVER_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-inviscat}/remote-latexmk-server:${LATEXMK_GHCR_VERSION:-0.3.0-rc.4}}
+    image: ${LATEXMK_GHCR_SERVER_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-inviscat}/remote-latexmk-server:${LATEXMK_GHCR_VERSION:-0.3.0-rc.5}}
     # Published server images are currently amd64-only. Docker Desktop can run
     # them through emulation on arm64 hosts when the platform is explicit.
     platform: ${LATEXMK_SERVER_PLATFORM:-linux/amd64}
     pull_policy: always
 
   client:
-    image: ${LATEXMK_GHCR_CLIENT_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-inviscat}/remote-latexmk-client:${LATEXMK_GHCR_VERSION:-0.3.0-rc.4}}
+    image: ${LATEXMK_GHCR_CLIENT_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-inviscat}/remote-latexmk-client:${LATEXMK_GHCR_VERSION:-0.3.0-rc.5}}
     pull_policy: always
 
   client-watch:
-    image: ${LATEXMK_GHCR_CLIENT_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-inviscat}/remote-latexmk-client:${LATEXMK_GHCR_VERSION:-0.3.0-rc.4}}
+    image: ${LATEXMK_GHCR_CLIENT_IMAGE:-ghcr.io/${LATEXMK_GHCR_NAMESPACE:-inviscat}/remote-latexmk-client:${LATEXMK_GHCR_VERSION:-0.3.0-rc.5}}
     pull_policy: always

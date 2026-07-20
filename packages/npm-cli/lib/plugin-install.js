@@ -97,21 +97,67 @@ function managedMarker(sourceDigest) {
 
 async function planPlugin(destination, sourceDigest, force) {
   const info = await pathState(destination);
-  if (!info) return { action: 'install', markerOnly: false };
+  if (!info) {
+    return {
+      action: 'install',
+      markerOnly: false,
+      previousVersion: null,
+      targetVersion: packageJSON.version,
+    };
+  }
   if (info.isSymbolicLink()) throw new Error(`refusing symlink at Plugin destination: ${destination}`);
   if (!info.isDirectory()) throw new Error(`Plugin destination is not a directory: ${destination}`);
+  const marker = await readMarker(destination);
+  const previousVersion = typeof marker?.packageVersion === 'string' && marker.packageVersion.trim() !== ''
+    ? marker.packageVersion
+    : null;
   const destinationDigest = await directoryDigest(destination, true);
   if (destinationDigest === sourceDigest) {
-    const marker = await readMarker(destination);
     return {
       action: marker?.packageVersion === packageJSON.version && marker?.sourceDigest === sourceDigest ? 'unchanged' : 'adopt',
       markerOnly: true,
+      previousVersion,
+      targetVersion: packageJSON.version,
     };
   }
-  const marker = await readMarker(destination);
-  if (marker && destinationDigest === marker.sourceDigest) return { action: 'update', markerOnly: false };
-  if (force) return { action: 'replace', markerOnly: false };
+  if (marker && destinationDigest === marker.sourceDigest) {
+    return {
+      action: 'update',
+      markerOnly: false,
+      previousVersion,
+      targetVersion: packageJSON.version,
+    };
+  }
+  if (force) {
+    return {
+      action: 'replace',
+      markerOnly: false,
+      previousVersion,
+      targetVersion: packageJSON.version,
+    };
+  }
   throw new Error(`Plugin destination has unmanaged changes: ${destination}; inspect it or pass --force`);
+}
+
+function describePluginPlan(plan) {
+  const previous = plan.previousVersion;
+  const target = plan.targetVersion;
+  switch (plan.action) {
+    case 'install':
+      return `install ${target}`;
+    case 'update':
+      return previous && previous !== target
+        ? `update ${previous} -> ${target}`
+        : `update ${target} content`;
+    case 'unchanged':
+      return `unchanged ${target}`;
+    case 'adopt':
+      return `adopt existing ${target} content`;
+    case 'replace':
+      return `replace conflicting content with ${target}`;
+    default:
+      throw new Error(`unknown Plugin plan action: ${plan.action}`);
+  }
 }
 
 async function installPluginDirectory(source, destination, sourceDigest, plan) {
@@ -262,9 +308,12 @@ export async function installCodexPlugin(args, dependencies = {}) {
   const marketplaceOriginal = marketplaceInfo ? await readFile(marketplacePath, 'utf8') : '{\n}\n';
   const marketplacePlan = planMarketplace(marketplaceOriginal, marketplacePath, options.force);
   const pluginPlan = await planPlugin(destination, sourceDigest, options.force);
+  const marketplaceAction = !marketplaceInfo ? 'create' : (marketplacePlan.changed ? 'update' : 'unchanged');
 
-  log(`${options.dryRun ? 'would use' : 'Plugin source'}: ${destination}`);
-  log(`${options.dryRun ? 'would update' : 'Personal marketplace'}: ${marketplacePath}`);
+  log(`${options.dryRun ? 'Plugin source plan' : 'Plugin source'}: ${describePluginPlan(pluginPlan)}`);
+  log(`Plugin source path: ${destination}`);
+  log(`${options.dryRun ? 'Personal marketplace plan' : 'Personal marketplace'}: ${marketplaceAction}`);
+  log(`Personal marketplace path: ${marketplacePath}`);
   if (!options.dryRun) {
     const pluginBackup = await installPluginDirectory(source, destination, sourceDigest, pluginPlan);
     const marketplaceBackup = await writeMarketplace(marketplacePath, marketplaceOriginal, marketplacePlan.text);
@@ -278,6 +327,23 @@ export async function installCodexPlugin(args, dependencies = {}) {
     const opened = await (dependencies.openURL ?? openCodex)(url);
     if (!opened) log('Could not open Codex automatically. Open the Plugin page above.');
   }
-  if (!options.dryRun) log('Restart Codex if it was already running, select Install, then start a new chat from your paper directory.');
-  return { destination, marketplacePath, url, pluginAction: pluginPlan.action, marketplaceChanged: marketplacePlan.changed };
+  log("Codex installed copy: separate from this marketplace source; this command does not edit Codex's private Plugin cache.");
+  if (options.dryRun) {
+    log('Next after applying: select Install or Update on the Plugin page, restart Codex if it is running, then start a new task.');
+  } else {
+    log('Next: select Install or Update on the Plugin page, restart Codex if it is running, then start a new task from your paper directory.');
+  }
+  log('Existing remote-latexmk login: preserved if present; the server URL and API token are unchanged.');
+  log(`Connection setup (first install or server change): npx --yes --ignore-scripts remote-latexmk@${packageJSON.version} auth login --server SERVER_HOST`);
+  log('The login command checks the service, then reads the remote-latexmk API token at a hidden prompt.');
+  return {
+    destination,
+    marketplacePath,
+    url,
+    pluginAction: pluginPlan.action,
+    previousVersion: pluginPlan.previousVersion,
+    targetVersion: pluginPlan.targetVersion,
+    marketplaceAction,
+    marketplaceChanged: marketplacePlan.changed,
+  };
 }
