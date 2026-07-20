@@ -1,6 +1,6 @@
 {
   "name": "remote-latexmk",
-  "version": "0.3.0-rc.3",
+  "version": "0.3.0-rc.4",
   "description": "Compile LaTeX projects on a private remote TeX Live server.",
   "author": {
     "name": "InvisCat",

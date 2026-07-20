@@ -246,6 +246,7 @@ mv "${token_file}.new" "${token_file}"
 escape_env() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 cat >"${config_file}.new" <<EOF
 PATH="$(escape_env "${tex_bin}:/usr/local/bin:/usr/bin:/bin")"
+LATEXMK_TOOLCHAIN_PATH="$(escape_env "${tex_bin}:/usr/local/bin:/usr/bin:/bin")"
 REMOTE_LATEXMK_SERVER_BIN="$(escape_env "${install_root}/bin/remote-latexmk-server")"
 REMOTE_LATEXMK_PROFILE="${profile}"
 LATEXMK_ADDR="$(escape_env "${listen}")"

@@ -118,7 +118,7 @@ func (r *Runner) Run(parent context.Context, workspace string, req api.CompileRe
 	args := commandArgs(req)
 	cmd := exec.CommandContext(ctx, "latexmk", args...)
 	cmd.Dir = workspace
-	cmd.Env = sandboxEnvironment(workspace, req.ShellEscape)
+	cmd.Env = sandboxEnvironment(workspace, req.ShellEscape, r.Config.ToolchainPath)
 	configureProcess(cmd)
 	stdout := newCappedBuffer(r.Config.MaxLogBytes)
 	stderr := newCappedBuffer(r.Config.MaxLogBytes)
@@ -216,7 +216,7 @@ func commandArgs(req api.CompileRequest) []string {
 	return args
 }
 
-func sandboxEnvironment(workspace string, shellEscape bool) []string {
+func sandboxEnvironment(workspace string, shellEscape bool, toolchainPath string) []string {
 	home := filepath.Join(workspace, ".latexmk-home")
 	texmfVar := filepath.Join(home, ".texlive-var")
 	texmfConfig := filepath.Join(home, ".texlive-config")
@@ -226,11 +226,14 @@ func sandboxEnvironment(workspace string, shellEscape bool) []string {
 	if shellEscape {
 		shell = "t"
 	}
+	if toolchainPath == "" {
+		toolchainPath = config.DefaultToolchainPath
+	}
 	// Do not inherit the server process environment. In a PaaS that can contain
 	// cloud credentials, proxy settings, or TeX search-path overrides; TeX and
 	// any accidentally enabled child process must only see this small whitelist.
 	return []string{
-		"PATH=/usr/local/bin:/usr/bin:/bin",
+		"PATH=" + toolchainPath,
 		"LANG=C.UTF-8",
 		"LC_ALL=C.UTF-8",
 		"TZ=UTC",

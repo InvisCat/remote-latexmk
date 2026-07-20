@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 )
+
+const DefaultToolchainPath = "/usr/local/bin:/usr/bin:/bin"
 
 type Config struct {
 	Addr                  string
@@ -18,6 +21,7 @@ type Config struct {
 	DatabaseURL           string
 	ImageProfile          string
 	Engines               []string
+	ToolchainPath         string
 	AllowShellEscape      bool
 	CompileTimeout        time.Duration
 	ShutdownTimeout       time.Duration
@@ -118,6 +122,7 @@ func Load() (Config, error) {
 		DatabaseURL:           os.Getenv("DATABASE_URL"),
 		ImageProfile:          env("LATEXMK_IMAGE_PROFILE", "development"),
 		Engines:               splitCSV(env("LATEXMK_ENGINES", "xelatex,lualatex,pdflatex")),
+		ToolchainPath:         env("LATEXMK_TOOLCHAIN_PATH", DefaultToolchainPath),
 		AllowShellEscape:      allowShellEscape,
 		CompileTimeout:        compileTimeout,
 		ShutdownTimeout:       shutdownTimeout,
@@ -208,6 +213,9 @@ func (c Config) Validate() error {
 			return fmt.Errorf("unsupported configured engine %q", e)
 		}
 	}
+	if err := validateToolchainPath(c.ToolchainPath); err != nil {
+		return err
+	}
 	if c.CompileTimeout <= 0 || c.ShutdownTimeout <= 0 || c.MaxUploadBytes <= 0 || c.MaxExpandedBytes <= 0 || c.MaxArtifactBytes <= 0 || c.MaxFiles <= 0 || c.MaxConcurrentCompiles <= 0 || c.MaxQueuedJobs <= 0 || c.MaxLogBytes <= 0 || c.MaxStateBytes <= 0 || c.MaxUploadSessions <= 0 || c.ResultRetention <= 0 || c.SnapshotRetention <= 0 || c.BlobRetention <= 0 || c.StateSweepInterval <= 0 {
 		return fmt.Errorf("resource limits must be positive")
 	}
@@ -223,6 +231,18 @@ func (c Config) Validate() error {
 	for _, origin := range c.CORSOrigins {
 		if !validOrigin(origin) {
 			return fmt.Errorf("LATEXMK_CORS_ORIGINS contains invalid exact origin %q", origin)
+		}
+	}
+	return nil
+}
+
+func validateToolchainPath(value string) error {
+	if value == "" {
+		return fmt.Errorf("LATEXMK_TOOLCHAIN_PATH is required")
+	}
+	for _, dir := range filepath.SplitList(value) {
+		if dir == "" || !filepath.IsAbs(dir) || strings.ContainsAny(dir, "\r\n\x00") {
+			return fmt.Errorf("LATEXMK_TOOLCHAIN_PATH must contain only non-empty absolute directories")
 		}
 	}
 	return nil

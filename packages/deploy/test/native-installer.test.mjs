@@ -63,6 +63,7 @@ test('native installer verifies a tagged archive and creates a private config', 
   assert.match(token, /^[0-9a-f]{64}$/);
   assert.match(config, /LATEXMK_ALLOW_SHELL_ESCAPE="false"/);
   assert.match(config, /LATEXMK_ENGINES="xelatex,pdflatex"/);
+  assert.ok(config.includes(`LATEXMK_TOOLCHAIN_PATH="${texBin}:/usr/local/bin:/usr/bin:/bin"`));
   assert.match(config, /REMOTE_LATEXMK_SERVICE_MODE="fallback"/);
   assert.equal((await stat(configPath)).mode & 0o777, 0o600);
   assert.equal((await stat(tokenPath)).mode & 0o777, 0o600);

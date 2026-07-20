@@ -14,7 +14,7 @@ Use a release tag that contains `install-server.sh`, two native server
 archives, and `SHA256SUMS`:
 
 ```sh
-curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.3/install-server.sh | bash -s -- --version v0.3.0-rc.3 --profile full --engines xelatex,pdflatex
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.4/install-server.sh | bash -s -- --version v0.3.0-rc.4 --profile full --engines xelatex,pdflatex
 ```
 
 The installer verifies the native server archive against the release checksum.
