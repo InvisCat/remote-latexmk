@@ -72,6 +72,7 @@ source of truth for root Compose defaults.
 | `LATEXMK_API_TOKEN_FILE` | unset; alternative file containing one token |
 | `LATEXMK_IMAGE_PROFILE` | `development` |
 | `LATEXMK_ENGINES` | `xelatex,lualatex,pdflatex` |
+| `LATEXMK_TOOLCHAIN_PATH` | `/usr/local/bin:/usr/bin:/bin` |
 | `LATEXMK_COMPILE_TIMEOUT` | `2m` |
 | `LATEXMK_MAX_UPLOAD_BYTES` | `64MiB` per v2 blob |
 | `LATEXMK_MAX_EXPANDED_BYTES` | `256MiB` per project |
@@ -112,10 +113,10 @@ docker build \
   --build-arg SERVER_SOURCE=packages/server \
   --build-arg DEPLOY_ASSETS=packages/deploy/templates \
   --build-arg TEXLIVE_IMAGE='texlive/texlive:TAG@sha256:DIGEST' \
-  --build-arg VERSION='0.3.0-rc.3' \
+  --build-arg VERSION='0.3.0-rc.4' \
   --build-arg COMMIT="$(git rev-parse HEAD)" \
   --build-arg BUILD_DATE="$(date -u +%FT%TZ)" \
-  -t registry.example.edu/remote-latexmk-server:0.3.0-rc.3 .
+  -t registry.example.edu/remote-latexmk-server:0.3.0-rc.4 .
 ```
 
 Use `latexmk meta` to verify the remote toolchain actually running the image.

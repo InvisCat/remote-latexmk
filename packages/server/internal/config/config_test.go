@@ -56,3 +56,11 @@ func TestValidOriginRejectsWildcardsAndPaths(t *testing.T) {
 		t.Fatal("expected exact HTTPS origin to be valid")
 	}
 }
+
+func TestToolchainPathRequiresAbsoluteDirectories(t *testing.T) {
+	t.Setenv("LATEXMK_AUTH_MODE", "none")
+	t.Setenv("LATEXMK_TOOLCHAIN_PATH", "relative/bin:/usr/bin")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected relative toolchain path to fail")
+	}
+}

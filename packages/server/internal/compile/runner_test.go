@@ -1,11 +1,14 @@
 package compile
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/billstark001/latexmk/packages/server/internal/api"
 	"github.com/billstark001/latexmk/packages/server/internal/config"
@@ -21,12 +24,53 @@ func TestValidateRejectsTraversal(t *testing.T) {
 
 func TestSandboxEnvironmentDoesNotInheritHostSecrets(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "must-not-reach-tex")
-	env := strings.Join(sandboxEnvironment(t.TempDir(), false), "\n")
+	toolchainPath := filepath.Join(t.TempDir(), "texlive", "bin") + string(os.PathListSeparator) + "/usr/bin:/bin"
+	env := strings.Join(sandboxEnvironment(t.TempDir(), false, toolchainPath), "\n")
 	if strings.Contains(env, "AWS_SECRET_ACCESS_KEY") || strings.Contains(env, "must-not-reach-tex") {
 		t.Fatal("compile environment inherited a host secret")
 	}
-	if !strings.Contains(env, "PATH=/usr/local/bin:/usr/bin:/bin") || !strings.Contains(env, "shell_escape=f") {
+	if !strings.Contains(env, "PATH="+toolchainPath) || !strings.Contains(env, "shell_escape=f") {
 		t.Fatalf("unexpected sandbox environment: %s", env)
+	}
+}
+
+func TestRunnerKeepsPrivateTeXBinInCompileEnvironment(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("test uses POSIX shell scripts")
+	}
+	root := t.TempDir()
+	toolchainDir := filepath.Join(t.TempDir(), "private-texlive", "bin")
+	if err := os.MkdirAll(toolchainDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeTool := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(toolchainDir, name), []byte("#!/bin/sh\n"+body), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeTool("latexmk", "exec xelatex \"$@\"\n")
+	writeTool("xelatex", "printf 'OUTPUT main.pdf\\n' > main.fls\nprintf '%%PDF-test' > main.pdf\n")
+	if err := os.WriteFile(filepath.Join(root, "main.tex"), []byte("test"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", toolchainDir)
+	runner := NewRunner(config.Config{
+		Engines:               []string{"xelatex"},
+		ToolchainPath:         toolchainDir + string(os.PathListSeparator) + "/usr/bin:/bin",
+		CompileTimeout:        time.Second,
+		MaxConcurrentCompiles: 1,
+		MaxLogBytes:           1 << 20,
+		MaxArtifactBytes:      1 << 20,
+	})
+	out := runner.Run(context.Background(), root, api.CompileRequest{
+		ProtocolVersion: api.ProtocolVersion,
+		Entry:           "main.tex",
+		Engine:          "xelatex",
+		Interaction:     "nonstopmode",
+	}, "request_test")
+	if !out.Result.Success {
+		t.Fatalf("compile failed: error=%q stderr=%q", out.Result.Error, out.Stderr)
 	}
 }
 
