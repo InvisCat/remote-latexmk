@@ -21,7 +21,7 @@ The safe example keeps the loopback default. Add `--listen PRIVATE_IP:8080`
 only after the user chooses a known private interface:
 
 ```sh
-curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.1/install-server.sh | bash -s -- --version v0.3.0-rc.1 --profile full --engines xelatex,pdflatex
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.2/install-server.sh | bash -s -- --version v0.3.0-rc.2 --profile full --engines xelatex,pdflatex
 ```
 
 The full TeX Live profile and enabled engine policy are separate. Keep

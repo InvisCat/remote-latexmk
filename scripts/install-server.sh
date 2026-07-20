@@ -362,7 +362,10 @@ Show the token again on this server:
 Server listen URL: http://${listen}
 
 Install the Plugin on the client:
-  Codex:
+  Codex Desktop:
+    npx --yes --ignore-scripts remote-latexmk@${version#v} plugin install codex
+
+  Codex CLI:
     codex plugin marketplace add InvisCat/remote-latexmk
     codex plugin add remote-latexmk@remote-latexmk
 

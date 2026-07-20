@@ -11,9 +11,15 @@ npm exec --yes --ignore-scripts --package=remote-latexmk@VERSION -- \
   remote-latexmk mcp serve --stdio --root-from-client
 ```
 
-Codex and Claude Code users should normally install the repository's native
-Plugin. It bundles the Skills and this npm-backed MCP command. See the main
-Quick Start.
+Codex Desktop users can install the versioned Plugin without Codex CLI:
+
+```sh
+npx --yes --ignore-scripts remote-latexmk@VERSION plugin install codex
+```
+
+Codex CLI and Claude Code users can install the same Plugin from the
+repository marketplace. It bundles the Skills and this npm-backed MCP command.
+See the main Quick Start.
 
 Save the server URL and token once on the client. The token prompt disables
 terminal echo. The command verifies the server and token before storing the

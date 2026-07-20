@@ -27,7 +27,16 @@ lab that controls the paper, client, server, and network.
 The Agent machine needs Node.js, but it does not need Go or TeX Live. Install
 the Plugin from this repository's marketplace.
 
-### Codex
+### Codex Desktop
+
+```sh
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 plugin install codex
+```
+
+Select **Install** on the Plugin page opened by the command. If the Plugin does
+not appear, restart Codex and open the printed link.
+
+### Codex CLI
 
 ```sh
 codex plugin marketplace add InvisCat/remote-latexmk
@@ -44,7 +53,7 @@ claude plugin install remote-latexmk@remote-latexmk
 Save the connection once on the client before starting the Agent:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 auth login --server https://latex.example.edu
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 auth login --server https://latex.example.edu
 ```
 
 Paste the remote-latexmk API token at the hidden terminal prompt. The command
@@ -113,7 +122,7 @@ single paper, the older installer can add all bundled Skills and a fixed-root MC
 entry to detected Codex, Claude Code, or OpenCode configurations:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 agent install \
   --project-root /absolute/path/to/paper \
   --server https://latex.example.edu \
   --token-file /absolute/path/to/latexmk-token \
@@ -208,7 +217,7 @@ Plugin hosts that implement MCP workspace roots can let the Agent select the
 current root without storing an absolute paper path:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 \
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 \
   mcp serve --stdio --root-from-client
 ```
 

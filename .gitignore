@@ -1,6 +1,7 @@
 node_modules/
 dist/
 packages/npm-cli/bundled-skills/
+packages/npm-cli/bundled-plugin/
 *.log
 *.aux
 *.bbl

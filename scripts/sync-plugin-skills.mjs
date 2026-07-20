@@ -12,7 +12,7 @@ const skillNames = [
   'remote-latex-setup',
 ];
 const legacySkillNames = ['setup'];
-const launcher = 'npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1';
+const launcher = 'npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2';
 const checkOnly = process.argv.includes('--check');
 
 if (checkOnly) {

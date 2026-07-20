@@ -3,6 +3,7 @@
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 import { installAgents } from '../lib/agent-install.js';
+import { installCodexPlugin } from '../lib/plugin-install.js';
 import { resolveNativeBinary } from '../lib/platform.js';
 
 async function runNative(args) {
@@ -22,6 +23,11 @@ async function runNative(args) {
 async function main(args) {
   if (args[0] === 'agent' && args[1] === 'install') {
     await installAgents(args.slice(2));
+    return 0;
+  }
+  if (args[0] === 'plugin' && args[1] === 'install') {
+    if (args[2] !== 'codex') throw new Error('Usage: remote-latexmk plugin install codex [options]');
+    await installCodexPlugin(args.slice(3));
     return 0;
   }
   return runNative(args);

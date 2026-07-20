@@ -1,11 +1,13 @@
 import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { copyBundledPlugin } from './plugin-bundle.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = path.resolve(packageRoot, '../..');
 const source = path.join(repositoryRoot, '.agents/skills');
 const destination = path.join(packageRoot, 'bundled-skills');
+const packageJSON = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
 
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
@@ -31,3 +33,8 @@ async function rewriteCommands(directory) {
 }
 
 await rewriteCommands(destination);
+await copyBundledPlugin(
+  path.join(repositoryRoot, 'plugins', 'remote-latexmk'),
+  path.join(packageRoot, 'bundled-plugin'),
+  packageJSON.version,
+);

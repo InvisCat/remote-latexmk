@@ -5,6 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { copyBundledPlugin } from './plugin-bundle.mjs';
 
 const execFileAsync = promisify(execFile);
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -73,6 +74,11 @@ async function stageMain(options) {
     await cp(path.join(repositoryRoot, '.agents', 'skills', name), path.join(target, 'bundled-skills', name), { recursive: true });
   }
   await rewriteSkillCommands(path.join(target, 'bundled-skills'));
+  await copyBundledPlugin(
+    path.join(repositoryRoot, 'plugins', 'remote-latexmk'),
+    path.join(target, 'bundled-plugin'),
+    options.version,
+  );
   const manifest = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
   manifest.version = options.version;
   delete manifest.private;

@@ -1,19 +1,19 @@
 # CLI workflow
 
-Use the npm launcher for every CLI fallback. Confirm `npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 help` describes the remote compiler before continuing.
+Use the npm launcher for every CLI fallback. Confirm `npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 help` describes the remote compiler before continuing.
 
 Run commands from the paper root:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 doctor
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 meta --json
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 files --json --project-root . main.tex
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 compile --detach --json --project-root . main.tex
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 jobs show --json JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 diagnostics --json JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 logs --json --source all --tail 200 --max-bytes 65536 JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 artifacts list --json JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 artifacts get --json --out-dir . JOB_ID ARTIFACT_ID
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 doctor
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 meta --json
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 files --json --project-root . main.tex
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 compile --detach --json --project-root . main.tex
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 jobs show --json JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 diagnostics --json JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 logs --json --source all --tail 200 --max-bytes 65536 JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 artifacts list --json JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 artifacts get --json --out-dir . JOB_ID ARTIFACT_ID
 ```
 
 Use `.latexmk.json` for non-secret settings. Prefer `LATEXMK_TOKEN` or `LATEXMK_TOKEN_FILE` for the credential. Environment variables also support server, CA, engine, project ID, and upload-policy configuration.

@@ -111,7 +111,7 @@ test('container inputs and GHCR compose path are pinned', async () => {
   assert.match(override, /remote-latexmk-server/);
   assert.match(override, /remote-latexmk-client/);
   assert.match(override, /LATEXMK_GHCR_NAMESPACE:-inviscat/);
-  assert.match(override, /LATEXMK_GHCR_VERSION:-0\.3\.0-rc\.1/);
+  assert.match(override, /LATEXMK_GHCR_VERSION:-0\.3\.0-rc\.2/);
   assert.doesNotMatch(override, /billstark001/);
   assert.doesNotMatch(override, /LATEXMK_GHCR_(?:NAMESPACE|VERSION):\?/);
   assert.doesNotMatch(override, /:latest/);

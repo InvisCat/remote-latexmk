@@ -48,15 +48,20 @@ global install:
 
 ```sh
 npm exec --yes --ignore-scripts \
-  --package=remote-latexmk@0.3.0-rc.1 -- \
+  --package=remote-latexmk@0.3.0-rc.2 -- \
   remote-latexmk mcp serve --stdio \
   --root-from-client
 ```
 
 The npm package selects a platform binary through `optionalDependencies`; it
-does not reimplement MCP or upload policy in JavaScript. The Codex and Claude
-Code Plugins bundle this command with separate client setup, server operation,
-compile, and maintenance Skills:
+does not reimplement MCP or upload policy in JavaScript. Codex Desktop can
+install the Plugin without Codex CLI:
+
+```sh
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 plugin install codex
+```
+
+Codex CLI and Claude Code can install it from the repository marketplace:
 
 ```sh
 codex plugin marketplace add InvisCat/remote-latexmk
@@ -70,7 +75,7 @@ The Plugin contains no token. Before starting the Agent, save the client login
 through a hidden terminal prompt:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 auth login --server https://latex.example.edu
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 auth login --server https://latex.example.edu
 ```
 
 The MCP process reads the resulting user-level server URL and token-file path.
@@ -81,7 +86,7 @@ For OpenCode or a host without native Plugin support, the project-bound Agent
 installer remains available:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.1 agent install \
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.2 agent install \
   --project-root /absolute/path/to/paper \
   --server https://latex.example.edu \
   --token-file /absolute/path/to/latexmk-token \
