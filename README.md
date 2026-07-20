@@ -21,17 +21,22 @@ The native installer puts the service and TeX Live under
 `~/.remote-latexmk`. It uses no sudo, Docker, or system-wide TeX installation.
 
 ```sh
-curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.4/install-server.sh | bash -s -- --version v0.3.0-rc.4 --profile full --engines xelatex,pdflatex
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.5/install-server.sh | bash -s -- --version v0.3.0-rc.5
 ```
+
+In a terminal, the installer opens a numbered setup for the TeX Live profile,
+engines, detected listen address, port, and service mode. Press Enter to keep
+the safe defaults. Automation can use `--non-interactive` with explicit flags.
 
 > [!WARNING]
 > Native mode has weaker isolation than Docker and may expose systemd-visible
 > host files to TeX. Use it only for trusted papers on a dedicated account or
 > server; LuaLaTeX remains opt-in. See [Security](docs/SECURITY.md).
 
-For direct access, pass the server's reachable private LAN or VPN address to
-`--listen`. Omit it to keep the `127.0.0.1:8080` default for an SSH tunnel. See
-[Native server installation](docs/NATIVE_INSTALL.md) for other deployments.
+The listen chooser keeps `127.0.0.1:8080` as the default and lists available
+interfaces without selecting one for you. Choose a reachable private LAN or
+VPN address for direct access, or keep loopback for an SSH tunnel. You can
+change it later with `remote-latexmkctl configure --listen HOST:PORT`.
 
 ### 2. Client (Agent)
 
@@ -50,12 +55,12 @@ not install TeX Live.
 #### Codex Desktop
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.4 plugin install codex
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 plugin install codex
 ```
 
-The command opens the Plugin page in Codex. Select **Install**, then start a
-new chat from the paper directory. If the Plugin does not appear, restart
-Codex and open the printed link.
+The command opens the Plugin page in Codex. Select **Install** or **Update**,
+then start a new chat from the paper directory. If the Plugin does not appear,
+restart Codex and open the printed link.
 
 #### Codex CLI
 
@@ -71,16 +76,17 @@ claude plugin marketplace add InvisCat/remote-latexmk
 claude plugin install remote-latexmk@remote-latexmk
 ```
 
-Save the connection once on the client. Replace `SERVER_URL` with the reachable
-server URL, or the local endpoint when using the tunnel above:
+Save the connection once on the client. Replace `SERVER_HOST` with the
+reachable host, or the local endpoint when using the tunnel above:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.4 auth login --server SERVER_URL
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 auth login --server SERVER_HOST
 ```
 
-Paste the remote-latexmk API token at the hidden prompt. The command verifies
-the server and token, then stores the login in the client user's private
-configuration directory, not in shell history or the paper.
+A bare host or an HTTP URL without a port uses `http://HOST:8080`; explicit
+HTTPS keeps its standard port. The command prints the resolved endpoint and
+checks the service before asking for the remote-latexmk API token. It then
+stores the verified login outside shell history and the paper.
 
 Start a new Agent session from the paper directory and ask:
 
@@ -94,11 +100,36 @@ diagnostics and logs, and download the PDF through the local MCP server.
 The saved login also configures direct CLI use:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.4 files main.tex
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.4 main.tex
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 entries --json --project-root .
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 files main.tex
+npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 main.tex
 ```
 
 For OpenCode and other Agent hosts, see [AI coding agents](docs/AI_AGENTS.md).
+
+## Updating
+
+Update a native server with a verified target installer. It preserves the API
+token, state, TeX Live, profile, engines, listener, service mode, and supported
+resource/retention tuning; activation failure restores the previous config and
+release:
+
+```sh
+~/.remote-latexmk/bin/remote-latexmkctl upgrade --version vX.Y.Z
+~/.remote-latexmk/bin/remote-latexmkctl version
+~/.remote-latexmk/bin/remote-latexmkctl doctor
+```
+
+If the installed control command predates this update path, run the target
+installer directly once:
+
+```sh
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/vX.Y.Z/install-server.sh | bash -s -- --version vX.Y.Z --non-interactive
+```
+
+For Codex Desktop, rerun the versioned `plugin install codex` command from
+Quick Start, select **Install** or **Update** on the opened page, restart if
+asked, and start a new task. The saved server login is kept.
 
 ## Alternative Installation and Usage Paths
 
@@ -160,7 +191,7 @@ Choose either a release binary or a source build, then configure the client.
 
 #### Download a Release Binary
 
-The [`v0.3.0-rc.4` prerelease](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.3.0-rc.4)
+The [`v0.3.0-rc.5` prerelease](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.3.0-rc.5)
 provides client archives for Linux, macOS, and Windows on amd64 and arm64.
 Verify downloads with the attached `SHA256SUMS`. See
 [Publishing](docs/PUBLISHING.md) for the release process.
@@ -297,8 +328,8 @@ all three server policy values. Then use the base and GHCR Compose files shown
 under [Prebuilt images](#prebuilt-images-and-digest-pinning):
 
 ```dotenv
-LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server-full:0.3.0-rc.4
-LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client:0.3.0-rc.4
+LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server-full:0.3.0-rc.5
+LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client:0.3.0-rc.5
 LATEXMK_IMAGE_PROFILE=texlive-full
 LATEXMK_ENGINES=xelatex,lualatex,pdflatex
 ```
@@ -395,14 +426,14 @@ isolation. Read [Security](docs/SECURITY.md) before exposing the service.
 ## Prebuilt Images and Digest Pinning
 
 The current public release candidate is
-[`v0.3.0-rc.4`](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.3.0-rc.4).
+[`v0.3.0-rc.5`](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.3.0-rc.5).
 The copied `.env` selects the release pinned in `compose.ghcr.yaml` for bare
 `docker compose` commands. The commands below list both files explicitly. To
 select an exact version, set:
 
 ```dotenv
 LATEXMK_GHCR_NAMESPACE=inviscat
-LATEXMK_GHCR_VERSION=0.3.0-rc.4
+LATEXMK_GHCR_VERSION=0.3.0-rc.5
 ```
 
 ```sh
@@ -470,6 +501,16 @@ Implementation details and selection reasons live in
 [Architecture](docs/ARCHITECTURE.md).
 
 ## Changelog
+
+### remote-latexmk 0.3.0-rc.5
+
+- Added normalized server addresses and transactional client login, including
+  bare-host and default-port support.
+- Added an interactive native installer, safe listener changes, and verified
+  server upgrades with rollback.
+- Made MCP request metadata compatible with coding agents and added
+  deterministic entry discovery without model-selected upload dependencies.
+- Improved Plugin install and update guidance for Codex Desktop.
 
 ### remote-latexmk 0.3.0-rc.4
 

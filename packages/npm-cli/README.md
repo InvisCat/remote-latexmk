@@ -17,6 +17,13 @@ Codex Desktop users can install the versioned Plugin without Codex CLI:
 npx --yes --ignore-scripts remote-latexmk@VERSION plugin install codex
 ```
 
+Run the same command with a newer `VERSION` to update the managed personal
+marketplace source. Codex keeps its installed Plugin in a separate versioned
+cache, so finish on the opened Plugin page by selecting **Install** or
+**Update**, restart Codex if it is running, and start a new task. The command
+does not edit that private cache. The saved server URL and API token remain
+unchanged.
+
 Codex CLI and Claude Code users can install the same Plugin from the
 repository marketplace. It bundles the Skills and this npm-backed MCP command.
 See the main Quick Start.

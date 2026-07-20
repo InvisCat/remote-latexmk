@@ -11,7 +11,7 @@ import (
 
 	"github.com/billstark001/latexmk/packages/cli/internal/client"
 	"github.com/billstark001/latexmk/packages/cli/internal/config"
-	"github.com/billstark001/latexmk/packages/cli/internal/protocol"
+	"github.com/billstark001/latexmk/packages/cli/internal/serverurl"
 	"golang.org/x/term"
 )
 
@@ -56,11 +56,34 @@ func runAuthLogin(args []string) int {
 	if server == "" {
 		server = current.Server
 	}
-	if err := validateSetupServer(server); err != nil {
-		return failAgentArguments("auth.login", false, err)
+	server, err = serverurl.Normalize(server)
+	if err != nil {
+		return failAgentArguments("auth.login", false, fmt.Errorf("--server: %w", err))
 	}
 	if current.CAFile != "" && !filepath.IsAbs(current.CAFile) && existingPath != "" {
 		current.CAFile = filepath.Join(filepath.Dir(existingPath), current.CAFile)
+	}
+	oldTokenPath := current.TokenFile
+	oldTokenManaged := current.TokenFileManaged
+	if oldTokenPath != "" && !filepath.IsAbs(oldTokenPath) && existingPath != "" {
+		oldTokenPath = filepath.Join(filepath.Dir(existingPath), oldTokenPath)
+	}
+	fmt.Printf("server:      %s\n", server)
+	remote, err := client.New(
+		server,
+		"",
+		authLoginTimeout,
+		current.InsecureSkipVerify,
+		current.CAFile,
+	)
+	if err != nil {
+		return failAgentArguments("auth.login", false, err)
+	}
+	preflightCtx, preflightCancel := context.WithTimeout(context.Background(), authLoginTimeout)
+	metadata, err := verifyRemoteService(preflightCtx, remote)
+	preflightCancel()
+	if err != nil {
+		return failAgent("auth.login", false, err)
 	}
 
 	token, err := readLoginToken("remote-latexmk API token: ")
@@ -71,7 +94,10 @@ func runAuthLogin(args []string) int {
 	if err != nil {
 		return failAgentArguments("auth.login", false, err)
 	}
-	metadata, err := verifyAuthLogin(server, token, current)
+	remote.Token = token
+	authCtx, authCancel := context.WithTimeout(context.Background(), authLoginTimeout)
+	err = verifyRemoteAuthentication(authCtx, remote)
+	authCancel()
 	if err != nil {
 		return failAgent("auth.login", false, err)
 	}
@@ -82,30 +108,23 @@ func runAuthLogin(args []string) int {
 	current.Server = server
 	current.Token = ""
 	current.TokenFile = tokenPath
+	current.TokenFileManaged = true
 	configPath, err := config.WriteUser(current)
 	if err != nil {
+		if cleanupErr := config.RemoveManagedUserToken(tokenPath); cleanupErr != nil {
+			err = fmt.Errorf("%w; cleanup staged token: %v", err, cleanupErr)
+		}
 		return failAgent("auth.login", false, err)
+	}
+	if oldTokenManaged && oldTokenPath != "" && filepath.Clean(oldTokenPath) != filepath.Clean(tokenPath) {
+		if cleanupErr := config.RemoveManagedUserToken(oldTokenPath); cleanupErr != nil {
+			fmt.Fprintln(os.Stderr, "latexmk: warning:", cleanupErr)
+		}
 	}
 
 	fmt.Printf("verified:    %s %s (protocol v%d)\n", metadata.Service, metadata.Version, metadata.ProtocolVersion)
 	fmt.Printf("credentials saved for %s\ntoken file: %s\nconfig:     %s\n", server, tokenPath, configPath)
 	return 0
-}
-
-func verifyAuthLogin(server, token string, current config.FileConfig) (protocol.Metadata, error) {
-	remote, err := client.New(
-		server,
-		token,
-		authLoginTimeout,
-		current.InsecureSkipVerify,
-		current.CAFile,
-	)
-	if err != nil {
-		return protocol.Metadata{}, err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), authLoginTimeout)
-	defer cancel()
-	return verifyRemoteAccess(ctx, remote)
 }
 
 func parseAuthLoginArgs(args []string) (authLoginOptions, bool, error) {
@@ -150,11 +169,13 @@ func readLoginTokenFromTerminal(prompt string) (string, error) {
 
 func authUsage() {
 	fmt.Print(`Usage:
-  remote-latexmk auth login --server URL
+  remote-latexmk auth login --server HOST_OR_URL
 
-The command reads the remote-latexmk API token from a hidden terminal prompt,
-verifies the server and token, then stores it in the client user's private
-configuration directory. The token is not placed in the command line, shell
-history, paper directory, or user config JSON.
+A bare host or an HTTP URL without a port uses http://HOST:8080. Explicit
+HTTPS uses its standard port unless a port is provided. The command verifies
+the service before reading the remote-latexmk API token from a hidden terminal
+prompt, then stores the verified login in the client user's private config.
+The token is not placed in the command line, shell history, paper directory,
+or user config JSON.
 `)
 }

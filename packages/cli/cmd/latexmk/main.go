@@ -111,6 +111,8 @@ func run(args []string) int {
 			return fail(errors.New("remote currently supports only 'clean'"))
 		case "files":
 			return runCompile(argv[1:], "", true)
+		case "entries":
+			return runEntries(argv[1:])
 		case "watch":
 			argv = append([]string{"--watch"}, argv[1:]...)
 		case "compile":
@@ -710,6 +712,133 @@ type manifestView struct {
 	Diagnostics []dependency.Diagnostic `json:"diagnostics,omitempty"`
 }
 
+type entryOptions struct {
+	projectRoot string
+	gitIgnore   bool
+	jsonOutput  bool
+	exclude     []string
+	manifest    string
+}
+
+func runEntries(args []string) int {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fail(err)
+	}
+	explicitRoot, hasExplicitRoot, err := entriesProjectRootArg(args)
+	if err != nil {
+		return fail(err)
+	}
+	configStart := cwd
+	if hasExplicitRoot {
+		configStart, err = resolveMCPRoot(cwd, explicitRoot)
+		if err != nil {
+			return fail(err)
+		}
+	}
+	var cfg config.Resolved
+	if hasExplicitRoot {
+		cfg, err = config.LoadLocalPolicyBounded(configStart, configStart)
+	} else {
+		cfg, err = config.LoadLocalPolicy(configStart)
+	}
+	if err != nil {
+		return fail(err)
+	}
+	opts := entryOptions{
+		projectRoot: cfg.ProjectRoot,
+		gitIgnore:   cfg.RespectGitIgnore,
+		exclude:     append([]string(nil), cfg.Exclude...),
+		manifest:    cfg.ManifestFile,
+	}
+	if hasExplicitRoot {
+		// An explicit boundary chooses both the project and the project policy.
+		// A projectRoot value inside that project's config must not redirect it.
+		opts.projectRoot = configStart
+	}
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--project-root" || strings.HasPrefix(a, "--project-root="):
+			if strings.Contains(a, "=") {
+				if !hasExplicitRoot {
+					opts.projectRoot = strings.SplitN(a, "=", 2)[1]
+				}
+			} else if i+1 < len(args) {
+				i++
+				if !hasExplicitRoot {
+					opts.projectRoot = args[i]
+				}
+			} else {
+				return fail(errors.New("--project-root requires a value"))
+			}
+		case a == "--gitignore":
+			opts.gitIgnore = true
+		case a == "--no-gitignore":
+			opts.gitIgnore = false
+		case a == "--json":
+			opts.jsonOutput = true
+		default:
+			return fail(fmt.Errorf("unknown entries option %q", a))
+		}
+	}
+	root, err := resolveMCPRoot(cwd, opts.projectRoot)
+	if err != nil {
+		return fail(err)
+	}
+	c := &client.Client{
+		ProjectRoot:      root,
+		Exclude:          opts.exclude,
+		RespectGitIgnore: opts.gitIgnore,
+		ManifestFile:     opts.manifest,
+	}
+	result, err := c.ProjectEntries()
+	if err != nil {
+		return fail(fmt.Errorf("discover project entries: %w", err))
+	}
+	if opts.jsonOutput {
+		if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+			return fail(err)
+		}
+		return 0
+	}
+	fmt.Printf("status: %s\nTeX files: %d\ncandidates: %d\n", result.Status, result.TexFileCount, result.CandidateCount)
+	if result.Selected != "" {
+		fmt.Printf("selected: %s\n", result.Selected)
+	}
+	for _, candidate := range result.Candidates {
+		fmt.Printf("%10d  %s  (%s)\n", candidate.Size, candidate.Path, candidate.Reason)
+	}
+	for _, warning := range result.Warnings {
+		fmt.Fprintln(os.Stderr, "latexmk: warning:", warning)
+	}
+	return 0
+}
+
+func entriesProjectRootArg(args []string) (string, bool, error) {
+	var root string
+	found := false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--project-root":
+			if i+1 >= len(args) || strings.TrimSpace(args[i+1]) == "" {
+				return "", false, errors.New("--project-root requires a value")
+			}
+			i++
+			root = args[i]
+			found = true
+		case strings.HasPrefix(a, "--project-root="):
+			root = strings.SplitN(a, "=", 2)[1]
+			if strings.TrimSpace(root) == "" {
+				return "", false, errors.New("--project-root requires a value")
+			}
+			found = true
+		}
+	}
+	return root, found, nil
+}
+
 func printManifest(opts compileOptions) int {
 	exclude := append([]string(nil), opts.exclude...)
 	manifestPath := ""
@@ -1191,8 +1320,8 @@ Usage:
   latexmk [latex-compatible-options] <main.tex>
   latexmk meta [--json]
   latexmk doctor
-  latexmk auth login --server URL
-  latexmk setup --server URL --token-file FILE [--ca-file FILE] [--yes] [--json]
+  latexmk auth login --server HOST_OR_URL
+  latexmk setup --server HOST_OR_URL --token-file FILE [--ca-file FILE] [--yes] [--json]
   latexmk init [--server URL]
   latexmk clean [main.tex]
   latexmk cache inspect [--project-root DIR] [--json]
@@ -1209,6 +1338,7 @@ Usage:
   latexmk artifacts list JOB_ID [--json]
   latexmk artifacts get JOB_ID ARTIFACT_ID [--out-dir DIR] [--json]
   latexmk mcp serve --stdio [--project-root DIR | --root-from-client]
+  latexmk entries [--project-root DIR] [--json]
   latexmk files [options] <main.tex>
   latexmk version
 

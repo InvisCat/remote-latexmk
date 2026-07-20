@@ -26,6 +26,7 @@ import (
 	projectarchive "github.com/billstark001/latexmk/packages/cli/internal/archive"
 	"github.com/billstark001/latexmk/packages/cli/internal/dependency"
 	"github.com/billstark001/latexmk/packages/cli/internal/protocol"
+	"github.com/billstark001/latexmk/packages/cli/internal/serverurl"
 )
 
 type Client struct {
@@ -86,13 +87,9 @@ const (
 var version = "0.3.0-dev"
 
 func New(baseURL, token string, timeout time.Duration, insecure bool, caFile string) (*Client, error) {
-	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	parsed, err := url.Parse(baseURL)
+	baseURL, err := serverurl.Normalize(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid server URL: %w", err)
-	}
-	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.Opaque != "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return nil, errors.New("server URL must be an absolute http(s) URL without credentials, query, or fragment")
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: insecure} //nolint:gosec -- explicit user option
@@ -563,6 +560,16 @@ func (c *Client) projectManifest(entry, engine string) ([]projectarchive.File, [
 // server-assisted missing-file retries. Callers must not add other files.
 func (c *Client) Manifest(entry, engine string) ([]projectarchive.File, []string, error) {
 	return c.projectManifest(entry, engine)
+}
+
+// ProjectEntries returns deterministic root-document candidates from the same
+// policy-filtered manifest used for uploads. It does not contact the server.
+func (c *Client) ProjectEntries() (dependency.EntryDiscovery, error) {
+	candidates, _, err := c.policyManifest()
+	if err != nil {
+		return dependency.EntryDiscovery{}, err
+	}
+	return dependency.DiscoverEntries(candidates)
 }
 
 func (c *Client) policyManifest() ([]projectarchive.File, string, error) {

@@ -13,6 +13,8 @@ import (
 
 	projectarchive "github.com/billstark001/latexmk/packages/cli/internal/archive"
 	"github.com/billstark001/latexmk/packages/cli/internal/client"
+	"github.com/billstark001/latexmk/packages/cli/internal/config"
+	"github.com/billstark001/latexmk/packages/cli/internal/dependency"
 )
 
 func captureCommandOutput(t *testing.T, fn func() int) (int, string, string) {
@@ -55,6 +57,141 @@ func TestVersionIdentifiesRemoteLatexmkClient(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "latexmk (remote-latexmk client)") {
 		t.Fatalf("version output does not identify remote-latexmk: %q", stdout)
+	}
+}
+
+func TestEntriesJSONDiscoversEntryWithoutServerAccess(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LATEXMK_SERVER", "")
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.tex"), []byte("\\documentclass{article}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "chapter.tex"), []byte("chapter"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout, stderr := captureCommandOutput(t, func() int {
+		return run([]string{"latexmk", "entries", "--json", "--project-root", root})
+	})
+	if code != 0 || stderr != "" {
+		t.Fatalf("entries result: code=%d stderr=%q", code, stderr)
+	}
+	var result dependency.EntryDiscovery
+	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+		t.Fatalf("decode entries %q: %v", stdout, err)
+	}
+	if !result.Unambiguous || result.Selected != "main.tex" || result.CandidateCount != 1 {
+		t.Fatalf("entries = %#v", result)
+	}
+}
+
+func TestEntriesLoadsPolicyFromExplicitProjectRoot(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LATEXMK_SERVER", "")
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.tex"), []byte("\\documentclass{article}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "excluded.tex"), []byte("\\documentclass{book}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, config.FileName), []byte(`{"exclude":["excluded.tex"],"projectRoot":".."}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	previousDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(outside); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(previousDirectory) })
+
+	code, stdout, stderr := captureCommandOutput(t, func() int {
+		return run([]string{"latexmk", "entries", "--json", "--project-root", root})
+	})
+	if code != 0 || stderr != "" {
+		t.Fatalf("entries result: code=%d stderr=%q", code, stderr)
+	}
+	var result dependency.EntryDiscovery
+	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+		t.Fatalf("decode entries %q: %v", stdout, err)
+	}
+	if !result.Unambiguous || result.Selected != "main.tex" || result.CandidateCount != 1 {
+		t.Fatalf("entries = %#v", result)
+	}
+}
+
+func TestEntriesExplicitProjectRootDoesNotLoadParentProjectPolicy(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LATEXMK_SERVER", "")
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	parent := t.TempDir()
+	root := filepath.Join(parent, "paper")
+	if err := os.Mkdir(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "main.tex"), []byte("\\documentclass{article}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(parent, config.FileName), []byte(`{"exclude":["main.tex"]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, stderr := captureCommandOutput(t, func() int {
+		return run([]string{"latexmk", "entries", "--json", "--project-root", root})
+	})
+	if code != 0 || stderr != "" {
+		t.Fatalf("entries result: code=%d stderr=%q", code, stderr)
+	}
+	var result dependency.EntryDiscovery
+	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+		t.Fatalf("decode entries %q: %v", stdout, err)
+	}
+	if !result.Unambiguous || result.Selected != "main.tex" {
+		t.Fatalf("parent policy escaped explicit root: %#v", result)
+	}
+}
+
+func TestEntriesDoesNotReadProjectTokenFile(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LATEXMK_SERVER", "")
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.tex"), []byte("\\documentclass{article}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, config.FileName), []byte(`{"tokenFile":"missing-token"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	previousDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(previousDirectory) })
+
+	code, stdout, stderr := captureCommandOutput(t, func() int {
+		return run([]string{"latexmk", "entries", "--json"})
+	})
+	if code != 0 || stderr != "" {
+		t.Fatalf("entries result: code=%d stderr=%q", code, stderr)
+	}
+	var result dependency.EntryDiscovery
+	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+		t.Fatalf("decode entries %q: %v", stdout, err)
+	}
+	if !result.Unambiguous || result.Selected != "main.tex" {
+		t.Fatalf("entries = %#v", result)
 	}
 }
 

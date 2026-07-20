@@ -32,6 +32,28 @@ func TestLoadDefaultsToAutomaticDependencySelection(t *testing.T) {
 	}
 }
 
+func TestLoadLocalPolicyDoesNotReadTokenFiles(t *testing.T) {
+	isolateUserConfig(t)
+	missing := filepath.Join(t.TempDir(), "missing-token")
+	if _, err := WriteUser(FileConfig{Server: "https://latex.example", TokenFile: missing}); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, FileName), []byte(`{"tokenFile":"also-missing","uploadMode":"all"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	policy, err := LoadLocalPolicy(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if policy.Token != "" || policy.TokenFile != "" || policy.UploadMode != "all" {
+		t.Fatalf("local policy = %#v", policy)
+	}
+	if _, err := Load(root); err == nil {
+		t.Fatal("normal config load unexpectedly ignored the missing token file")
+	}
+}
+
 func TestLoadRejectsUnknownUploadMode(t *testing.T) {
 	isolateUserConfig(t)
 	root := t.TempDir()
@@ -345,5 +367,74 @@ func TestWriteUserUsesPrimaryPathAndPrivatePermissions(t *testing.T) {
 	}
 	if dirInfo.Mode().Perm() != 0o700 {
 		t.Fatalf("config directory mode = %o", dirInfo.Mode().Perm())
+	}
+}
+
+func TestWriteUserTokenCreatesUniqueManagedFiles(t *testing.T) {
+	configHome := isolateUserConfig(t)
+	first, err := WriteUserToken("first-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := WriteUserToken("second-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatalf("token paths are not unique: %q", first)
+	}
+	for _, path := range []string{first, second} {
+		if filepath.Dir(path) != filepath.Join(configHome, userConfigDir) || !managedTokenFileName(filepath.Base(path)) {
+			t.Fatalf("unmanaged token path %q", path)
+		}
+		if runtime.GOOS != "windows" {
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode().Perm() != 0o600 {
+				t.Fatalf("token mode = %o", info.Mode().Perm())
+			}
+		}
+	}
+	if err := RemoveManagedUserToken(first); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(first); !os.IsNotExist(err) {
+		t.Fatalf("managed token still exists: %v", err)
+	}
+	contents, err := os.ReadFile(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(contents) != "second-token\n" {
+		t.Fatalf("second token = %q", contents)
+	}
+}
+
+func TestRemoveManagedUserTokenLeavesExternalFiles(t *testing.T) {
+	configHome := isolateUserConfig(t)
+	external := filepath.Join(t.TempDir(), "token-external")
+	if err := os.WriteFile(external, []byte("keep\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := RemoveManagedUserToken(external); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(external); err != nil {
+		t.Fatalf("external token was removed: %v", err)
+	}
+	custom := filepath.Join(configHome, userConfigDir, "token-custom")
+	if err := os.MkdirAll(filepath.Dir(custom), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(custom, []byte("keep\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := RemoveManagedUserToken(custom); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(custom); err != nil {
+		t.Fatalf("custom token was removed: %v", err)
 	}
 }

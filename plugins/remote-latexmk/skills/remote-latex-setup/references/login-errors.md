@@ -3,6 +3,17 @@
 Use only the branch that matches the reported error. Keep the API token in the
 user's trusted terminal.
 
+Address normalization is deterministic:
+
+- `server-name` becomes `http://server-name:8080`;
+- `http://server-name` becomes `http://server-name:8080`;
+- `https://server-name` uses standard HTTPS port 443;
+- an explicit scheme and port are preserved.
+
+`auth login` runs the unauthenticated health, service-identity, and protocol
+checks before it prompts for a token. A failure before that prompt is an
+endpoint or compatibility problem, not a token problem.
+
 | Error | Meaning | Correction |
 | --- | --- | --- |
 | `server health check failed`, timeout, connection refused, or DNS failure | The client cannot reach the configured HTTP service. | Confirm the URL and port. Check the server service, its listen address, and the LAN, VPN, firewall, or SSH tunnel. Do not expose a new interface without the user's decision. |

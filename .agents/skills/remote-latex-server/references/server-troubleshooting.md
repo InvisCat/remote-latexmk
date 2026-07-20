@@ -14,6 +14,30 @@ If the user service stops after logout or boot, report the systemd user
 lingering requirement to the server administrator. Do not change system-wide
 service policy without authorization.
 
+Inspect the saved settings before changing them:
+
+```sh
+~/.remote-latexmk/bin/remote-latexmkctl version
+~/.remote-latexmk/bin/remote-latexmkctl doctor
+```
+
+To change only the native listener, preview first and show the exact old and
+new values:
+
+```sh
+~/.remote-latexmk/bin/remote-latexmkctl configure --listen HOST:PORT
+```
+
+After explicit approval, repeat it with `--yes`. The command restarts only a
+running service and restores the previous listener if restart fails. Do not
+edit `server.env` as the normal recovery path.
+
+The installer owns `config/server.env`. Persistent database, CORS, timeout,
+resource-limit, and retention tuning belongs in
+`config/server.override.env`, which accepts only the installer's closed key
+list. Never echo an override value while troubleshooting because it may contain
+a database credential.
+
 ## Docker service
 
 ```sh

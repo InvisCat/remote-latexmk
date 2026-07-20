@@ -76,7 +76,7 @@ func TestMCPInitializeAndToolListUseJSONOnly(t *testing.T) {
 	if err := json.Unmarshal([]byte(lines[1]), &listed); err != nil {
 		t.Fatal(err)
 	}
-	if len(listed.Result.Tools) != 12 {
+	if len(listed.Result.Tools) != 13 {
 		t.Fatalf("tools = %d: %s", len(listed.Result.Tools), lines[1])
 	}
 	for _, tool := range listed.Result.Tools {
@@ -86,6 +86,130 @@ func TestMCPInitializeAndToolListUseJSONOnly(t *testing.T) {
 		if tool.Name == "job_cancel" && strings.Contains(tool.Description, "running") {
 			t.Fatalf("job_cancel advertises unsupported running-job cancellation: %q", tool.Description)
 		}
+	}
+}
+
+func TestMCPToolCallEnvelopeAcceptsMetaWithoutWeakeningArguments(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.tex"), []byte("\\documentclass{article}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	input := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"project_entries","_meta":{"progressToken":"progress-1","example.test/value":{"nested":true}}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"project_manifest","arguments":{"entry":"main.tex"},"_meta":{"progressToken":7}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"project_manifest","arguments":{"entry":"main.tex"},"task":{"ttl":60000}}}`,
+		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"project_manifest","arguments":{"entry":"main.tex","shellEscape":true}}}`,
+		`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"project_entries","arguments":{},"unexpected":true}}`,
+	}, "\n") + "\n"
+	var stdout bytes.Buffer
+	server := newStdioMCPServer(strings.NewReader(input), &stdout, root, testMCPClient(t, root), "xelatex", time.Second)
+	if err := server.serve(); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 6 {
+		t.Fatalf("responses = %d: %s", len(lines), stdout.String())
+	}
+
+	decode := func(index int) (json.RawMessage, *mcpResponseError) {
+		t.Helper()
+		var response struct {
+			Result json.RawMessage   `json:"result"`
+			Error  *mcpResponseError `json:"error"`
+		}
+		if err := json.Unmarshal([]byte(lines[index]), &response); err != nil {
+			t.Fatal(err)
+		}
+		return response.Result, response.Error
+	}
+	for _, index := range []int{1, 2, 3} {
+		raw, responseErr := decode(index)
+		if responseErr != nil {
+			t.Fatalf("metadata call %d failed: %#v", index, responseErr)
+		}
+		var result mcpToolResult
+		if err := json.Unmarshal(raw, &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.IsError {
+			t.Fatalf("metadata call %d returned tool error: %s", index, raw)
+		}
+	}
+	if len(server.manifests) != 2 {
+		t.Fatalf("successful manifest calls = %d, want 2", len(server.manifests))
+	}
+	raw, argumentErr := decode(4)
+	if argumentErr != nil {
+		t.Fatalf("unknown business argument became a protocol error: %#v", argumentErr)
+	}
+	var argumentResult mcpToolResult
+	if err := json.Unmarshal(raw, &argumentResult); err != nil {
+		t.Fatal(err)
+	}
+	if !argumentResult.IsError || !strings.Contains(string(raw), "unknown field") {
+		t.Fatalf("strict tool argument response = %s", raw)
+	}
+	_, envelopeErr := decode(5)
+	if envelopeErr == nil || envelopeErr.Code != -32602 {
+		t.Fatalf("unknown envelope field error = %#v, want -32602", envelopeErr)
+	}
+	if len(server.manifests) != 2 {
+		t.Fatalf("rejected calls changed manifest state: %d", len(server.manifests))
+	}
+}
+
+func TestMCPServerStatusAcceptsCodexProgressMetadata(t *testing.T) {
+	root := t.TempDir()
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/healthz":
+			w.WriteHeader(http.StatusOK)
+		case "/v1/meta":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"service":"remote-latexmk","version":"test","protocolVersion":2}`))
+		case "/v1/jobs":
+			if r.Header.Get("Authorization") != "Bearer token" {
+				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"jobs":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(remote.Close)
+	c, err := client.New(remote.URL, "token", time.Second, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.ProjectRoot = root
+	input := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"codex","version":"test"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"server_status","arguments":{},"_meta":{"progressToken":"codex-progress"}}}`,
+	}, "\n") + "\n"
+	var stdout bytes.Buffer
+	server := newStdioMCPServer(strings.NewReader(input), &stdout, root, c, "xelatex", time.Second)
+	if err := server.serve(); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("responses = %d: %s", len(lines), stdout.String())
+	}
+	var response struct {
+		Result mcpToolResult     `json:"result"`
+		Error  *mcpResponseError `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(lines[1]), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Error != nil || response.Result.IsError {
+		t.Fatalf("server_status with progress metadata failed: %s", lines[1])
+	}
+	if !strings.Contains(lines[1], `"accessVerified":true`) {
+		t.Fatalf("server_status did not verify authenticated access: %s", lines[1])
 	}
 }
 

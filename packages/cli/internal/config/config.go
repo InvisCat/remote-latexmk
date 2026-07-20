@@ -17,6 +17,7 @@ const UserFileName = "config.json"
 const (
 	userConfigDir       = "remote-latexmk"
 	legacyUserConfigDir = "latexmk"
+	managedTokenPrefix  = "token-"
 )
 
 const maxTokenFileSize = 64 << 10
@@ -25,6 +26,7 @@ type FileConfig struct {
 	Server             string   `json:"server"`
 	Token              string   `json:"token,omitempty"`
 	TokenFile          string   `json:"tokenFile,omitempty"`
+	TokenFileManaged   bool     `json:"tokenFileManaged,omitempty"`
 	ProjectRoot        string   `json:"projectRoot,omitempty"`
 	ProjectID          string   `json:"projectId,omitempty"`
 	RootMode           string   `json:"rootMode,omitempty"`
@@ -96,16 +98,28 @@ func DefaultDeny() []string {
 }
 
 func Load(start string) (Resolved, error) {
-	return load(start, "")
+	return load(start, "", true)
 }
 
 // LoadBounded loads project configuration without walking above boundary.
 // It is used when an MCP host supplies the workspace security boundary.
 func LoadBounded(start, boundary string) (Resolved, error) {
-	return load(start, boundary)
+	return load(start, boundary, true)
 }
 
-func load(start, boundary string) (Resolved, error) {
+// LoadLocalPolicy loads project selection policy for commands that never
+// contact the server. It does not read token files or expose token values.
+func LoadLocalPolicy(start string) (Resolved, error) {
+	return load(start, "", false)
+}
+
+// LoadLocalPolicyBounded loads non-secret project policy without walking
+// above boundary. It is used when a command receives an explicit project root.
+func LoadLocalPolicyBounded(start, boundary string) (Resolved, error) {
+	return load(start, boundary, false)
+}
+
+func load(start, boundary string, resolveCredentials bool) (Resolved, error) {
 	respectGitIgnore := true
 	cfg := FileConfig{
 		Server:           "http://127.0.0.1:8080",
@@ -167,40 +181,45 @@ func load(start, boundary string) (Resolved, error) {
 	if v := os.Getenv("LATEXMK_SERVER"); v != "" {
 		cfg.Server = v
 	}
-	if cfg.TokenFile != "" {
-		tokenFile := cfg.TokenFile
-		if !filepath.IsAbs(tokenFile) {
-			base := start
-			if path != "" {
-				base = filepath.Dir(path)
+	if resolveCredentials {
+		if cfg.TokenFile != "" {
+			tokenFile := cfg.TokenFile
+			if !filepath.IsAbs(tokenFile) {
+				base := start
+				if path != "" {
+					base = filepath.Dir(path)
+				}
+				tokenFile = filepath.Join(base, tokenFile)
 			}
-			tokenFile = filepath.Join(base, tokenFile)
+			tokenFile, err = filepath.Abs(tokenFile)
+			if err != nil {
+				return Resolved{}, err
+			}
+			token, err := ReadTokenFile(tokenFile)
+			if err != nil {
+				return Resolved{}, fmt.Errorf("tokenFile: %w", err)
+			}
+			cfg.TokenFile = tokenFile
+			cfg.Token = token
 		}
-		tokenFile, err = filepath.Abs(tokenFile)
-		if err != nil {
-			return Resolved{}, err
+		if v := os.Getenv("LATEXMK_TOKEN_FILE"); v != "" {
+			absolute, err := filepath.Abs(v)
+			if err != nil {
+				return Resolved{}, fmt.Errorf("LATEXMK_TOKEN_FILE: %w", err)
+			}
+			token, err := ReadTokenFile(absolute)
+			if err != nil {
+				return Resolved{}, fmt.Errorf("LATEXMK_TOKEN_FILE: %w", err)
+			}
+			cfg.TokenFile = absolute
+			cfg.Token = token
 		}
-		token, err := ReadTokenFile(tokenFile)
-		if err != nil {
-			return Resolved{}, fmt.Errorf("tokenFile: %w", err)
+		if v, ok := os.LookupEnv("LATEXMK_TOKEN"); ok && v != "" {
+			cfg.Token = v
 		}
-		cfg.TokenFile = tokenFile
-		cfg.Token = token
-	}
-	if v := os.Getenv("LATEXMK_TOKEN_FILE"); v != "" {
-		absolute, err := filepath.Abs(v)
-		if err != nil {
-			return Resolved{}, fmt.Errorf("LATEXMK_TOKEN_FILE: %w", err)
-		}
-		token, err := ReadTokenFile(absolute)
-		if err != nil {
-			return Resolved{}, fmt.Errorf("LATEXMK_TOKEN_FILE: %w", err)
-		}
-		cfg.TokenFile = absolute
-		cfg.Token = token
-	}
-	if v, ok := os.LookupEnv("LATEXMK_TOKEN"); ok && v != "" {
-		cfg.Token = v
+	} else {
+		cfg.Token = ""
+		cfg.TokenFile = ""
 	}
 	if v := os.Getenv("LATEXMK_ENGINE"); v != "" {
 		cfg.Engine = v
@@ -315,7 +334,8 @@ func UserConfigPath() (string, error) {
 	return filepath.Join(base, userConfigDir, UserFileName), nil
 }
 
-// UserTokenPath returns the private token path used by interactive login.
+// UserTokenPath returns the legacy fixed token path. New interactive logins
+// use unique managed files in the same directory for transactional updates.
 func UserTokenPath() (string, error) {
 	base, err := userConfigBase()
 	if err != nil {
@@ -451,21 +471,100 @@ func WriteUser(cfg FileConfig) (string, error) {
 	return path, nil
 }
 
-// WriteUserToken stores one token outside paper directories with private
-// permissions and without following a symlink at the target.
+// WriteUserToken stores one token in a new private file outside paper
+// directories. Callers can switch configuration to the returned path without
+// overwriting credentials used by an existing configuration.
 func WriteUserToken(token string) (string, error) {
 	token, err := NormalizeUserToken(token)
 	if err != nil {
 		return "", err
 	}
-	path, err := UserTokenPath()
+	legacyPath, err := UserTokenPath()
 	if err != nil {
 		return "", err
 	}
-	if err := writePrivateUserFile(path, []byte(token+"\n")); err != nil {
+	directory := filepath.Dir(legacyPath)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return "", fmt.Errorf("create user config directory: %w", err)
+	}
+	if err := os.Chmod(directory, 0o700); err != nil {
+		return "", fmt.Errorf("protect user config directory: %w", err)
+	}
+	file, err := os.CreateTemp(directory, managedTokenPrefix+"*")
+	if err != nil {
+		return "", fmt.Errorf("create token file: %w", err)
+	}
+	path := file.Name()
+	installed := false
+	defer func() {
+		if !installed {
+			_ = os.Remove(path)
+		}
+	}()
+	if err := file.Chmod(0o600); err != nil {
+		_ = file.Close()
 		return "", err
 	}
+	if _, err := file.WriteString(token + "\n"); err != nil {
+		_ = file.Close()
+		return "", err
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		return "", err
+	}
+	if err := file.Close(); err != nil {
+		return "", err
+	}
+	installed = true
 	return path, nil
+}
+
+// RemoveManagedUserToken removes a path that the caller has recorded as being
+// created by this package. The path shape is checked again here, but its name
+// alone is not proof of ownership. Paths outside the private user config
+// directory and non-regular files are left untouched.
+func RemoveManagedUserToken(path string) error {
+	if path == "" {
+		return nil
+	}
+	legacyPath, err := UserTokenPath()
+	if err != nil {
+		return err
+	}
+	path = filepath.Clean(path)
+	managedDirectory := filepath.Dir(legacyPath)
+	name := filepath.Base(path)
+	if filepath.Dir(path) != managedDirectory || (path != legacyPath && !managedTokenFileName(name)) {
+		return nil
+	}
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect old token file: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return fmt.Errorf("old token file %s is not a regular file", path)
+	}
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("remove old token file: %w", err)
+	}
+	return nil
+}
+
+func managedTokenFileName(name string) bool {
+	suffix := strings.TrimPrefix(name, managedTokenPrefix)
+	if suffix == name || suffix == "" {
+		return false
+	}
+	for _, value := range suffix {
+		if value < '0' || value > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // NormalizeUserToken validates one token before login attempts or storage.

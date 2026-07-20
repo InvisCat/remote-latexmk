@@ -2,7 +2,11 @@
 set -euo pipefail
 
 install_root="${REMOTE_LATEXMK_HOME:-${HOME}/.remote-latexmk}"
+repository="${REMOTE_LATEXMK_REPOSITORY:-InvisCat/remote-latexmk}"
+release_base="${REMOTE_LATEXMK_RELEASE_BASE_URL:-https://github.com/${repository}/releases/download}"
 config_file="${install_root}/config/server.env"
+override_file="${install_root}/config/server.override.env"
+install_state="${install_root}/config/install.env"
 service_name="remote-latexmk.service"
 user_unit="${HOME}/.config/systemd/user/${service_name}"
 pid_file="${install_root}/run/server.pid"
@@ -22,14 +26,151 @@ Commands:
   stop                  Stop the server
   restart               Restart the server
   status                Show service status
+  version               Show the installed server release
   logs [-f]             Show server logs
   doctor                Check the native installation
+  configure --listen HOST:PORT [--yes]
+                        Preview or apply a new listen address
   token                 Print the API token (explicit secret access)
   foreground            Run the server in the foreground
-  upgrade --version V   Install a newer tagged release
+  upgrade --version V [--dry-run]
+                        Verify and run the target release installer
   uninstall [--yes]     Remove the service and programs, but keep user data
   uninstall --purge     Remove the complete installation after confirmation
 EOF
+}
+
+active_version() {
+  local target
+  if [[ -L "${install_root}/current" ]]; then
+    target="$(readlink "${install_root}/current")"
+    target="$(basename "$(dirname "${target}")")"
+    [[ -n "${target}" ]] && { printf 'v%s\n' "${target}"; return; }
+  fi
+  printf 'unknown\n'
+}
+
+validate_version() {
+  [[ "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] || die "version must be an immutable tag such as v0.3.0"
+}
+
+validate_listen() {
+  local value="$1" port
+  if [[ "${value}" =~ ^\[([^]]+)\]:([0-9]+)$ ]]; then
+    port="${BASH_REMATCH[2]}"
+  elif [[ "${value}" =~ ^([^][:space:]/]+):([0-9]+)$ ]]; then
+    port="${BASH_REMATCH[2]}"
+  else
+    die "listen address must be HOST:PORT; wrap IPv6 addresses in brackets"
+  fi
+  (( 10#${port} >= 1 && 10#${port} <= 65535 )) || die "listen port must be between 1 and 65535"
+  [[ "${value}" != *'$'* && "${value}" != *'`'* && "${value}" != *'"'* && "${value}" != *'\\'* ]] || die "listen address contains unsafe characters"
+}
+
+parse_listen() {
+  local value="$1"
+  if [[ "${value}" =~ ^\[([^]]+)\]:([0-9]+)$ ]]; then
+    LISTEN_HOST="${BASH_REMATCH[1]}"
+    LISTEN_PORT="${BASH_REMATCH[2]}"
+  elif [[ "${value}" =~ ^([^][:space:]/]+):([0-9]+)$ ]]; then
+    LISTEN_HOST="${BASH_REMATCH[1]}"
+    LISTEN_PORT="${BASH_REMATCH[2]}"
+  else
+    return 1
+  fi
+}
+
+listen_probe_url() {
+  parse_listen "$1" || return 1
+  local host="${LISTEN_HOST}"
+  case "${host}" in 0.0.0.0) host=127.0.0.1 ;; ::) host=::1 ;; esac
+  if [[ "${host}" == *:* ]]; then
+    printf 'http://[%s]:%s' "${host}" "${LISTEN_PORT}"
+  else
+    printf 'http://%s:%s' "${host}" "${LISTEN_PORT}"
+  fi
+}
+
+download_file() {
+  if command -v curl >/dev/null 2>&1; then
+    curl --fail --location --silent --show-error --retry 3 --connect-timeout 10 --output "$2" "$1"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q --tries=3 --timeout=30 -O "$2" "$1"
+  else
+    die "curl or wget is required"
+  fi
+}
+
+probe_file() {
+  if command -v curl >/dev/null 2>&1; then
+    local status
+    status="$(curl --fail --silent --show-error --noproxy '*' --connect-timeout 1 --max-time 3 --output "$2" --write-out '%{http_code}' "$1")" || return
+    [[ "${status}" =~ ^2[0-9][0-9]$ ]]
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q --no-proxy --max-redirect=0 --tries=1 --timeout=3 -O "$2" "$1"
+  else
+    die "curl or wget is required"
+  fi
+}
+
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    die "sha256sum or shasum is required"
+  fi
+}
+
+replace_env_value() {
+  local file="$1" key="$2" value="$3" output="$4"
+  awk -v key="${key}" -v line="${key}=\"${value}\"" '
+    index($0, key "=") == 1 { print line; found = 1; next }
+    { print }
+    END { if (!found) print line }
+  ' "${file}" >"${output}"
+  chmod 600 "${output}"
+}
+
+is_persistent_tuning_key() {
+  case "$1" in
+    DATABASE_URL|LATEXMK_DATABASE_MODE|LATEXMK_CORS_ORIGINS|\
+    LATEXMK_COMPILE_TIMEOUT|LATEXMK_SHUTDOWN_TIMEOUT|\
+    LATEXMK_MAX_UPLOAD_BYTES|LATEXMK_MAX_EXPANDED_BYTES|\
+    LATEXMK_MAX_ARTIFACT_BYTES|LATEXMK_MAX_FILES|\
+    LATEXMK_MAX_CONCURRENT_COMPILES|LATEXMK_MAX_QUEUED_JOBS|\
+    LATEXMK_MAX_LOG_BYTES|LATEXMK_MAX_STATE_BYTES|\
+    LATEXMK_MAX_UPLOAD_SESSIONS|LATEXMK_RESULT_RETENTION|\
+    LATEXMK_SNAPSHOT_RETENTION|LATEXMK_BLOB_RETENTION|\
+    LATEXMK_STATE_SWEEP_INTERVAL) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_override_file() {
+  [[ -f "${override_file}" ]] || return 0
+  local line key value inner line_number=0
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    line_number=$((line_number + 1))
+    [[ -z "${line}" || "${line}" == \#* ]] && continue
+    [[ "${line}" == *=* ]] || die "invalid persistent tuning in ${override_file} at line ${line_number}"
+    key="${line%%=*}"
+    value="${line#*=}"
+    if [[ ! "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      die "invalid persistent tuning key in ${override_file} at line ${line_number}"
+    fi
+    is_persistent_tuning_key "${key}" || die "unsupported persistent tuning key ${key} in ${override_file} at line ${line_number}"
+    if [[ "${value}" == \"*\" && "${value}" == *\" && ${#value} -ge 2 ]]; then
+      inner="${value:1:${#value}-2}"
+      [[ "${inner}" != *'"'* && "${inner}" != *'$'* && "${inner}" != *'`'* && "${inner}" != *'\'* && "${inner}" != *$'\n'* ]] || die "unsafe persistent tuning key ${key} in ${override_file} at line ${line_number}"
+    elif [[ "${value}" == \'*\' && "${value}" == *\' && ${#value} -ge 2 ]]; then
+      inner="${value:1:${#value}-2}"
+      [[ "${inner}" != *"'"* && "${inner}" != *$'\n'* ]] || die "unsafe persistent tuning key ${key} in ${override_file} at line ${line_number}"
+    elif [[ ! "${value}" =~ ^[-A-Za-z0-9_./,:+@%]*$ ]]; then
+      die "unsafe persistent tuning key ${key} in ${override_file} at line ${line_number}"
+    fi
+  done <"${override_file}"
 }
 
 load_config() {
@@ -37,6 +178,11 @@ load_config() {
   set -a
   # shellcheck disable=SC1090
   source "${config_file}"
+  if [[ -f "${override_file}" ]]; then
+    validate_override_file
+    # shellcheck disable=SC1090
+    source "${override_file}"
+  fi
   set +a
   : "${REMOTE_LATEXMK_SERVER_BIN:?missing REMOTE_LATEXMK_SERVER_BIN in config}"
 }
@@ -118,6 +264,162 @@ stop_fallback() {
   return 1
 }
 
+verify_server_endpoint() {
+  local listen="$1" work_dir="$2" base_url probe_ok=false
+  base_url="$(listen_probe_url "${listen}")" || die "cannot form a probe URL from ${listen}"
+  for _ in $(seq 1 20); do
+    if probe_file "${base_url}/healthz" "${work_dir}/healthz" >/dev/null 2>&1; then
+      probe_ok=true
+      break
+    fi
+    sleep 0.25
+  done
+  [[ "${probe_ok}" == true ]] || die "the server did not pass its health check at ${base_url}"
+  probe_file "${base_url}/v1/meta" "${work_dir}/meta.json" >/dev/null 2>&1 || die "the server metadata endpoint is unavailable at ${base_url}"
+  grep -Eq '"service"[[:space:]]*:[[:space:]]*"remote-latexmk"' "${work_dir}/meta.json" || die "the endpoint at ${base_url} does not identify as remote-latexmk"
+}
+
+run_configure() (
+  set -euo pipefail
+  local new_listen="" yes=false dry_run=false
+  local transaction_dir config_backup state_backup config_new state_new
+  local had_state=false was_running=false rollback_needed=false rollback_failed=false
+  local uses_systemd=false systemd_was_enabled=false
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --listen) [[ $# -ge 2 ]] || die "--listen needs a value"; new_listen="$2"; shift 2 ;;
+      --yes) yes=true; shift ;;
+      --dry-run) dry_run=true; shift ;;
+      *) die "unknown configure option: $1" ;;
+    esac
+  done
+  [[ -n "${new_listen}" ]] || die "usage: remote-latexmkctl configure --listen HOST:PORT [--yes]"
+  validate_listen "${new_listen}"
+  load_config
+  echo "Listen address: ${LATEXMK_ADDR:-unknown} -> ${new_listen}"
+  case "${new_listen}" in
+    0.0.0.0:*) echo "Warning: 0.0.0.0 listens on every IPv4 interface, including any public interface." >&2 ;;
+    \[::\]:*) echo "Warning: :: listens on every IPv6 interface, including any public interface." >&2 ;;
+  esac
+  if [[ "${dry_run}" == true || "${yes}" != true ]]; then
+    echo "Preview only. Repeat with --yes to update the config and restart a running service."
+    exit 0
+  fi
+
+  transaction_dir="$(mktemp -d "${install_root}/config/configure.XXXXXX")"
+  chmod 700 "${transaction_dir}"
+  config_backup="${transaction_dir}/server.env.previous"
+  state_backup="${transaction_dir}/install.env.previous"
+  config_new="${transaction_dir}/server.env.new"
+  state_new="${transaction_dir}/install.env.new"
+  cp "${config_file}" "${config_backup}"
+  replace_env_value "${config_file}" LATEXMK_ADDR "${new_listen}" "${config_new}"
+  if [[ -f "${install_state}" ]]; then
+    had_state=true
+    cp "${install_state}" "${state_backup}"
+    replace_env_value "${install_state}" REMOTE_LATEXMK_LISTEN "${new_listen}" "${state_new}"
+  else
+    cat >"${state_new}" <<EOF
+REMOTE_LATEXMK_INSTALL_SCHEMA="1"
+REMOTE_LATEXMK_ACTIVE_VERSION="$(active_version)"
+REMOTE_LATEXMK_PROFILE="${REMOTE_LATEXMK_PROFILE:-unknown}"
+REMOTE_LATEXMK_ENGINES="${LATEXMK_ENGINES:-}"
+REMOTE_LATEXMK_LISTEN="${new_listen}"
+REMOTE_LATEXMK_SERVICE="${REMOTE_LATEXMK_SERVICE_MODE:-stopped}"
+EOF
+    chmod 600 "${state_new}"
+  fi
+  if has_user_systemd; then
+    uses_systemd=true
+    if systemctl --user is-enabled --quiet "${service_name}" 2>/dev/null; then
+      systemd_was_enabled=true
+    fi
+    if systemctl --user is-active --quiet "${service_name}"; then
+      was_running=true
+    fi
+  elif pid_is_running; then
+    was_running=true
+  fi
+
+  restore_configure_enablement() {
+    [[ "${uses_systemd}" == true ]] || return 0
+    if [[ "${systemd_was_enabled}" == true ]]; then
+      systemctl --user enable "${service_name}" >/dev/null
+    else
+      systemctl --user disable "${service_name}" >/dev/null
+    fi
+  }
+
+  configure_rollback() {
+    local status=$?
+    trap - EXIT
+    if (( status != 0 )) && [[ "${rollback_needed}" == true ]]; then
+      echo "Listener update failed; restoring both previous configuration files." >&2
+      cp "${config_backup}" "${config_file}" || rollback_failed=true
+      chmod 600 "${config_file}" || rollback_failed=true
+      if [[ "${had_state}" == true ]]; then
+        cp "${state_backup}" "${install_state}" || rollback_failed=true
+        chmod 600 "${install_state}" || rollback_failed=true
+      else
+        rm -f "${install_state}" || rollback_failed=true
+      fi
+      if [[ "${was_running}" == true ]] && ! "$0" restart >/dev/null 2>&1; then
+        rollback_failed=true
+        echo "ERROR: the previous listener config was restored, but the server FAILED TO RESTART." >&2
+        echo "Run $0 status and inspect its logs before retrying." >&2
+      fi
+      if ! restore_configure_enablement >/dev/null 2>&1; then
+        rollback_failed=true
+        echo "ERROR: the previous systemd enabled/disabled state could not be restored." >&2
+      fi
+      if [[ "${rollback_failed}" == true ]]; then
+        echo "ERROR: listener rollback was incomplete. Backup files remain at ${transaction_dir}." >&2
+      else
+        echo "The previous listen address and running state were restored." >&2
+      fi
+    fi
+    if [[ "${rollback_failed}" != true ]]; then rm -rf -- "${transaction_dir}"; fi
+    exit "${status}"
+  }
+  trap configure_rollback EXIT
+
+  rollback_needed=true
+  mv "${config_new}" "${config_file}"
+  mv "${state_new}" "${install_state}"
+  if [[ "${was_running}" == true ]]; then
+    "$0" restart
+    verify_server_endpoint "${new_listen}" "${transaction_dir}"
+  fi
+  restore_configure_enablement
+  rollback_needed=false
+  echo "Listen address updated to ${new_listen}."
+  if [[ "${was_running}" != true ]]; then echo "The service was not running and remains stopped; start it when ready."; fi
+)
+
+run_upgrade() (
+  set -euo pipefail
+  local target="$1" dry_run="$2" temp_dir expected actual
+  validate_version "${target}"
+  temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/remote-latexmk-upgrade.XXXXXX")"
+  chmod 700 "${temp_dir}"
+  trap 'rm -rf -- "${temp_dir}"' EXIT
+
+  echo "Preparing remote-latexmk update: $(active_version) -> ${target}"
+  download_file "${release_base}/${target}/SHA256SUMS" "${temp_dir}/SHA256SUMS"
+  download_file "${release_base}/${target}/install-server.sh" "${temp_dir}/install-server.sh"
+  expected="$(awk '$2 == "install-server.sh" || $2 == "*install-server.sh" { print $1; exit }' "${temp_dir}/SHA256SUMS")"
+  [[ "${expected}" =~ ^[0-9a-fA-F]{64}$ ]] || die "SHA256SUMS has no entry for install-server.sh"
+  actual="$(sha256_file "${temp_dir}/install-server.sh")"
+  actual="$(printf '%s' "${actual}" | tr 'A-F' 'a-f')"
+  expected="$(printf '%s' "${expected}" | tr 'A-F' 'a-f')"
+  [[ "${actual}" == "${expected}" ]] || die "checksum mismatch for target install-server.sh"
+  chmod 700 "${temp_dir}/install-server.sh"
+
+  args=(--version "${target}" --install-dir "${install_root}" --non-interactive)
+  if [[ "${dry_run}" == true ]]; then args+=(--dry-run); fi
+  "${temp_dir}/install-server.sh" "${args[@]}"
+)
+
 command="${1:-help}"
 if [[ $# -gt 0 ]]; then
   shift
@@ -152,6 +454,7 @@ case "${command}" in
     ;;
   status)
     load_config
+    printf 'version %s\nlisten  %s\nprofile %s\nengines %s\n' "$(active_version)" "${LATEXMK_ADDR:-unknown}" "${REMOTE_LATEXMK_PROFILE:-unknown}" "${LATEXMK_ENGINES:-unknown}"
     if has_user_systemd; then
       systemctl --user --no-pager --full status "${service_name}"
     elif pid_is_running; then
@@ -160,6 +463,9 @@ case "${command}" in
       echo "remote-latexmk is not running"
       exit 3
     fi
+    ;;
+  version)
+    active_version
     ;;
   logs)
     load_config
@@ -189,8 +495,11 @@ case "${command}" in
     if [[ ",${LATEXMK_ENGINES:-}," == *,lualatex,* ]]; then
       command -v lualatex >/dev/null 2>&1 || { echo "missing lualatex" >&2; failures=$((failures + 1)); }
     fi
-    printf 'config  %s\nlisten  %s\nengines %s\nstate   %s\n' "${config_file}" "${LATEXMK_ADDR:-unknown}" "${LATEXMK_ENGINES:-unknown}" "${LATEXMK_STATE_DIR:-unknown}"
+    printf 'version %s\nconfig  %s\nlisten  %s\nprofile %s\nengines %s\nservice %s\nstate   %s\n' "$(active_version)" "${config_file}" "${LATEXMK_ADDR:-unknown}" "${REMOTE_LATEXMK_PROFILE:-unknown}" "${LATEXMK_ENGINES:-unknown}" "${REMOTE_LATEXMK_SERVICE_MODE:-unknown}" "${LATEXMK_STATE_DIR:-unknown}"
     [[ "${failures}" -eq 0 ]]
+    ;;
+  configure)
+    run_configure "$@"
     ;;
   token)
     load_config
@@ -203,13 +512,17 @@ case "${command}" in
     ;;
   upgrade)
     load_config
-    [[ "${1:-}" == "--version" && -n "${2:-}" ]] || die "usage: remote-latexmkctl upgrade --version vX.Y.Z"
-    installer="${install_root}/bin/install-server.sh"
-    [[ -x "${installer}" ]] || die "missing saved installer ${installer}"
-    service_mode=auto
-    if [[ "${REMOTE_LATEXMK_SERVICE_MODE:-}" == systemd ]]; then service_mode=systemd; fi
-    if [[ "${REMOTE_LATEXMK_SERVICE_MODE:-}" == fallback ]]; then service_mode=none; fi
-    exec "${installer}" --version "${2}" --install-dir "${install_root}" --profile "${REMOTE_LATEXMK_PROFILE:-full}" --engines "${LATEXMK_ENGINES:-xelatex,pdflatex}" --listen "${LATEXMK_ADDR:-127.0.0.1:8080}" --service "${service_mode}"
+    target=""
+    dry_run=false
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --version) [[ $# -ge 2 ]] || die "--version needs a value"; target="$2"; shift 2 ;;
+        --dry-run) dry_run=true; shift ;;
+        *) die "unknown upgrade option: $1" ;;
+      esac
+    done
+    [[ -n "${target}" ]] || die "usage: remote-latexmkctl upgrade --version vX.Y.Z [--dry-run]"
+    run_upgrade "${target}" "${dry_run}"
     ;;
   uninstall)
     purge=false
