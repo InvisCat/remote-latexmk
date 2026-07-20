@@ -2,21 +2,19 @@ name: release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths:
+      - package.json
   workflow_dispatch:
     inputs:
-      tag:
-        description: Release tag whose npm packages should be recovered
-        required: true
-        type: string
-      run_id:
-        description: Release workflow run containing tested client artifacts
+      version:
+        description: Existing release version to retry, without the v prefix
         required: true
         type: string
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.version || github.sha }}
   cancel-in-progress: false
 
 permissions:
@@ -24,32 +22,59 @@ permissions:
 
 jobs:
   validate:
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      release-sha: ${{ steps.release.outputs.release-sha }}
       build-date: ${{ steps.release.outputs.build-date }}
       owner: ${{ steps.release.outputs.owner }}
+      should-release: ${{ steps.release.outputs.should-release }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.sha }}
           fetch-depth: 0
       - id: release
-        name: Validate release tag
+        name: Validate the release PR version
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          REQUESTED_VERSION: ${{ inputs.version }}
         shell: bash
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
-            echo "release tags must look like v1.2.3 or v1.2.3-rc.1" >&2
+          version="$(node -p "require('./package.json').version")"
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            previous="$(git show "${BEFORE_SHA}:package.json" | jq -r '.version')"
+            if [[ "${version}" == "${previous}" ]]; then
+              echo "should-release=false" >> "${GITHUB_OUTPUT}"
+              echo "root package version did not change; skipping release"
+              exit 0
+            fi
+            node scripts/release-version.mjs assert-newer "${version}" "${previous}"
+          elif [[ "${version}" != "${REQUESTED_VERSION}" ]]; then
+            echo "requested version ${REQUESTED_VERSION} does not match tagged source version ${version}" >&2
             exit 2
           fi
+          node scripts/release-version.mjs check
+          node scripts/sync-plugin-skills.mjs --check
+          node scripts/check-plugin.mjs
+
+          tag="v${version}"
+          release_sha="$(git rev-parse HEAD)"
+          if git rev-parse --verify --quiet "refs/tags/${tag}^{commit}" >/dev/null; then
+            test "$(git rev-parse "refs/tags/${tag}^{commit}")" = "${release_sha}"
+          fi
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          echo "version=${tag#v}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "release-sha=${release_sha}" >> "${GITHUB_OUTPUT}"
           echo "build-date=$(git show -s --format=%cI HEAD)" >> "${GITHUB_OUTPUT}"
           echo "owner=${owner}" >> "${GITHUB_OUTPUT}"
+          echo "should-release=true" >> "${GITHUB_OUTPUT}"
 
   binaries:
+    if: needs.validate.outputs.should-release == 'true'
     needs: validate
     runs-on: ubuntu-latest
     strategy:
@@ -64,6 +89,8 @@ jobs:
           - { goos: windows, goarch: arm64 }
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.validate.outputs.release-sha }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.5'
@@ -75,7 +102,7 @@ jobs:
             --version '${{ needs.validate.outputs.version }}' \
             --goos '${{ matrix.target.goos }}' \
             --goarch '${{ matrix.target.goarch }}' \
-            --commit '${{ github.sha }}' \
+            --commit '${{ needs.validate.outputs.release-sha }}' \
             --build-date '${{ needs.validate.outputs.build-date }}' \
             --repo-root ../.. \
             --out-dir ../../dist
@@ -87,6 +114,7 @@ jobs:
           retention-days: 14
 
   server-binaries:
+    if: needs.validate.outputs.should-release == 'true'
     needs: validate
     runs-on: ubuntu-latest
     strategy:
@@ -95,6 +123,8 @@ jobs:
         goarch: [amd64, arm64]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.validate.outputs.release-sha }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.5'
@@ -105,7 +135,7 @@ jobs:
           go run ./cmd/release-builder \
             --version '${{ needs.validate.outputs.version }}' \
             --goarch '${{ matrix.goarch }}' \
-            --commit '${{ github.sha }}' \
+            --commit '${{ needs.validate.outputs.release-sha }}' \
             --build-date '${{ needs.validate.outputs.build-date }}' \
             --repo-root ../.. \
             --out-dir ../../dist
@@ -117,6 +147,7 @@ jobs:
           retention-days: 14
 
   images:
+    if: needs.validate.outputs.should-release == 'true'
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 240
@@ -156,6 +187,8 @@ jobs:
               CLIENT_BASE_IMAGE=debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.validate.outputs.release-sha }}
       - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
@@ -168,12 +201,12 @@ jobs:
         with:
           images: ghcr.io/${{ needs.validate.outputs.owner }}/${{ matrix.image }}
           flavor: latest=false
-          tags: type=raw,value=candidate-${{ github.sha }}
+          tags: type=raw,value=candidate-${{ needs.validate.outputs.release-sha }}
           labels: |
             org.opencontainers.image.title=remote-latexmk ${{ matrix.name }}
             org.opencontainers.image.description=Self-hosted remote LaTeX compiler ${{ matrix.name }} image
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ needs.validate.outputs.release-sha }}
             org.opencontainers.image.version=${{ needs.validate.outputs.version }}
       - id: push
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
@@ -187,7 +220,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ needs.validate.outputs.version }}
-            COMMIT=${{ github.sha }}
+            COMMIT=${{ needs.validate.outputs.release-sha }}
             BUILD_DATE=${{ needs.validate.outputs.build-date }}
             ${{ matrix.extra_build_args }}
           cache-from: type=gha,scope=${{ matrix.image }}
@@ -201,6 +234,7 @@ jobs:
           push-to-registry: true
 
   smoke-papers:
+    if: needs.validate.outputs.should-release == 'true'
     needs: [validate, images]
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -209,6 +243,8 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.validate.outputs.release-sha }}
       - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
@@ -216,13 +252,40 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Compile executable slim and IEEE examples
         env:
-          SMOKE_SLIM_SERVER_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-server:candidate-${{ github.sha }}
-          SMOKE_FULL_SERVER_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-server-full:candidate-${{ github.sha }}
-          SMOKE_CLIENT_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-client:candidate-${{ github.sha }}
+          SMOKE_SLIM_SERVER_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-server:candidate-${{ needs.validate.outputs.release-sha }}
+          SMOKE_FULL_SERVER_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-server-full:candidate-${{ needs.validate.outputs.release-sha }}
+          SMOKE_CLIENT_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/remote-latexmk-client:candidate-${{ needs.validate.outputs.release-sha }}
         run: make smoke-papers
 
+  tag:
+    if: needs.validate.outputs.should-release == 'true'
+    needs: [validate, binaries, server-binaries, smoke-papers]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.validate.outputs.release-sha }}
+          fetch-depth: 0
+      - name: Create or verify the immutable release tag
+        env:
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          RELEASE_SHA: ${{ needs.validate.outputs.release-sha }}
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null; then
+            test "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" = "${RELEASE_SHA}"
+          else
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git tag --annotate "${RELEASE_TAG}" "${RELEASE_SHA}" --message "remote-latexmk ${RELEASE_TAG#v}"
+            git push origin "refs/tags/${RELEASE_TAG}"
+          fi
+
   publish-images:
-    needs: [validate, images, smoke-papers]
+    if: needs.validate.outputs.should-release == 'true'
+    needs: [validate, images, smoke-papers, tag, npm-packages]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -247,13 +310,13 @@ jobs:
           images: ghcr.io/${{ needs.validate.outputs.owner }}/${{ matrix.image }}
           flavor: latest=false
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+            type=semver,pattern={{version}},value=v${{ needs.validate.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ needs.validate.outputs.version }}
+            type=semver,pattern={{major}},value=v${{ needs.validate.outputs.version }},enable=${{ !startsWith(needs.validate.outputs.version, '0.') }}
+            type=raw,value=latest,enable=${{ !contains(needs.validate.outputs.version, '-') }}
       - name: Promote tested image tags
         env:
-          SOURCE_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/${{ matrix.image }}:candidate-${{ github.sha }}
+          SOURCE_IMAGE: ghcr.io/${{ needs.validate.outputs.owner }}/${{ matrix.image }}:candidate-${{ needs.validate.outputs.release-sha }}
           TARGET_TAGS: ${{ steps.meta.outputs.tags }}
         shell: bash
         run: |
@@ -282,7 +345,8 @@ jobs:
           done <<< "${TARGET_TAGS}"
 
   release:
-    needs: [validate, binaries, server-binaries, publish-images]
+    if: needs.validate.outputs.should-release == 'true'
+    needs: [validate, binaries, server-binaries, publish-images, npm-packages, tag]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -290,6 +354,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.validate.outputs.release-sha }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: client-*
@@ -318,31 +384,34 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
         run: |
           set -euo pipefail
-          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release upload "${GITHUB_REF_NAME}" dist/* --clobber
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" dist/* --clobber
           else
             release_args=(
               --verify-tag
               --generate-notes
               --title "remote-latexmk ${{ needs.validate.outputs.version }}"
             )
-            if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            if [[ "${RELEASE_TAG}" == *-* ]]; then
               release_args+=(--prerelease)
             fi
-            gh release create "${GITHUB_REF_NAME}" dist/* "${release_args[@]}"
+            gh release create "${RELEASE_TAG}" dist/* "${release_args[@]}"
           fi
 
   npm-packages:
-    if: github.event_name == 'push' && vars.NPM_PUBLISH_ENABLED == 'true'
-    needs: [validate, binaries, release]
+    if: needs.validate.outputs.should-release == 'true'
+    needs: [validate, binaries, tag]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.validate.outputs.release-sha }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: client-*
@@ -363,99 +432,11 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: 'true'
         run: |
-          set -euo pipefail
-          publish_once() {
-            package_dir="$1"
-            package_name="$(node -p "require('./${package_dir}/package.json').name")"
-            package_version="$(node -p "require('./${package_dir}/package.json').version")"
-            npm_tag=latest
-            if [[ "${package_version}" == *-* ]]; then
-              npm_tag=next
-            fi
-            if npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
-              echo "${package_name}@${package_version} already exists; skipping"
-            else
-              npm publish "${package_dir}" --access public --provenance --tag "${npm_tag}"
-            fi
-          }
-          for package_dir in dist/npm/darwin-arm64 dist/npm/darwin-x64 dist/npm/linux-arm64 dist/npm/linux-x64 dist/npm/win32-arm64 dist/npm/win32-x64; do
-            publish_once "${package_dir}"
-          done
-          publish_once dist/npm/remote-latexmk
-
-  npm-recovery:
-    if: github.event_name == 'workflow_dispatch' && vars.NPM_PUBLISH_ENABLED == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      id-token: write
-    env:
-      RELEASE_TAG: ${{ inputs.tag }}
-      SOURCE_RUN_ID: ${{ inputs.run_id }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ inputs.tag }}
-          fetch-depth: 0
-      - id: recovery
-        name: Match tested artifacts to the release tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]
-          [[ "${SOURCE_RUN_ID}" =~ ^[0-9]+$ ]]
-          tag_sha="$(git rev-parse "${RELEASE_TAG}^{commit}")"
-          run_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}")"
-          test "$(jq -r '.head_sha' <<< "${run_json}")" = "${tag_sha}"
-          test "$(jq -r '.path' <<< "${run_json}")" = ".github/workflows/release.yml"
-          test "$(jq -r '.event' <<< "${run_json}")" = "push"
-          test "$(jq -r '.status' <<< "${run_json}")" = "completed"
-          case "$(jq -r '.conclusion' <<< "${run_json}")" in
-            success|failure) ;;
-            *) echo "source release run has no reusable terminal result" >&2; exit 2 ;;
-          esac
-          echo "version=${RELEASE_TAG#v}" >> "${GITHUB_OUTPUT}"
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: client-*
-          path: dist/client
-          merge-multiple: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: ${{ inputs.run_id }}
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-          package-manager-cache: false
-      - name: Stage npm packages from tested native archives
-        run: |
-          node packages/npm-cli/scripts/stage-packages.mjs \
-            --version '${{ steps.recovery.outputs.version }}' \
-            --artifacts dist/client \
-            --out dist/npm
-      - name: Publish platform packages, then the launcher
-        env:
-          NPM_CONFIG_PROVENANCE: 'true'
-        run: |
-          set -euo pipefail
-          publish_once() {
-            package_dir="$1"
-            package_name="$(node -p "require('./${package_dir}/package.json').name")"
-            package_version="$(node -p "require('./${package_dir}/package.json').version")"
-            npm_tag=latest
-            if [[ "${package_version}" == *-* ]]; then
-              npm_tag=next
-            fi
-            if npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
-              echo "${package_name}@${package_version} already exists; skipping"
-            else
-              npm publish "${package_dir}" --access public --provenance --tag "${npm_tag}"
-            fi
-          }
-          for package_dir in dist/npm/darwin-arm64 dist/npm/darwin-x64 dist/npm/linux-arm64 dist/npm/linux-x64 dist/npm/win32-arm64 dist/npm/win32-x64; do
-            publish_once "${package_dir}"
-          done
-          publish_once dist/npm/remote-latexmk
+          node packages/npm-cli/scripts/publish-packages.mjs \
+            dist/npm/darwin-arm64 \
+            dist/npm/darwin-x64 \
+            dist/npm/linux-arm64 \
+            dist/npm/linux-x64 \
+            dist/npm/win32-arm64 \
+            dist/npm/win32-x64 \
+            dist/npm/remote-latexmk

@@ -6,12 +6,16 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
-test('release workflow is tag-triggered with guarded npm recovery and pinned actions', async () => {
+test('release workflow is driven by a version-changing release PR and has pinned actions', async () => {
   const workflow = await readFile(path.join(root, '.github/workflows/release.yml'), 'utf8');
-  assert.match(workflow, /tags:\s*\n\s*- 'v\*'/);
+  assert.match(workflow, /push:[\s\S]*?branches:[\s\S]*?- main[\s\S]*?paths:[\s\S]*?- package\.json/);
+  assert.match(workflow, /workflow_dispatch:[\s\S]*?version:/);
+  assert.doesNotMatch(workflow, /tags:\s*\n\s*- ['"]?v\*/);
   assert.doesNotMatch(workflow, /pull_request:/);
-  assert.match(workflow, /workflow_dispatch:[\s\S]*?tag:[\s\S]*?run_id:/);
-  assert.match(workflow, /validate:\s*\n\s*if: github\.event_name == 'push'/);
+  assert.doesNotMatch(workflow, /npm-recovery:|NPM_PUBLISH_ENABLED|inputs\.(?:tag|run_id)/);
+  assert.match(workflow, /node scripts\/release-version\.mjs assert-newer/);
+  assert.match(workflow, /node scripts\/release-version\.mjs check/);
+  assert.match(workflow, /should-release=true/);
   const uses = [...workflow.matchAll(/^\s*-?\s*uses:\s*([^\s]+)(?:\s+#.*)?$/gm)].map((match) => match[1]);
   assert.ok(uses.length >= 10, `expected pinned actions, got ${uses.length}`);
   for (const use of uses) {
@@ -34,30 +38,22 @@ test('release workflow is tag-triggered with guarded npm recovery and pinned act
   assert.match(workflow, /attestations: write/);
   assert.match(workflow, /release_args\+=\(--prerelease\)/);
   assert.match(workflow, /smoke-papers:[\s\S]*?run: make smoke-papers/);
-  assert.match(workflow, /tags: type=raw,value=candidate-\$\{\{ github\.sha \}\}/);
-  assert.match(workflow, /SMOKE_SLIM_SERVER_IMAGE: ghcr\.io[^\n]+:candidate-\$\{\{ github\.sha \}\}/);
-  assert.match(workflow, /SMOKE_FULL_SERVER_IMAGE: ghcr\.io[^\n]+:candidate-\$\{\{ github\.sha \}\}/);
-  assert.match(workflow, /SMOKE_CLIENT_IMAGE: ghcr\.io[^\n]+:candidate-\$\{\{ github\.sha \}\}/);
-  assert.match(workflow, /publish-images:[\s\S]*?needs: \[validate, images, smoke-papers\]/);
+  assert.match(workflow, /tags: type=raw,value=candidate-\$\{\{ needs\.validate\.outputs\.release-sha \}\}/);
+  assert.match(workflow, /SMOKE_SLIM_SERVER_IMAGE: ghcr\.io[^\n]+:candidate-\$\{\{ needs\.validate\.outputs\.release-sha \}\}/);
+  assert.match(workflow, /SMOKE_FULL_SERVER_IMAGE: ghcr\.io[^\n]+:candidate-\$\{\{ needs\.validate\.outputs\.release-sha \}\}/);
+  assert.match(workflow, /SMOKE_CLIENT_IMAGE: ghcr\.io[^\n]+:candidate-\$\{\{ needs\.validate\.outputs\.release-sha \}\}/);
+  assert.match(workflow, /tag:[\s\S]*?Create or verify the immutable release tag/);
+  assert.match(workflow, /git tag --annotate/);
+  assert.match(workflow, /publish-images:[\s\S]*?needs: \[validate, images, smoke-papers, tag, npm-packages\]/);
   assert.match(workflow, /publish-images:[\s\S]*?packages: write/);
   assert.match(workflow, /publish-images:[\s\S]*?docker buildx imagetools create/);
-  assert.match(workflow, /needs: \[validate, binaries, server-binaries, publish-images\]/);
-  assert.match(workflow, /npm-packages:[\s\S]*?if: github\.event_name == 'push' && vars\.NPM_PUBLISH_ENABLED == 'true'/);
+  assert.match(workflow, /value=v\$\{\{ needs\.validate\.outputs\.version \}\}/);
+  assert.match(workflow, /release:[\s\S]*?needs: \[validate, binaries, server-binaries, publish-images, npm-packages, tag\]/);
+  assert.match(workflow, /npm-packages:[\s\S]*?needs: \[validate, binaries, tag\]/);
   assert.match(workflow, /stage-packages\.mjs/);
-  assert.match(workflow, /if \[\[ "\$\{package_version\}" == \*-\* \]\]; then/);
-  assert.match(workflow, /npm publish "\$\{package_dir\}" --access public --provenance --tag "\$\{npm_tag\}"/);
-  assert.equal((workflow.match(/registry-url: 'https:\/\/registry\.npmjs\.org'/g) ?? []).length, 2);
-  assert.equal((workflow.match(/package-manager-cache: false/g) ?? []).length, 2);
-  const recoveryJob = workflow.slice(workflow.indexOf('\n  npm-recovery:'));
-  assert.match(recoveryJob, /if: github\.event_name == 'workflow_dispatch' && vars\.NPM_PUBLISH_ENABLED == 'true'/);
-  assert.match(recoveryJob, /actions: read/);
-  assert.match(recoveryJob, /id-token: write/);
-  assert.match(recoveryJob, /git rev-parse "\$\{RELEASE_TAG\}\^\{commit\}"/);
-  assert.match(recoveryJob, /test "\$\(jq -r '\.head_sha'/);
-  assert.match(recoveryJob, /\.github\/workflows\/release\.yml/);
-  assert.match(recoveryJob, /pattern: client-\*/);
-  assert.match(recoveryJob, /run-id: \$\{\{ inputs\.run_id \}\}/);
-  assert.doesNotMatch(recoveryJob, /go run|build-push-action/);
+  assert.match(workflow, /publish-packages\.mjs/);
+  assert.equal((workflow.match(/registry-url: 'https:\/\/registry\.npmjs\.org'/g) ?? []).length, 1);
+  assert.equal((workflow.match(/package-manager-cache: false/g) ?? []).length, 1);
   const imagesJob = workflow.slice(workflow.indexOf('\n  images:'), workflow.indexOf('\n  smoke-papers:'));
   const publishJob = workflow.slice(workflow.indexOf('\n  publish-images:'), workflow.indexOf('\n  release:'));
   assert.doesNotMatch(imagesJob, /type=semver|value=latest/);
@@ -68,28 +64,11 @@ test('release workflow is tag-triggered with guarded npm recovery and pinned act
   assert.doesNotMatch(publishJob, /print \$2; exit/);
 });
 
-test('release recovery only republishes artifacts from the matching failed tag run', async () => {
-  const workflow = await readFile(path.join(root, '.github/workflows/release-recovery.yml'), 'utf8');
-  assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /actions: read/);
-  assert.match(workflow, /contents: write/);
-  assert.match(workflow, /attestations: write/);
-  const uses = [...workflow.matchAll(/^\s*-?\s*uses:\s*([^\s]+)(?:\s+#.*)?$/gm)].map((match) => match[1]);
-  assert.ok(uses.length >= 4, `expected pinned actions, got ${uses.length}`);
-  for (const use of uses) {
-    assert.match(use, /@[0-9a-f]{40}$/, `action is not pinned to a full SHA: ${use}`);
-  }
-  assert.match(workflow, /git rev-parse "\$\{RELEASE_TAG\}\^\{commit\}"/);
-  assert.match(workflow, /test "\$\(jq -r '\.head_sha'/);
-  assert.match(workflow, /test "\$\(jq -r '\.path'/);
-  assert.match(workflow, /\.github\/workflows\/release\.yml/);
-  assert.match(workflow, /pattern: client-\*/);
-  assert.match(workflow, /pattern: server-\*/);
-  assert.equal((workflow.match(/run-id: \$\{\{ inputs\.run_id \}\}/g) ?? []).length, 2);
-  assert.equal((workflow.match(/github-token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/g) ?? []).length, 2);
-  assert.match(workflow, /test "\$\(wc -l < SHA256SUMS\)" -eq 9/);
-  assert.match(workflow, /gh release create "\$\{RELEASE_TAG\}" dist\/\*/);
-  assert.doesNotMatch(workflow, /go run|build-push-action|npm publish/);
+test('temporary release recovery workflow is removed', async () => {
+  await assert.rejects(
+    readFile(path.join(root, '.github/workflows/release-recovery.yml'), 'utf8'),
+    (error) => error?.code === 'ENOENT',
+  );
 });
 
 test('CI installs pinned pnpm before setup-node enables pnpm caching', async () => {
@@ -103,6 +82,7 @@ test('CI installs pinned pnpm before setup-node enables pnpm caching', async () 
 });
 
 test('container inputs and GHCR compose path are pinned', async () => {
+  const repositoryManifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   const files = await Promise.all([
     'compose.yaml',
     '.env.example',
@@ -125,7 +105,7 @@ test('container inputs and GHCR compose path are pinned', async () => {
   assert.match(override, /remote-latexmk-server/);
   assert.match(override, /remote-latexmk-client/);
   assert.match(override, /LATEXMK_GHCR_NAMESPACE:-inviscat/);
-  assert.match(override, /LATEXMK_GHCR_VERSION:-0\.3\.0-rc\.2/);
+  assert.ok(override.includes(`LATEXMK_GHCR_VERSION:-${repositoryManifest.version}`));
   assert.doesNotMatch(override, /billstark001/);
   assert.doesNotMatch(override, /LATEXMK_GHCR_(?:NAMESPACE|VERSION):\?/);
   assert.doesNotMatch(override, /:latest/);

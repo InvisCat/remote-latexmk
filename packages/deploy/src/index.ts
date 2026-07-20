@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = path.resolve(packageRoot, '..', '..');
+const packageManifest = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
 
 const DEPLOYMENT_PRESETS = {
   'railway-serverless': {
@@ -28,7 +29,7 @@ async function main(argv) {
     return 0;
   }
   if (command === 'version' || command === '--version') {
-    console.log('latexmk-deploy 0.3.0-rc.2');
+    console.log(`latexmk-deploy ${packageManifest.version}`);
     return 0;
   }
   if (command !== 'bundle') {

@@ -1,6 +1,6 @@
 {
   "name": "@rlatexmk/rlatexmk-linux-x64",
-  "version": "0.3.0-rc.2",
+  "version": "0.3.0-rc.3",
   "private": true,
   "description": "remote-latexmk native client for Linux x64.",
   "license": "MIT",
