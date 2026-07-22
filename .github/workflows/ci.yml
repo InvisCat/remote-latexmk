@@ -25,9 +25,18 @@ jobs:
         with:
           node-version: '24'
           cache: pnpm
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm build
+      - name: Verify standalone Go modules
+        run: |
+          (cd packages/cli && GOWORK=off go mod tidy)
+          (cd packages/server && GOWORK=off go mod tidy)
+          git diff --exit-code -- packages/cli/go.mod packages/cli/go.sum packages/server/go.mod packages/server/go.sum
+      - name: Build client container
+        run: docker buildx build --platform linux/amd64,linux/arm64 --file packages/cli/Dockerfile --output type=cacheonly .
       - run: go vet ./packages/cli/... ./packages/server/...
       - name: Run Go race tests
         run: go test -race ./packages/cli/... ./packages/server/...
