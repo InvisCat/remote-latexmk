@@ -45,7 +45,7 @@ agents:
 
 ```sh
 npm exec --yes --ignore-scripts --package=remote-latexmk@VERSION -- \
-  remote-latexmk agent install \
+  rlatexmk agent install \
   --project-root /absolute/paper \
   --server https://latex.example.edu \
   --token-file /absolute/path/to/latexmk-token

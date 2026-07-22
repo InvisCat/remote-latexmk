@@ -12,7 +12,7 @@ const packageJSON = JSON.parse(await readFile(path.join(packageRoot, 'package.js
 const supportedAgents = new Set(['codex', 'claude-code', 'opencode']);
 
 function usage() {
-  return `Usage: remote-latexmk agent install [options]
+  return `Usage: rlatexmk agent install [options]
 
 Install bundled Agent Skills and a local MCP configuration.
 
@@ -82,7 +82,7 @@ function npmMCPCommand(projectRoot) {
   return [
     'npm', 'exec', '--yes', '--ignore-scripts',
     `--package=remote-latexmk@${packageJSON.version}`,
-    '--', 'remote-latexmk', 'mcp', 'serve', '--stdio', '--project-root', projectRoot,
+    '--', 'rlatexmk', 'mcp', 'serve', '--stdio', '--project-root', projectRoot,
   ];
 }
 

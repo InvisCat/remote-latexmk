@@ -1,10 +1,24 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import { parse } from 'jsonc-parser';
 import { installAgents, parseAgentInstallArgs } from '../lib/agent-install.js';
+
+const execFileAsync = promisify(execFile);
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+test('Agent installer help names the installed rlatexmk command', async () => {
+  const { stdout } = await execFileAsync(process.execPath, [
+    path.join(packageRoot, 'bin', 'rlatexmk.js'), 'agent', 'install', '--help',
+  ]);
+  assert.match(stdout, /^Usage: rlatexmk agent install/m);
+  assert.doesNotMatch(stdout, /^Usage: remote-latexmk agent install/m);
+});
 
 test('Agent installer accepts token files but rejects raw tokens', () => {
   const options = parseAgentInstallArgs([
@@ -51,7 +65,12 @@ test('OpenCode setup preserves JSONC comments and installs all bundled Skills', 
   assert.match(text, /keep this comment/);
   const config = parse(text);
   assert.equal(config.mcp['remote-latexmk'].type, 'local');
-  assert.equal(config.mcp['remote-latexmk'].command[0], 'npm');
+  const command = config.mcp['remote-latexmk'].command;
+  assert.deepEqual(command.slice(0, 4), ['npm', 'exec', '--yes', '--ignore-scripts']);
+  assert.match(command[4], /^--package=remote-latexmk@/);
+  assert.deepEqual(command.slice(5), [
+    '--', 'rlatexmk', 'mcp', 'serve', '--stdio', '--project-root', await realpath(project),
+  ]);
   assert.equal(config.mcp['remote-latexmk'].environment.LATEXMK_TOKEN_FILE, await realpath(token));
   for (const skill of ['remote-latex', 'remote-latex-maintenance', 'remote-latex-server', 'remote-latex-setup']) {
     assert.match(await readFile(path.join(configRoot, 'opencode', 'skills', skill, 'SKILL.md'), 'utf8'), /^---/);

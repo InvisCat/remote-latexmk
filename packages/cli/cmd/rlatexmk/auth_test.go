@@ -47,7 +47,7 @@ func TestAuthLoginStoresTokenOutsideConfigWithoutEcho(t *testing.T) {
 	t.Cleanup(func() { readLoginToken = previousReader })
 
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"remote-latexmk", "auth", "login", "--server", strings.TrimPrefix(server.URL, "http://")})
+		return run([]string{"rlatexmk", "auth", "login", "--server", strings.TrimPrefix(server.URL, "http://")})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("login code=%d stderr=%q stdout=%q", code, stderr, stdout)
@@ -110,7 +110,7 @@ func TestAuthLoginChecksServerBeforeReadingToken(t *testing.T) {
 	t.Cleanup(func() { readLoginToken = previousReader })
 
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"remote-latexmk", "auth", "login", "--server", strings.TrimPrefix(server.URL, "http://")})
+		return run([]string{"rlatexmk", "auth", "login", "--server", strings.TrimPrefix(server.URL, "http://")})
 	})
 	if code == 0 || !strings.Contains(stdout, "server:      "+server.URL) || !strings.Contains(stderr, server.URL) {
 		t.Fatalf("preflight code=%d stderr=%q stdout=%q", code, stderr, stdout)
@@ -158,7 +158,7 @@ func TestAuthLoginDoesNotReplaceCredentialsWhenVerificationFails(t *testing.T) {
 	t.Cleanup(func() { readLoginToken = previousReader })
 
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"remote-latexmk", "auth", "login", "--server", server.URL})
+		return run([]string{"rlatexmk", "auth", "login", "--server", server.URL})
 	})
 	if code == 0 || !strings.Contains(stdout, "server:      "+server.URL) || !strings.Contains(stderr, "API token verification failed") {
 		t.Fatalf("login code=%d stderr=%q stdout=%q", code, stderr, stdout)
@@ -241,7 +241,7 @@ func TestAuthLoginKeepsOldCredentialsWhenConfigSwitchFails(t *testing.T) {
 	t.Cleanup(func() { readLoginToken = previousReader })
 
 	code, _, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"remote-latexmk", "auth", "login", "--server", server.URL})
+		return run([]string{"rlatexmk", "auth", "login", "--server", server.URL})
 	})
 	if code == 0 || !strings.Contains(stderr, "is not a regular file") {
 		t.Fatalf("config switch code=%d stderr=%q", code, stderr)
@@ -308,7 +308,7 @@ func TestAuthLoginRemovesOldManagedTokenAfterConfigSwitch(t *testing.T) {
 	t.Cleanup(func() { readLoginToken = previousReader })
 
 	code, _, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"remote-latexmk", "auth", "login", "--server", server.URL})
+		return run([]string{"rlatexmk", "auth", "login", "--server", server.URL})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("config switch code=%d stderr=%q", code, stderr)
@@ -378,7 +378,7 @@ func TestAuthLoginPreservesUserManagedTokenWithManagedLookingName(t *testing.T) 
 	t.Cleanup(func() { readLoginToken = previousReader })
 
 	code, _, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"remote-latexmk", "auth", "login", "--server", server.URL})
+		return run([]string{"rlatexmk", "auth", "login", "--server", server.URL})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("config switch code=%d stderr=%q", code, stderr)
@@ -394,7 +394,7 @@ func TestAuthLoginPreservesUserManagedTokenWithManagedLookingName(t *testing.T) 
 
 func TestAuthLoginRejectsTokenArgument(t *testing.T) {
 	code, _, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"remote-latexmk", "auth", "login", "--server", "https://latex.example", "--token", "secret"})
+		return run([]string{"rlatexmk", "auth", "login", "--server", "https://latex.example", "--token", "secret"})
 	})
 	if code != 2 || !strings.Contains(stderr, "hidden prompt") {
 		t.Fatalf("raw token code=%d stderr=%q", code, stderr)

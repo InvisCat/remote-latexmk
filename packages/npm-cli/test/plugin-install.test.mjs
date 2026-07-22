@@ -13,6 +13,14 @@ const execFileAsync = promisify(execFile);
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const packageJSON = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
 
+test('Codex Plugin installer help names the installed rlatexmk command', async () => {
+  const { stdout } = await execFileAsync(process.execPath, [
+    path.join(packageRoot, 'bin', 'rlatexmk.js'), 'plugin', 'install', 'codex', '--help',
+  ]);
+  assert.match(stdout, /^Usage: rlatexmk plugin install codex/m);
+  assert.doesNotMatch(stdout, /^Usage: remote-latexmk plugin install codex/m);
+});
+
 test('Codex Plugin installer parses bounded non-secret options', () => {
   assert.deepEqual(parsePluginInstallArgs(['--dry-run', '--force', '--no-open']), {
     dryRun: true,
