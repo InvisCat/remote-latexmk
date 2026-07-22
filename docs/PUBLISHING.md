@@ -117,11 +117,12 @@ starts `.github/workflows/release.yml`. The workflow:
 8. creates the public GitHub Release last, with checksums and attestations.
 
 For a transient registry or runner failure, rerun the failed workflow jobs.
-The same version can also be retried from the current `release.yml` by manually
-dispatching it with the existing version. A manual retry checks out the
-immutable tag and refuses a mismatched commit. Do not increase the version for
-a retry that publishes identical artifacts. Use a new version when source,
-package metadata, or artifact bytes change.
+The same version can also be published or retried from the current `release.yml`
+by manually dispatching it with the existing version. Before the tag exists,
+run it from the current `main` commit. After the tag exists, run it from that
+tag. The workflow refuses a mismatched version or tag commit. Do not increase
+the version for a retry that publishes identical artifacts. Use a new version
+when source, package metadata, or artifact bytes change.
 
 Validate Plugin metadata and generated Skills before merging the Release PR:
 

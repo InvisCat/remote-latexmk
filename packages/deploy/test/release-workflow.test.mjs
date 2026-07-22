@@ -16,7 +16,8 @@ test('release workflow is driven by a version-changing release PR and has pinned
   assert.match(workflow, /node scripts\/release-version\.mjs assert-newer/);
   assert.match(workflow, /node scripts\/release-version\.mjs check/);
   assert.match(workflow, /should-release=true/);
-  assert.match(workflow, /verify:[\s\S]*?pnpm test[\s\S]*?go test -race[\s\S]*?govulncheck@v1\.6\.0/);
+  assert.match(workflow, /verify:[\s\S]*?pnpm test[\s\S]*?Verify standalone Go modules[\s\S]*?Build client container[\s\S]*?go test -race[\s\S]*?govulncheck@v1\.6\.0/);
+  assert.match(workflow, /Build client container[\s\S]*?docker buildx build --platform linux\/amd64,linux\/arm64/);
   assert.match(workflow, /validate:\n\s+needs: verify/);
   const uses = [...workflow.matchAll(/^\s*-?\s*uses:\s*([^\s]+)(?:\s+#.*)?$/gm)].map((match) => match[1]);
   assert.ok(uses.length >= 10, `expected pinned actions, got ${uses.length}`);
@@ -52,7 +53,8 @@ test('release workflow is driven by a version-changing release PR and has pinned
   assert.match(workflow, /value=v\$\{\{ needs\.validate\.outputs\.version \}\}/);
   assert.match(workflow, /release:[\s\S]*?needs: \[validate, binaries, server-binaries, publish-images, npm-packages, tag\]/);
   assert.match(workflow, /npm-packages:[\s\S]*?needs: \[validate, binaries, tag\]/);
-  assert.match(workflow, /verify:[\s\S]*?workflow_dispatch[\s\S]*?format\('v\{0\}', inputs\.version\)/);
+  assert.equal((workflow.match(/ref: \$\{\{ github\.sha \}\}/g) ?? []).length, 2);
+  assert.doesNotMatch(workflow, /format\('v\{0\}', inputs\.version\)/);
   assert.match(workflow, /stage-packages\.mjs/);
   assert.match(workflow, /publish-packages\.mjs/);
   assert.equal((workflow.match(/registry-url: 'https:\/\/registry\.npmjs\.org'/g) ?? []).length, 1);
@@ -82,6 +84,9 @@ test('CI installs pinned pnpm before setup-node enables pnpm caching', async () 
   assert.ok(nodeSetup > pnpmSetup, 'pnpm must be installed before setup-node resolves the pnpm cache');
   assert.doesNotMatch(workflow, /corepack enable pnpm/);
   assert.match(workflow, /- run: pnpm test\n\s+- run: pnpm build/);
+  assert.match(workflow, /Verify standalone Go modules/);
+  assert.match(workflow, /Build client container/);
+  assert.match(workflow, /docker buildx build --platform linux\/amd64,linux\/arm64/);
   assert.match(workflow, /go test -race/);
   assert.match(workflow, /govulncheck@v1\.6\.0/);
 });
@@ -104,6 +109,7 @@ test('container inputs and GHCR compose path are pinned', async () => {
     }
   }
   const override = await readFile(path.join(root, 'compose.ghcr.yaml'), 'utf8');
+  const clientDockerfile = await readFile(path.join(root, 'packages/cli/Dockerfile'), 'utf8');
   const envExample = await readFile(path.join(root, '.env.example'), 'utf8');
   assert.equal((override.match(/pull_policy: always/g) ?? []).length, 3);
   assert.match(override, /ghcr\.io\/\$\{LATEXMK_GHCR_NAMESPACE/);
@@ -114,6 +120,8 @@ test('container inputs and GHCR compose path are pinned', async () => {
   assert.doesNotMatch(override, /billstark001/);
   assert.doesNotMatch(override, /LATEXMK_GHCR_(?:NAMESPACE|VERSION):\?/);
   assert.doesNotMatch(override, /:latest/);
+  assert.match(clientDockerfile, /COPY packages\/cli\/go\.mod packages\/cli\/go\.sum \.\//);
+  assert.match(clientDockerfile, /RUN go mod download/);
   assert.match(envExample, /^COMPOSE_PATH_SEPARATOR=:\s*$/m);
   assert.match(envExample, /^COMPOSE_FILE=compose\.yaml:compose\.ghcr\.yaml\s*$/m);
 });

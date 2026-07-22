@@ -4,7 +4,8 @@ ARG CLIENT_BASE_IMAGE=debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe
 
 FROM ${GO_IMAGE} AS builder
 WORKDIR /src
-COPY packages/cli/go.mod ./
+COPY packages/cli/go.mod packages/cli/go.sum ./
+RUN go mod download
 COPY packages/cli/ ./
 ARG VERSION=0.4.1
 ARG COMMIT=local
