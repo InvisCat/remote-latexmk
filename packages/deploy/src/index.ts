@@ -196,6 +196,7 @@ function renderEnv(options) {
 	`LATEXMK_DATABASE_MODE=${options.database}`,
     `LATEXMK_ENGINES=${options.engines}`,
     `LATEXMK_ALLOW_SHELL_ESCAPE=${options.allowShellEscape}`,
+    'LATEXMK_ENABLE_LEGACY_COMPILE=false',
     `LATEXMK_COMPILE_TIMEOUT=${options.compileTimeout}`,
     `LATEXMK_MAX_CONCURRENT_COMPILES=${options.maxConcurrent}`,
 		`LATEXMK_MAX_QUEUED_JOBS=${options.maxQueued}`,

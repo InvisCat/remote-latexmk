@@ -3,8 +3,9 @@
 ## Versioning
 
 The current protocol version is `2`. Version 2 adds content-addressed,
-incremental uploads and asynchronous jobs. `POST /v1/compile` continues to
-accept v1 requests for older CLI clients.
+incremental uploads and asynchronous jobs. The synchronous `POST /v1/compile`
+compatibility endpoint is disabled by default. Set
+`LATEXMK_ENABLE_LEGACY_COMPILE=true` only while migrating a pre-v2 client.
 
 ## `GET /healthz`
 
@@ -21,6 +22,9 @@ Public server, image, toolchain, cache-retention, and resource-limit metadata.
 It never includes secrets, database URLs, or user data.
 
 ## `POST /v1/compile`
+
+This legacy endpoint exists only when `LATEXMK_ENABLE_LEGACY_COMPILE=true`.
+Current clients use the bounded upload and queued-job endpoints below.
 
 Requires authentication unless `LATEXMK_AUTH_MODE=none` was explicitly selected
 for an isolated development deployment.
@@ -136,8 +140,11 @@ resumed with changed source files.
 Returns or cancels jobs of the authenticated principal. Only `queued` jobs can
 be cancelled. Status is `queued`, `running`, `succeeded`, `failed`, or
 `cancelled`. Successful jobs and TeX failures keep result archives until
-`LATEXMK_RESULT_RETENTION` expires. The optional `snapshotId` is absent only on
-historical finished jobs created before immutable snapshots were introduced.
+`LATEXMK_RESULT_RETENTION` expires. Terminal job metadata is removed on the
+same retention schedule, so an expired job eventually returns `404` instead of
+leaving a history entry whose result can no longer be downloaded. The optional
+`snapshotId` is absent only on historical finished jobs created before
+immutable snapshots were introduced.
 
 ### `GET /v1/jobs/{id}/result`
 

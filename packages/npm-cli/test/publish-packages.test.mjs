@@ -4,6 +4,6 @@ import test from 'node:test';
 import { releaseTag } from '../scripts/publish-packages.mjs';
 
 test('npm prereleases use next and stable releases use latest', () => {
-  assert.equal(releaseTag('0.4.0-rc.1'), 'next');
-  assert.equal(releaseTag('0.4.0'), 'latest');
+  assert.equal(releaseTag('0.4.1-rc.1'), 'next');
+  assert.equal(releaseTag('0.4.1'), 'latest');
 });

@@ -6,7 +6,7 @@ FROM ${GO_IMAGE} AS builder
 WORKDIR /src
 COPY packages/cli/go.mod ./
 COPY packages/cli/ ./
-ARG VERSION=0.4.0
+ARG VERSION=0.4.1
 ARG COMMIT=local
 ARG BUILD_DATE=unknown
 RUN CGO_ENABLED=0 go build -trimpath \

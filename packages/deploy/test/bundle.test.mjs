@@ -34,6 +34,7 @@ test('serverless preset emits bounded ephemeral-cache settings', async () => {
     assert.match(env, /LATEXMK_MAX_CONCURRENT_COMPILES=1/);
     assert.match(env, /LATEXMK_MAX_STATE_BYTES=256MiB/);
     assert.match(env, /LATEXMK_RESULT_RETENTION=24h/);
+    assert.match(env, /LATEXMK_ENABLE_LEGACY_COMPILE=false/);
     assert.match(env, /LATEXMK_STATE_DIR=\/tmp\/latexmk-state/);
     assert.match(env, /DATABASE_URL=postgres:\/\/latexmk:replace-with-external-secret/);
     const compose = await readFile(path.join(out, 'compose.yaml'), 'utf8');

@@ -56,7 +56,9 @@ func New(cfg config.Config, meta api.Metadata, runner *compile.Runner, authManag
 
 	compileAuth := authManager.Middleware(false)
 	adminAuth := authManager.Middleware(true)
-	engine.POST("/v1/compile", compileAuth, s.compileLegacy)
+	if cfg.EnableLegacyCompile {
+		engine.POST("/v1/compile", compileAuth, s.compileLegacy)
+	}
 	engine.POST("/v1/uploads/plans", compileAuth, s.planUpload)
 	engine.PUT("/v1/uploads/:uploadID/blobs/:digest", compileAuth, s.putBlob)
 	engine.POST("/v1/uploads/:uploadID/commit", compileAuth, s.commitUpload)

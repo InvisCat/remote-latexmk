@@ -64,3 +64,22 @@ func TestToolchainPathRequiresAbsoluteDirectories(t *testing.T) {
 		t.Fatal("expected relative toolchain path to fail")
 	}
 }
+
+func TestLegacyCompileIsOptIn(t *testing.T) {
+	t.Setenv("LATEXMK_AUTH_MODE", "none")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.EnableLegacyCompile {
+		t.Fatal("legacy compile endpoint should be disabled by default")
+	}
+	t.Setenv("LATEXMK_ENABLE_LEGACY_COMPILE", "true")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.EnableLegacyCompile {
+		t.Fatal("legacy compile endpoint was not enabled")
+	}
+}

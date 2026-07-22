@@ -28,6 +28,7 @@ type Postgres struct {
 }
 
 var ErrProjectSnapshotNotFound = errors.New("project snapshot not found")
+var ErrJobNotFound = errors.New("job not found")
 
 type User struct {
 	ID        string    `gorm:"primaryKey;size:40" json:"id"`
@@ -319,7 +320,7 @@ func (p *Postgres) GetJob(ctx context.Context, id string) (CompileJob, error) {
 	var job CompileJob
 	err := p.db.WithContext(ctx).First(&job, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return CompileJob{}, errors.New("job not found")
+		return CompileJob{}, ErrJobNotFound
 	}
 	return job, err
 }
@@ -385,6 +386,26 @@ func (p *Postgres) VisitActiveJobSnapshots(ctx context.Context, batchSize int, v
 
 func (p *Postgres) UpdateJob(ctx context.Context, id string, values map[string]any) error {
 	return p.db.WithContext(ctx).Model(&CompileJob{}).Where("id = ?", id).Updates(values).Error
+}
+
+// TransitionJob updates a job only while it remains in the expected state.
+// RowsAffected is part of the state-machine contract, not just diagnostics.
+func (p *Postgres) TransitionJob(ctx context.Context, id, expectedStatus string, values map[string]any) (bool, error) {
+	result := p.db.WithContext(ctx).
+		Model(&CompileJob{}).
+		Where("id = ? AND status = ?", id, expectedStatus).
+		Updates(values)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func (p *Postgres) DeleteTerminalJobsBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	result := p.db.WithContext(ctx).
+		Where("status IN ? AND finished_at IS NOT NULL AND finished_at < ?", []string{"succeeded", "failed", "cancelled"}, cutoff).
+		Delete(&CompileJob{})
+	return result.RowsAffected, result.Error
 }
 
 func containsControl(value string) bool {

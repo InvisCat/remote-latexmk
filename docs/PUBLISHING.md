@@ -59,9 +59,11 @@ name and main motivation readable when the preview is shown at a small size.
 7. Test the source-build Compose quick start from a clean clone.
 8. Test all four Skills from a clean checkout and validate the native and Docker
    MCP examples.
-9. Confirm that the release workflow has permission to write packages and
+9. Confirm that `main` requires a pull request, the `test` status check, and
+   resolved review conversations, with force pushes and deletion disabled.
+10. Confirm that the release workflow has permission to write packages and
    create releases, and that npm trusted publishing is configured.
-10. Validate the shared Codex/Claude Plugin directory and both marketplace
+11. Validate the shared Codex/Claude Plugin directory and both marketplace
     manifests. Install it from a clean temporary Agent home before publishing.
 
 ## Release artifacts
@@ -88,8 +90,8 @@ Create a release branch from the current `main`, then let the version tool
 update every derived reference:
 
 ```sh
-git switch -c release/v0.4.0
-pnpm release:prepare 0.4.0
+git switch -c release/v0.4.1
+pnpm release:prepare 0.4.1
 pnpm test
 ```
 
@@ -101,16 +103,18 @@ Do not create or move the Git tag by hand.
 When the Release PR is merged into `main`, the root `package.json` change
 starts `.github/workflows/release.yml`. The workflow:
 
-1. verifies that the version increased and all derived files match it;
-2. builds candidate images and native archives;
-3. runs `make smoke-papers` against commit-specific candidate
+1. reruns tests, builds, `go vet`, race tests, and Go vulnerability checks on
+   the exact release commit;
+2. verifies that the version increased and all derived files match it;
+3. builds candidate images and native archives;
+4. runs `make smoke-papers` against commit-specific candidate
    image tags. Only a passing run promotes those digests to the release's
    semver tags and, for stable releases, `latest`;
-4. creates or verifies an annotated tag at the tested commit;
-5. publishes the six npm platform packages and the launcher, verifying the
+5. creates or verifies an annotated tag at the tested commit;
+6. publishes the six npm platform packages and the launcher, verifying the
    unpacked contents of any package that already exists;
-6. promotes the tested GHCR image digests; and
-7. creates the public GitHub Release last, with checksums and attestations.
+7. promotes the tested GHCR image digests; and
+8. creates the public GitHub Release last, with checksums and attestations.
 
 For a transient registry or runner failure, rerun the failed workflow jobs.
 The same version can also be retried from the current `release.yml` by manually
