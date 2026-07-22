@@ -1,6 +1,6 @@
 {
   "name": "@latexmk/cli",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "scripts": {
     "build": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});fs.mkdirSync('dist',{recursive:true})\" && go build -trimpath -o dist/rlatexmk ./cmd/rlatexmk",

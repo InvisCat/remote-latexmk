@@ -67,3 +67,36 @@ func TestProjectCleanupRoutesPreviewAndDelete(t *testing.T) {
 		t.Fatalf("invalid ID status = %d, body=%s", response.Code, response.Body.String())
 	}
 }
+
+func TestLegacyCompileRouteIsOptIn(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		enabled bool
+		status  int
+	}{
+		{name: "disabled", status: http.StatusNotFound},
+		{name: "enabled", enabled: true, status: http.StatusUnsupportedMediaType},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := config.Config{
+				AuthMode: "none", StateDir: t.TempDir(), Engines: []string{"xelatex"},
+				MaxFiles: 10, MaxExpandedBytes: 1024, MaxStateBytes: 4096,
+				MaxQueuedJobs: 2, MaxConcurrentCompiles: 1, EnableLegacyCompile: test.enabled,
+			}
+			projects, err := project.New(cfg, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			runner := compile.NewRunner(cfg)
+			queue := jobs.New(cfg, api.Metadata{}, runner, projects, nil, logger)
+			server := New(cfg, api.Metadata{}, runner, auth.New(cfg, nil), nil, projects, queue, logger)
+			request := httptest.NewRequest(http.MethodPost, "/v1/compile", nil)
+			response := httptest.NewRecorder()
+			server.Handler().ServeHTTP(response, request)
+			if response.Code != test.status {
+				t.Fatalf("legacy route status = %d, want %d", response.Code, test.status)
+			}
+		})
+	}
+}

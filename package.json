@@ -1,6 +1,6 @@
 {
   "name": "remote-latexmk",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "Self-hosted remote LaTeX compiler with Docker Compose, dependency-aware uploads, MCP, and Agent Skills.",
   "keywords": [

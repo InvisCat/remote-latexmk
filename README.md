@@ -20,7 +20,7 @@ The native installer puts the service and TeX Live under
 `~/.remote-latexmk`. It uses no sudo, Docker, or system-wide TeX installation.
 
 ```sh
-curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.4.0/install-server.sh | bash -s -- --version v0.4.0
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.4.1/install-server.sh | bash -s -- --version v0.4.1
 ```
 
 In a terminal, the installer opens a numbered setup for the TeX Live profile,
@@ -54,7 +54,7 @@ not install TeX Live.
 #### Codex Desktop
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.4.0 plugin install codex
+npx --yes --ignore-scripts remote-latexmk@0.4.1 plugin install codex
 ```
 
 The command opens the Plugin page in Codex. Select **Install** or **Update**,
@@ -79,7 +79,7 @@ Save the connection once on the client. Replace `SERVER_HOST` with the
 reachable host, or the local endpoint when using the tunnel above:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.4.0 auth login --server SERVER_HOST
+npx --yes --ignore-scripts remote-latexmk@0.4.1 auth login --server SERVER_HOST
 ```
 
 A bare host or an HTTP URL without a port uses `http://HOST:8080`; explicit
@@ -99,9 +99,9 @@ diagnostics and logs, and download the PDF through the local MCP server.
 The saved login also configures direct CLI use:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.4.0 entries --json --project-root .
-npx --yes --ignore-scripts remote-latexmk@0.4.0 files main.tex
-npx --yes --ignore-scripts remote-latexmk@0.4.0 main.tex
+npx --yes --ignore-scripts remote-latexmk@0.4.1 entries --json --project-root .
+npx --yes --ignore-scripts remote-latexmk@0.4.1 files main.tex
+npx --yes --ignore-scripts remote-latexmk@0.4.1 main.tex
 ```
 
 For OpenCode and other Agent hosts, see [AI coding agents](docs/AI_AGENTS.md).
@@ -130,9 +130,9 @@ For Codex Desktop, rerun the versioned `plugin install codex` command from
 Quick Start, select **Install** or **Update** on the opened page, restart if
 asked, and start a new task. The saved server login is kept.
 
-Clients before 0.4.0 used `latexmk` as the native binary name. After installing
-`rlatexmk`, remove only the old remote-client file you placed on `PATH`; do not
-remove the upstream TeX Live `latexmk` command.
+Older remote-latexmk clients used `latexmk` as the native binary name. After
+installing `rlatexmk`, remove only the old remote-client file you placed on
+`PATH`; do not remove the upstream TeX Live `latexmk` command.
 
 ## Alternative Installation and Usage Paths
 
@@ -195,14 +195,14 @@ Choose either a release binary or a source build, then configure the client.
 
 #### Download a Release Binary
 
-The [`v0.4.0` release](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.4.0)
+The [`v0.4.1` release](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.4.1)
 provides client archives for Linux, macOS, and Windows on amd64 and arm64.
 Verify downloads with the attached `SHA256SUMS`. See
 [Publishing](docs/PUBLISHING.md) for the release process.
 
 #### Build the Native Client from Source
 
-Building the native client requires Go 1.23+. The resulting binary does not
+Building the native client requires Go 1.25+. The resulting binary does not
 need Go or TeX Live at runtime; it needs Git when Git-aware selection is active:
 
 ```sh
@@ -332,8 +332,8 @@ all three server policy values. Then use the base and GHCR Compose files shown
 under [Prebuilt images](#prebuilt-images-and-digest-pinning):
 
 ```dotenv
-LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server-full:0.4.0
-LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client:0.4.0
+LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server-full:0.4.1
+LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client:0.4.1
 LATEXMK_IMAGE_PROFILE=texlive-full
 LATEXMK_ENGINES=xelatex,lualatex,pdflatex
 ```
@@ -430,14 +430,14 @@ isolation. Read [Security](docs/SECURITY.md) before exposing the service.
 ## Prebuilt Images and Digest Pinning
 
 The current release is
-[`v0.4.0`](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.4.0).
+[`v0.4.1`](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.4.1).
 The copied `.env` selects the release pinned in `compose.ghcr.yaml` for bare
 `docker compose` commands. The commands below list both files explicitly. To
 select an exact version, set:
 
 ```dotenv
 LATEXMK_GHCR_NAMESPACE=inviscat
-LATEXMK_GHCR_VERSION=0.4.0
+LATEXMK_GHCR_VERSION=0.4.1
 ```
 
 ```sh
@@ -487,7 +487,7 @@ trusted-publishing setting.
 
 ## Development
 
-Requirements: Go 1.23+, Node.js 22+, and pnpm 11. Local end-to-end tests also
+Requirements: Go 1.25+, Node.js 22+, and pnpm 11. Local end-to-end tests also
 need a TeX engine and the upstream Perl latexmk tool.
 
 ```sh
@@ -505,6 +505,17 @@ Implementation details and selection reasons live in
 [Architecture](docs/ARCHITECTURE.md).
 
 ## Changelog
+
+### remote-latexmk 0.4.1
+
+- Made queued-job cancellation and worker state changes atomic, and added
+  regression PoCs for stale-worker resurrection and missing result archives.
+- Marked result-packaging failures as failed jobs, added worker shutdown and
+  retry handling, and bounded terminal job history with result retention.
+- Disabled the legacy synchronous compile endpoint by default while keeping an
+  explicit migration switch for pre-v2 clients.
+- Updated Go dependencies and made tests, builds, race checks, and vulnerability
+  checks mandatory inside the release workflow.
 
 ### remote-latexmk 0.4.0
 
@@ -607,6 +618,21 @@ on 2026-07-17.
 
 This roadmap describes intended directions and does not promise release dates.
 
+- To make restarts and database failures easier to recover from, add full
+  **PostgreSQL integration and fault-injection tests** for migrations, restart
+  recovery, temporary outages, reconciliation, and backup/restore, then offer
+  a documented durable-metadata Compose profile.
+- To improve the single-server default without making Quick Start depend on an
+  external database, evaluate an **embedded durable metadata store** before
+  deciding whether PostgreSQL should become the default deployment path.
+- To keep slow or abandoned connections from retaining resources, add
+  **route-specific request deadlines** that preserve legitimate large uploads
+  while bounding incomplete request bodies.
+- To support high-availability deployments, add **database-backed job leases,
+  heartbeats, atomic multi-instance claiming, and shared object storage**. The
+  current scheduler intentionally supports one server process.
+- To support less-trusted shared services, add **per-principal quotas and rate
+  limits** for uploads, queues, retained state, and compile CPU time.
 - To support Japanese journal and conference submissions that depend on
   pLaTeX, validate and add **pLaTeX and upLaTeX workflows** with `dvipdfmx`,
   including representative Japanese document classes, dependency discovery,

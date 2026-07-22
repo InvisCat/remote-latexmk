@@ -30,8 +30,8 @@ The server still enforces `LATEXMK_MAX_STATE_BYTES` synchronously. The periodic
 sweeper bounds normal cache growth: result archives expire first, project
 snapshots expire next, and blobs are deleted only when no live upload, current
 project snapshot, or queued/running job snapshot refers to them. A result whose
-retention period has elapsed remains in job history but can no longer be
-downloaded.
+retention period has elapsed and its terminal job metadata are removed on the
+same sweep schedule.
 
 Database migration adds immutable snapshot fields to queued jobs. Historical
 finished jobs from older versions remain readable. An old `queued` or `running`
@@ -88,6 +88,7 @@ source of truth for root Compose defaults.
 | `LATEXMK_BLOB_RETENTION` | `168h` |
 | `LATEXMK_STATE_SWEEP_INTERVAL` | `1h` |
 | `LATEXMK_ALLOW_SHELL_ESCAPE` | `false` |
+| `LATEXMK_ENABLE_LEGACY_COMPILE` | `false` |
 | `LATEXMK_TEMP_DIR` | system temporary directory |
 | `LATEXMK_STATE_DIR` | `/tmp/latexmk-state` |
 | `LATEXMK_DATABASE_MODE` | `postgres` (`pglite` is supported) |
@@ -99,6 +100,10 @@ server startup instead of silently falling back. A CORS origin must be an exact
 Set only one of `LATEXMK_API_TOKEN` and `LATEXMK_API_TOKEN_FILE`. The native
 installer uses the file form so the generated token is kept separately from
 the server settings.
+
+The scheduler supports one server process. Do not run multiple replicas against
+the same database or state directory. Multi-instance claiming and shared object
+storage are not implemented yet.
 
 ## Image pinning
 
@@ -113,10 +118,10 @@ docker build \
   --build-arg SERVER_SOURCE=packages/server \
   --build-arg DEPLOY_ASSETS=packages/deploy/templates \
   --build-arg TEXLIVE_IMAGE='texlive/texlive:TAG@sha256:DIGEST' \
-  --build-arg VERSION='0.4.0' \
+  --build-arg VERSION='0.4.1' \
   --build-arg COMMIT="$(git rev-parse HEAD)" \
   --build-arg BUILD_DATE="$(date -u +%FT%TZ)" \
-  -t registry.example.edu/remote-latexmk-server:0.4.0 .
+  -t registry.example.edu/remote-latexmk-server:0.4.1 .
 ```
 
 Use `rlatexmk meta` to verify the remote toolchain actually running the image.

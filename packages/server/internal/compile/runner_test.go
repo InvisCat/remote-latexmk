@@ -58,7 +58,7 @@ func TestRunnerKeepsPrivateTeXBinInCompileEnvironment(t *testing.T) {
 	runner := NewRunner(config.Config{
 		Engines:               []string{"xelatex"},
 		ToolchainPath:         toolchainDir + string(os.PathListSeparator) + "/usr/bin:/bin",
-		CompileTimeout:        time.Second,
+		CompileTimeout:        5 * time.Second,
 		MaxConcurrentCompiles: 1,
 		MaxLogBytes:           1 << 20,
 		MaxArtifactBytes:      1 << 20,

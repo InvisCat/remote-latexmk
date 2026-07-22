@@ -169,7 +169,7 @@ It supports:
 - a static bearer-token mode for a single trusted principal;
 - PostgreSQL-backed users and token hashes for separate principals;
 - an explicitly unauthenticated mode for isolated development only;
-- the legacy synchronous archive endpoint;
+- an opt-in legacy synchronous archive endpoint for pre-v2 clients;
 - the current incremental upload and queued-job protocol;
 - result retention and explicit cleanup;
 - public health, readiness, capability, build, and toolchain metadata.
@@ -203,6 +203,12 @@ kernel isolation layer in the current implementation.
 The server state directory contains owner-scoped content-addressed source blobs
 and result archives. A state sweeper applies independent result, snapshot, and
 orphaned-blob retention periods while protecting active uploads and jobs.
+Terminal job metadata expires with its result archive retention period.
+
+Job state changes use conditional transitions, so a successful cancellation
+cannot be overwritten by a worker that previously read the queued record. The
+current scheduler is still single-instance; it does not implement cross-process
+leases or shared object storage.
 
 With `DATABASE_URL` configured, PostgreSQL stores users, token hashes, project
 snapshots, and job records. The same PostgreSQL protocol is used with the

@@ -23,6 +23,7 @@ type Config struct {
 	Engines               []string
 	ToolchainPath         string
 	AllowShellEscape      bool
+	EnableLegacyCompile   bool
 	CompileTimeout        time.Duration
 	ShutdownTimeout       time.Duration
 	MaxUploadBytes        int64
@@ -46,6 +47,10 @@ type Config struct {
 
 func Load() (Config, error) {
 	allowShellEscape, err := envBool("LATEXMK_ALLOW_SHELL_ESCAPE", false)
+	if err != nil {
+		return Config{}, err
+	}
+	enableLegacyCompile, err := envBool("LATEXMK_ENABLE_LEGACY_COMPILE", false)
 	if err != nil {
 		return Config{}, err
 	}
@@ -124,6 +129,7 @@ func Load() (Config, error) {
 		Engines:               splitCSV(env("LATEXMK_ENGINES", "xelatex,lualatex,pdflatex")),
 		ToolchainPath:         env("LATEXMK_TOOLCHAIN_PATH", DefaultToolchainPath),
 		AllowShellEscape:      allowShellEscape,
+		EnableLegacyCompile:   enableLegacyCompile,
 		CompileTimeout:        compileTimeout,
 		ShutdownTimeout:       shutdownTimeout,
 		MaxUploadBytes:        maxUploadBytes,

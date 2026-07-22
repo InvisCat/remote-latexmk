@@ -465,6 +465,7 @@ test('direct reinstall migrates a legacy config and preserves supported server t
   const migratedTuning = [
     'LATEXMK_COMPILE_TIMEOUT="9m"',
     'LATEXMK_MAX_FILES="4321"',
+    'LATEXMK_ENABLE_LEGACY_COMPILE="true"',
     "LATEXMK_CORS_ORIGINS='https://paper.example,https://lab.example'",
     "DATABASE_URL='postgres://user:p$a\\ss@db.example/papers?sslmode=require&x=1'",
     '',
