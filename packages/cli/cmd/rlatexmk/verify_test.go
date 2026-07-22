@@ -64,7 +64,7 @@ func TestDoctorVerifiesConfiguredAuthentication(t *testing.T) {
 	t.Setenv("LATEXMK_TOKEN_FILE", "")
 
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"remote-latexmk", "doctor", "--json"})
+		return run([]string{"rlatexmk", "doctor", "--json"})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("doctor code=%d stderr=%q stdout=%q", code, stderr, stdout)
@@ -87,7 +87,7 @@ func TestDoctorRejectsInvalidConfiguredToken(t *testing.T) {
 	t.Setenv("LATEXMK_TOKEN_FILE", "")
 
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"remote-latexmk", "doctor", "--json"})
+		return run([]string{"rlatexmk", "doctor", "--json"})
 	})
 	if code == 0 || stdout != "" || !strings.Contains(stderr, "API token verification failed") {
 		t.Fatalf("doctor code=%d stderr=%q stdout=%q", code, stderr, stdout)

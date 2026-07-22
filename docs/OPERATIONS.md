@@ -113,13 +113,13 @@ docker build \
   --build-arg SERVER_SOURCE=packages/server \
   --build-arg DEPLOY_ASSETS=packages/deploy/templates \
   --build-arg TEXLIVE_IMAGE='texlive/texlive:TAG@sha256:DIGEST' \
-  --build-arg VERSION='0.3.0-rc.5' \
+  --build-arg VERSION='0.4.0' \
   --build-arg COMMIT="$(git rev-parse HEAD)" \
   --build-arg BUILD_DATE="$(date -u +%FT%TZ)" \
-  -t registry.example.edu/remote-latexmk-server:0.3.0-rc.5 .
+  -t registry.example.edu/remote-latexmk-server:0.4.0 .
 ```
 
-Use `latexmk meta` to verify the remote toolchain actually running the image.
+Use `rlatexmk meta` to verify the remote toolchain actually running the image.
 
 ## Compose watcher
 

@@ -1,7 +1,7 @@
 .PHONY: build test fmt vet bundle-slim bundle-full smoke-papers
 
 build:
-	go build ./packages/cli/cmd/latexmk
+	go build ./packages/cli/cmd/rlatexmk
 	go build ./packages/server/cmd/server
 
 fmt:

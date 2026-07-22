@@ -14,7 +14,7 @@ const markerName = '.remote-latexmk-managed.json';
 const formattingOptions = { insertSpaces: true, tabSize: 2, eol: '\n' };
 
 function usage() {
-  return `Usage: remote-latexmk plugin install codex [options]
+  return `Usage: rlatexmk plugin install codex [options]
 
 Install the Remote LaTeX Plugin for the Codex desktop app.
 

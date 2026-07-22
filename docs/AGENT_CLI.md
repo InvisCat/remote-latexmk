@@ -84,7 +84,7 @@ Human users can create the client-side token file and user configuration in
 one interactive command:
 
 ```sh
-latexmk auth login --server https://latex.example.edu
+rlatexmk auth login --server https://latex.example.edu
 ```
 
 The remote-latexmk API token is read from a hidden terminal prompt. This
@@ -94,9 +94,9 @@ the token or run the prompt on the user's behalf. The setup commands below
 remain the non-secret preview/apply interface for an existing token file.
 
 ```sh
-latexmk setup --server https://latex.example.edu \
+rlatexmk setup --server https://latex.example.edu \
   --token-file /absolute/path/to/latexmk-token --json
-latexmk setup --server https://latex.example.edu \
+rlatexmk setup --server https://latex.example.edu \
   --token-file /absolute/path/to/latexmk-token --yes --json
 ```
 
@@ -124,7 +124,7 @@ When the entry is unknown, use the deterministic, policy-filtered entry
 discovery command:
 
 ```sh
-latexmk entries --project-root . --json
+rlatexmk entries --project-root . --json
 ```
 
 Its compatibility JSON result contains `status`, `selected`, `unambiguous`,
@@ -135,7 +135,7 @@ Do not build another candidate list by searching or reading project files.
 After choosing the entry, use the normal manifest command:
 
 ```sh
-latexmk files --project-root . --json main.tex
+rlatexmk files --project-root . --json main.tex
 ```
 
 The returned file set is the sole authority for upload dependencies. An Agent
@@ -147,7 +147,7 @@ failure.
 ## Detached compile
 
 ```sh
-latexmk compile --detach --json main.tex
+rlatexmk compile --detach --json main.tex
 ```
 
 The command applies the normal project-root, Git-ignore, denylist, dependency,
@@ -163,9 +163,9 @@ ID.
 ## Jobs
 
 ```sh
-latexmk jobs list --limit 50 --json
-latexmk jobs show JOB_ID --json
-latexmk jobs cancel JOB_ID --json
+rlatexmk jobs list --limit 50 --json
+rlatexmk jobs show JOB_ID --json
+rlatexmk jobs cancel JOB_ID --json
 ```
 
 `jobs.list` returns `jobs`, `count`, and the applied `limit`. Jobs are sorted
@@ -175,10 +175,10 @@ return one job object. Cancel only succeeds while the remote job is queued.
 ## Logs, diagnostics, and artifacts
 
 ```sh
-latexmk logs JOB_ID --source all --tail 200 --max-bytes 65536 --json
-latexmk diagnostics JOB_ID --json
-latexmk artifacts list JOB_ID --json
-latexmk artifacts get JOB_ID ARTIFACT_ID --out-dir ./build --json
+rlatexmk logs JOB_ID --source all --tail 200 --max-bytes 65536 --json
+rlatexmk diagnostics JOB_ID --json
+rlatexmk artifacts list JOB_ID --json
+rlatexmk artifacts get JOB_ID ARTIFACT_ID --out-dir ./build --json
 ```
 
 Logs distinguish `stdout`, `stderr`, and TeX-generated `compiler` logs. The
@@ -212,10 +212,10 @@ unbounded logs in this envelope.
 ## Local cache inspection and cleanup
 
 ```sh
-latexmk cache inspect --project-root . --json
-latexmk cache ignore --project-root . --json
-latexmk cache clean --project-root . --scope local-generated --json
-latexmk cache clean --project-root . --plan-id PLAN_ID --yes --json
+rlatexmk cache inspect --project-root . --json
+rlatexmk cache ignore --project-root . --json
+rlatexmk cache clean --project-root . --scope local-generated --json
+rlatexmk cache clean --project-root . --plan-id PLAN_ID --yes --json
 ```
 
 Inspection returns dependency-cache entry counts without returning cached input
@@ -244,8 +244,8 @@ the `planId` returned by preview.
 ## Remote cleanup
 
 ```sh
-latexmk remote clean --scope results|snapshot|project --json
-latexmk remote clean --plan-id PLAN_ID --yes --json
+rlatexmk remote clean --scope results|snapshot|project --json
+rlatexmk remote clean --plan-id PLAN_ID --yes --json
 ```
 
 Preview asks the server for the selected token-owned project report, then
@@ -269,7 +269,7 @@ envelope.
 
 ## MCP mapping
 
-`latexmk mcp serve --stdio` exposes the same client operations as strict MCP
+`rlatexmk mcp serve --stdio` exposes the same client operations as strict MCP
 tools. `--project-root` fixes an explicit root; `--root-from-client` requests
 one local workspace root from a Plugin host and fixes that root for the
 process. MCP success and error results contain structured JSON plus an

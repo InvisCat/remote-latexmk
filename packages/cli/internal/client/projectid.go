@@ -20,7 +20,7 @@ const dependencyCacheRelativePath = ".latexmk-cache/dependencies.json"
 
 const maxProjectCacheGitPaths = 4096
 
-const ProjectCacheGitAdvice = ".latexmk-cache stores this paper's local project identity and dependency cache. If this project uses Git, run \"latexmk cache ignore\" to add .latexmk-cache/ to .gitignore. Warning: \"git clean -fdX\" deletes ignored cache files; the next compile will create a new project ID."
+const ProjectCacheGitAdvice = ".latexmk-cache stores this paper's local project identity and dependency cache. If this project uses Git, run \"rlatexmk cache ignore\" to add .latexmk-cache/ to .gitignore. Warning: \"git clean -fdX\" deletes ignored cache files; the next compile will create a new project ID."
 
 var ErrProjectIDNotFound = errors.New("local project ID is not initialized")
 

@@ -12,7 +12,7 @@ cleanup() {
 trap cleanup EXIT
 
 go build -o "$TMP/latexmk-server" "$ROOT/packages/server/cmd/server"
-go build -o "$TMP/latexmk" "$ROOT/packages/cli/cmd/latexmk"
+go build -o "$TMP/rlatexmk" "$ROOT/packages/cli/cmd/rlatexmk"
 cp -R "$ROOT/examples/basic" "$TMP/project"
 
 PORT="$PORT" LATEXMK_AUTH_MODE=none LATEXMK_IMAGE_PROFILE=e2e-local "$TMP/latexmk-server" >"$TMP/server.log" 2>&1 &
@@ -24,9 +24,9 @@ done
 
 (
   cd "$TMP/project"
-  "$TMP/latexmk" compile --server "http://127.0.0.1:$PORT" --project-root . main.tex
+  "$TMP/rlatexmk" compile --server "http://127.0.0.1:$PORT" --project-root . main.tex
   test -s main.pdf
-  "$TMP/latexmk" meta --server "http://127.0.0.1:$PORT" --json >/dev/null
+  "$TMP/rlatexmk" meta --server "http://127.0.0.1:$PORT" --json >/dev/null
 )
 
 echo "e2e passed: $TMP/project/main.pdf"

@@ -8,6 +8,7 @@ const repositoryRoot = path.resolve(packageRoot, '../..');
 const source = path.join(repositoryRoot, '.agents/skills');
 const destination = path.join(packageRoot, 'bundled-skills');
 const packageJSON = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
+const launcher = `npx --yes --ignore-scripts remote-latexmk@${packageJSON.version}`;
 
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
@@ -23,14 +24,14 @@ async function rewriteCommands(directory) {
       const content = await readFile(target, 'utf8');
       const rewritten = content
         .replace(
-          'Select the repository binary at `packages/cli/dist/latexmk` while developing this repository. Otherwise use the installed client binary. Do not run an extra `help` probe during a normal compile workflow.',
-          'Use the npm launcher command named `remote-latexmk` for CLI fallbacks. Do not run an extra `help` probe during a normal compile workflow.',
+          'Select the repository binary at `packages/cli/dist/rlatexmk` while developing this repository. Otherwise use the installed client binary. Do not run an extra `help` probe during a normal compile workflow.',
+          `Use the npm launcher \`${launcher}\` for CLI fallbacks. Do not run an extra \`help\` probe during a normal compile workflow.`,
         )
         .replace(
-          /Use the remote-latexmk client command named `latexmk`\. Do not invoke the\s+unrelated TeX Live command with the same name\./g,
-          'Use the npm launcher command named `remote-latexmk`. Do not invoke the unrelated TeX Live `latexmk` command.',
+          /Use the remote-latexmk client command named `rlatexmk`\. Do not invoke the\s+unrelated TeX Live `latexmk` command\./g,
+          `Use the npm launcher \`${launcher}\` for CLI fallbacks. Do not invoke the unrelated TeX Live \`latexmk\` command.`,
         )
-        .replace(/\blatexmk(?= (?:auth|setup|doctor|meta|entries|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, 'remote-latexmk');
+        .replace(/\brlatexmk(?= (?:auth|setup|doctor|meta|entries|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, launcher);
       await writeFile(target, rewritten);
     }
   }

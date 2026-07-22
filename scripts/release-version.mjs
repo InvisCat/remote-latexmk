@@ -11,6 +11,15 @@ const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 const historicalPaths = new Set(['CHANGELOG.md']);
+const synchronizedTextVersions = [
+  { relative: 'packages/cli/cmd/rlatexmk/main.go', pattern: /^\s*version\s*=\s*"([^"]+)"$/gm, count: 1 },
+  { relative: 'packages/cli/internal/client/client.go', pattern: /^\s*var version\s*=\s*"([^"]+)"$/gm, count: 1 },
+  { relative: 'packages/server/cmd/server/main.go', pattern: /^\s*version\s*=\s*"([^"]+)"$/gm, count: 1 },
+  { relative: 'packages/cli/Dockerfile', pattern: /^ARG VERSION=([^\s]+)$/gm, count: 1 },
+  { relative: 'packages/deploy/templates/Dockerfile.slim', pattern: /^ARG VERSION=([^\s]+)$/gm, count: 1 },
+  { relative: 'packages/deploy/templates/Dockerfile.full', pattern: /^ARG VERSION=([^\s]+)$/gm, count: 1 },
+  { relative: 'compose.yaml', pattern: /LATEXMK_VERSION:-([^}\s]+)/g, count: 2 },
+];
 
 function parseVersion(version) {
   const match = version.match(versionPattern);
@@ -133,6 +142,18 @@ async function checkVersionSync() {
   const marketplace = JSON.parse(await readFile(path.join(repositoryRoot, '.claude-plugin/marketplace.json'), 'utf8'));
   if (marketplace.metadata?.version !== version) errors.push(`.claude-plugin/marketplace.json: metadata.version != ${version}`);
   if (marketplace.plugins?.[0]?.version !== version) errors.push(`.claude-plugin/marketplace.json: plugins[0].version != ${version}`);
+
+  for (const rule of synchronizedTextVersions) {
+    const content = await readFile(path.join(repositoryRoot, rule.relative), 'utf8');
+    const matches = [...content.matchAll(new RegExp(rule.pattern.source, rule.pattern.flags))];
+    if (matches.length !== rule.count) {
+      errors.push(`${rule.relative}: found ${matches.length} synchronized version values, expected ${rule.count}`);
+      continue;
+    }
+    for (const match of matches) {
+      if (match[1] !== version) errors.push(`${rule.relative}: version ${match[1]} != ${version}`);
+    }
+  }
 
   for (const relative of files) {
     if (historicalPaths.has(relative) || relative.startsWith('docs/releases/')) continue;

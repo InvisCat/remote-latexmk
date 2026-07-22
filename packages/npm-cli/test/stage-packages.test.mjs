@@ -8,12 +8,19 @@ import { parseArgs, targets } from '../scripts/stage-packages.mjs';
 import { copyBundledPlugin } from '../scripts/plugin-bundle.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const packageManifest = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
+const launcher = `npx --yes --ignore-scripts remote-latexmk@${packageManifest.version}`;
 
 test('npm staging covers all native client targets', () => {
   assert.equal(targets.length, 6);
   assert.deepEqual(new Set(targets.map((target) => `${target.goos}/${target.goarch}`)), new Set([
     'darwin/arm64', 'darwin/amd64', 'linux/arm64', 'linux/amd64', 'windows/arm64', 'windows/amd64',
   ]));
+  assert.deepEqual(new Set(targets.map((target) => target.binary)), new Set(['rlatexmk', 'rlatexmk.exe']));
+});
+
+test('npm installs only the non-conflicting client command', async () => {
+  assert.deepEqual(packageManifest.bin, { rlatexmk: 'bin/rlatexmk.js' });
 });
 
 test('npm staging requires an immutable semantic version', () => {
@@ -27,16 +34,16 @@ test('bundled npm Skills use the non-conflicting launcher command', async () => 
     assert.doesNotMatch(skill, /(?:^|[`\n])latexmk (?:auth|setup|doctor|meta|entries|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)/m);
   }
   const compileSkill = await readFile(path.join(packageRoot, 'bundled-skills', 'remote-latex', 'SKILL.md'), 'utf8');
-  assert.match(compileSkill, /npm launcher command named `remote-latexmk`/);
-  assert.match(compileSkill, /remote-latexmk doctor/);
-  assert.match(compileSkill, /remote-latexmk entries --json --project-root \./);
-  assert.doesNotMatch(compileSkill, /remote-latexmk help/);
+  assert.ok(compileSkill.includes(`Use the npm launcher \`${launcher}\``));
+  assert.ok(compileSkill.includes(`${launcher} doctor`));
+  assert.ok(compileSkill.includes(`${launcher} entries --json --project-root .`));
+  assert.ok(!compileSkill.includes(`${launcher} help`));
 
   const cliReference = await readFile(path.join(packageRoot, 'bundled-skills', 'remote-latex', 'references', 'cli.md'), 'utf8');
   assert.doesNotMatch(cliReference, /packages\/cli\/dist\/latexmk/);
-  assert.match(cliReference, /remote-latexmk entries --json --project-root \./);
+  assert.ok(cliReference.includes(`${launcher} entries --json --project-root .`));
   assert.match(cliReference, /only authority for upload dependencies/);
-  assert.doesNotMatch(cliReference, /remote-latexmk help/);
+  assert.ok(!cliReference.includes(`${launcher} help`));
 });
 
 test('bundled Codex Plugin pins its manifest, MCP launcher, and Skills to the npm version', async () => {

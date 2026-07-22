@@ -132,7 +132,7 @@ func TestDoctorRequiresTheWholeProjectCacheToBeIgnored(t *testing.T) {
 		reportDoctorProjectCache(repo, "", false)
 		return 0
 	})
-	if strings.Contains(stdout, "configured") || !strings.Contains(stderr, "latexmk cache ignore") {
+	if strings.Contains(stdout, "configured") || !strings.Contains(stderr, "rlatexmk cache ignore") {
 		t.Fatalf("partial cache doctor output: stdout=%q stderr=%q", stdout, stderr)
 	}
 

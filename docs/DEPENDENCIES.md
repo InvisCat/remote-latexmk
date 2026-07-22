@@ -18,7 +18,7 @@ The first implementation recognizes braced literal arguments for:
 
 Local TeX, class, and style files are scanned recursively. Comments and common
 verbatim environments are masked before parsing. Every selected file includes a
-reason in `latexmk files` output.
+reason in `rlatexmk files` output.
 
 Bare class, package, and bibliography-style names that have no matching
 `.cls`, `.sty`, or `.bst` file in the allowed manifest are treated as TeX
@@ -45,14 +45,14 @@ files removed by policy.
 Inspect the result and diagnostics with:
 
 ```sh
-latexmk files main.tex
-latexmk files --json main.tex
+rlatexmk files main.tex
+rlatexmk files --json main.tex
 ```
 
 After reviewing the full policy-allowed manifest, compatibility mode is:
 
 ```sh
-latexmk --upload-mode all main.tex
+rlatexmk --upload-mode all main.tex
 ```
 
 `all` does not override `.env`, key, project-config, Git-ignore, symlink, or
@@ -65,8 +65,8 @@ An exact file list can supplement `auto` discovery without uploading every
 allowed project file:
 
 ```sh
-latexmk files --manifest .latexmk-files main.tex
-latexmk --include-file generated/table.tex main.tex
+rlatexmk files --manifest .latexmk-files main.tex
+rlatexmk --include-file generated/table.tex main.tex
 ```
 
 The manifest format is UTF-8 text with one project-relative file per line.
@@ -94,8 +94,8 @@ causes selection to fail.
 For a strict user-maintained allowlist:
 
 ```sh
-latexmk files --upload-mode manifest --manifest .latexmk-files main.tex
-latexmk --upload-mode manifest --manifest .latexmk-files main.tex
+rlatexmk files --upload-mode manifest --manifest .latexmk-files main.tex
+rlatexmk --upload-mode manifest --manifest .latexmk-files main.tex
 ```
 
 `manifest` uploads only the entry and exact explicit files. It does not run the
@@ -137,11 +137,11 @@ fail closed even when history exists. A first compile with dynamic dependencies
 can be bootstrapped only after reviewing the full manifest explicitly:
 
 ```sh
-latexmk files --upload-mode all main.tex
-latexmk --upload-mode all main.tex
+rlatexmk files --upload-mode all main.tex
+rlatexmk --upload-mode all main.tex
 # A successful compile records project-local INPUT paths.
-latexmk files main.tex
-latexmk main.tex
+rlatexmk files main.tex
+rlatexmk main.tex
 ```
 
 The client never silently falls back to `all`. A corrupt cache blocks `auto`
@@ -180,7 +180,7 @@ explicit manifest or reviewed `all` mode for that first compile.
 
 ## Dependency watcher
 
-`latexmk watch main.tex` performs one compile immediately, then polls only the
+`rlatexmk watch main.tex` performs one compile immediately, then polls only the
 selected dependency set. The default interval and debounce are both 500 ms and
 can be changed with `--watch-interval` and `--watch-debounce`. Polling is used so
 the same implementation works for native paths and Docker bind mounts.

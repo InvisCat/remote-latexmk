@@ -83,20 +83,20 @@ func run(opts options) error {
 		return err
 	}
 	defer os.RemoveAll(tempDir)
-	binaryName := "latexmk"
+	binaryName := "rlatexmk"
 	if opts.goos == "windows" {
 		binaryName += ".exe"
 	}
 	binaryPath := filepath.Join(tempDir, binaryName)
 	ldflags := fmt.Sprintf("-s -w -X main.version=%s -X main.commit=%s -X main.buildDate=%s -X github.com/billstark001/latexmk/packages/cli/internal/client.version=%s", opts.version, opts.commit, opts.buildDate, opts.version)
-	cmd := exec.Command("go", "build", "-trimpath", "-buildvcs=false", "-ldflags", ldflags, "-o", binaryPath, "./cmd/latexmk")
+	cmd := exec.Command("go", "build", "-trimpath", "-buildvcs=false", "-ldflags", ldflags, "-o", binaryPath, "./cmd/rlatexmk")
 	cmd.Dir = filepath.Join(root, "packages", "cli")
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS="+opts.goos, "GOARCH="+opts.goarch)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("build client: %w", err)
 	}
-	prefix := fmt.Sprintf("latexmk_%s_%s_%s", opts.version, opts.goos, opts.goarch)
+	prefix := fmt.Sprintf("rlatexmk_%s_%s_%s", opts.version, opts.goos, opts.goarch)
 	files := []archiveFile{
 		{name: binaryName, path: binaryPath, mode: 0o755},
 		{name: "LICENSE", path: filepath.Join(root, "LICENSE"), mode: 0o644},

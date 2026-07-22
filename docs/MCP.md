@@ -4,8 +4,8 @@ The client binary can run a local Model Context Protocol server with either an
 explicit project root or a root supplied by the Agent host:
 
 ```sh
-latexmk mcp serve --stdio --project-root /absolute/path/to/paper
-latexmk mcp serve --stdio --root-from-client
+rlatexmk mcp serve --stdio --project-root /absolute/path/to/paper
+rlatexmk mcp serve --stdio --root-from-client
 ```
 
 It does not contain TeX Live. It reads the local paper through the same project-root, Git-ignore, denylist, dependency, token-file, CA, and HTTPS policies as the CLI, then calls the configured remote compiler. The project root is resolved once at startup and cannot be changed by a tool call.
@@ -27,7 +27,7 @@ Most MCP clients accept the following command shape:
 {
   "mcpServers": {
     "remote-latexmk": {
-      "command": "/absolute/path/to/latexmk",
+      "command": "/absolute/path/to/rlatexmk",
       "args": ["mcp", "serve", "--stdio", "--project-root", "/absolute/path/to/paper"],
       "env": {
         "LATEXMK_SERVER": "https://latex.example.edu",
@@ -48,8 +48,8 @@ global install:
 
 ```sh
 npm exec --yes --ignore-scripts \
-  --package=remote-latexmk@0.3.0-rc.5 -- \
-  remote-latexmk mcp serve --stdio \
+  --package=remote-latexmk@0.4.0 -- \
+  rlatexmk mcp serve --stdio \
   --root-from-client
 ```
 
@@ -58,7 +58,7 @@ does not reimplement MCP or upload policy in JavaScript. Codex Desktop can
 install the Plugin without Codex CLI:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 plugin install codex
+npx --yes --ignore-scripts remote-latexmk@0.4.0 plugin install codex
 ```
 
 Codex CLI and Claude Code can install it from the repository marketplace:
@@ -75,7 +75,7 @@ The Plugin contains no token. Before starting the Agent, save the client login
 through a hidden terminal prompt:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 auth login --server https://latex.example.edu
+npx --yes --ignore-scripts remote-latexmk@0.4.0 auth login --server https://latex.example.edu
 ```
 
 The MCP process reads the resulting user-level server URL and token-file path.
@@ -86,7 +86,7 @@ For OpenCode or a host without native Plugin support, the project-bound Agent
 installer remains available:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 agent install \
+npx --yes --ignore-scripts remote-latexmk@0.4.0 agent install \
   --project-root /absolute/path/to/paper \
   --server https://latex.example.edu \
   --token-file /absolute/path/to/latexmk-token \
@@ -100,7 +100,7 @@ For Codex, the equivalent configuration is:
 
 ```toml
 [mcp_servers.remote-latexmk]
-command = "/absolute/path/to/latexmk"
+command = "/absolute/path/to/rlatexmk"
 args = ["mcp", "serve", "--stdio", "--project-root", "/absolute/path/to/paper"]
 env = { LATEXMK_SERVER = "https://latex.example.edu", LATEXMK_TOKEN_FILE = "/absolute/path/to/latexmk-token" }
 ```
@@ -108,10 +108,10 @@ env = { LATEXMK_SERVER = "https://latex.example.edu", LATEXMK_TOKEN_FILE = "/abs
 The current Codex and Claude Code CLIs can create the same entry directly:
 
 ```sh
-codex mcp add remote-latexmk -- /absolute/path/to/latexmk \
+codex mcp add remote-latexmk -- /absolute/path/to/rlatexmk \
   mcp serve --stdio --project-root /absolute/path/to/paper
 
-claude mcp add --scope user remote-latexmk -- /absolute/path/to/latexmk \
+claude mcp add --scope user remote-latexmk -- /absolute/path/to/rlatexmk \
   mcp serve --stdio --project-root /absolute/path/to/paper
 ```
 
@@ -175,7 +175,7 @@ Local cleanup plans store every relative target path, size, and SHA-256 outside 
 
 Remote scopes are `remote-results`, `remote-snapshots`, and `remote-project`. A remote plan binds the project ID, scope, and server-issued preview digest. Apply sends that digest to the server, which recomputes, compares, and deletes under one admission lock. A changed report is rejected before any target is removed. The server still enforces token ownership, active-job protection, and shared-blob references. Snapshot/project cleanup collects only blobs that are no longer referenced; there is deliberately no broad `remote-blobs` tool.
 
-The ordinary `latexmk remote clean` CLI uses the same server-side digest
+The ordinary `rlatexmk remote clean` CLI uses the same server-side digest
 binding. Its preview persists a token-free, ten-minute local plan, and its
 apply accepts only that plan ID plus `--yes`. See [AGENT_CLI.md](AGENT_CLI.md)
 for the CLI command forms and its command-specific JSON success shapes.

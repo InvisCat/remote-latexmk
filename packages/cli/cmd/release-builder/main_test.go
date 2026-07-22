@@ -11,7 +11,7 @@ import (
 
 func TestWriteArchiveIsDeterministic(t *testing.T) {
 	root := t.TempDir()
-	binary := filepath.Join(root, "latexmk")
+	binary := filepath.Join(root, "rlatexmk")
 	license := filepath.Join(root, "LICENSE")
 	if err := os.WriteFile(binary, []byte("binary"), 0o755); err != nil {
 		t.Fatal(err)
@@ -19,15 +19,15 @@ func TestWriteArchiveIsDeterministic(t *testing.T) {
 	if err := os.WriteFile(license, []byte("license"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	files := []archiveFile{{name: "latexmk", path: binary, mode: 0o755}, {name: "LICENSE", path: license, mode: 0o644}}
+	files := []archiveFile{{name: "rlatexmk", path: binary, mode: 0o755}, {name: "LICENSE", path: license, mode: 0o644}}
 	timestamp := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
 	for _, windows := range []bool{false, true} {
 		first := filepath.Join(root, "first")
 		second := filepath.Join(root, "second")
-		if err := writeArchive(first, "latexmk_1.2.3_test", files, timestamp, windows); err != nil {
+		if err := writeArchive(first, "rlatexmk_1.2.3_test", files, timestamp, windows); err != nil {
 			t.Fatal(err)
 		}
-		if err := writeArchive(second, "latexmk_1.2.3_test", files, timestamp, windows); err != nil {
+		if err := writeArchive(second, "rlatexmk_1.2.3_test", files, timestamp, windows); err != nil {
 			t.Fatal(err)
 		}
 		info, err := os.Stat(first)

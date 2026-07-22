@@ -28,6 +28,6 @@ export function resolveNativeBinary(platform = process.platform, arch = process.
   } catch (error) {
     throw new Error(`optional package ${packageName} is missing. Reinstall remote-latexmk without --no-optional`, { cause: error });
   }
-  const binary = path.join(path.dirname(packageJSON), 'bin', platform === 'win32' ? 'latexmk.exe' : 'latexmk');
+  const binary = path.join(path.dirname(packageJSON), 'bin', platform === 'win32' ? 'rlatexmk.exe' : 'rlatexmk');
   return binary;
 }

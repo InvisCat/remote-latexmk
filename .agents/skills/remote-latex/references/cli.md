@@ -1,20 +1,20 @@
 # CLI workflow
 
-Select the repository binary at `packages/cli/dist/latexmk` while developing this repository. Otherwise use the installed client binary. Do not run an extra `help` probe during a normal compile workflow.
+Select the repository binary at `packages/cli/dist/rlatexmk` while developing this repository. Otherwise use the installed client binary. Do not run an extra `help` probe during a normal compile workflow.
 
 Run commands from the paper root:
 
 ```sh
-latexmk doctor
-latexmk meta --json
-latexmk entries --json --project-root .
-latexmk files --json --project-root . main.tex
-latexmk compile --detach --json --project-root . main.tex
-latexmk jobs show --json JOB_ID
-latexmk diagnostics --json JOB_ID
-latexmk logs --json --source all --tail 200 --max-bytes 65536 JOB_ID
-latexmk artifacts list --json JOB_ID
-latexmk artifacts get --json --out-dir . JOB_ID ARTIFACT_ID
+rlatexmk doctor
+rlatexmk meta --json
+rlatexmk entries --json --project-root .
+rlatexmk files --json --project-root . main.tex
+rlatexmk compile --detach --json --project-root . main.tex
+rlatexmk jobs show --json JOB_ID
+rlatexmk diagnostics --json JOB_ID
+rlatexmk logs --json --source all --tail 200 --max-bytes 65536 JOB_ID
+rlatexmk artifacts list --json JOB_ID
+rlatexmk artifacts get --json --out-dir . JOB_ID ARTIFACT_ID
 ```
 
 Run `entries` only when the entry file is unknown. Use its `selected` path only

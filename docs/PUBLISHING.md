@@ -7,10 +7,10 @@ from it and checked in CI.
 
 ## Repository identity
 
-Use `remote-latexmk` as the public repository and product name. Keep the client
-command `latexmk`, the `LATEXMK_*` environment variables, existing Compose
-state names, and Go module paths unchanged for the first fork release. Those
-interfaces affect existing users and can be reconsidered separately.
+Use `remote-latexmk` as the public repository and product name and `rlatexmk`
+as the client command. Keep the `LATEXMK_*` environment variables, existing
+Compose state names, and Go module paths unchanged. Those interfaces affect
+existing users and are separate from the executable name.
 
 Suggested GitHub description:
 
@@ -88,8 +88,8 @@ Create a release branch from the current `main`, then let the version tool
 update every derived reference:
 
 ```sh
-git switch -c release/v0.3.0-rc.5
-pnpm release:prepare 0.3.0-rc.5
+git switch -c release/v0.4.0
+pnpm release:prepare 0.4.0
 pnpm test
 ```
 

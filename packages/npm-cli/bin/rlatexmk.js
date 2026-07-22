@@ -26,7 +26,7 @@ async function main(args) {
     return 0;
   }
   if (args[0] === 'plugin' && args[1] === 'install') {
-    if (args[2] !== 'codex') throw new Error('Usage: remote-latexmk plugin install codex [options]');
+    if (args[2] !== 'codex') throw new Error('Usage: rlatexmk plugin install codex [options]');
     await installCodexPlugin(args.slice(3));
     return 0;
   }
@@ -36,6 +36,6 @@ async function main(args) {
 try {
   process.exitCode = await main(process.argv.slice(2));
 } catch (error) {
-  console.error(`remote-latexmk: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`rlatexmk: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 2;
 }
