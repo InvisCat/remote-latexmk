@@ -130,7 +130,7 @@ func runSetup(args []string) int {
 		fmt.Printf("migrate:    %s\n", result.MigratedFrom)
 	}
 	if opts.yes {
-		fmt.Println("setup applied; run 'latexmk doctor' to verify the connection")
+		fmt.Println("setup applied; run 'rlatexmk doctor' to verify the connection")
 	} else {
 		fmt.Println("preview only; repeat the command with --yes after confirming these paths")
 	}

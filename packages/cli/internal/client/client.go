@@ -112,7 +112,7 @@ func New(baseURL, token string, timeout time.Duration, insecure bool, caFile str
 		BaseURL:          baseURL,
 		Token:            token,
 		HTTP:             &http.Client{Timeout: timeout, Transport: transport},
-		UserAgent:        "latexmk-cli/" + version,
+		UserAgent:        "rlatexmk/" + version,
 		RespectGitIgnore: true,
 	}, nil
 }
@@ -626,7 +626,7 @@ func (c *Client) projectManifestWithAdditional(entry, engine string, additional 
 		if len(result.Diagnostics) > 0 {
 			message += ": " + dependency.FormatDiagnostic(result.Diagnostics[0])
 		}
-		return nil, nil, fmt.Errorf("%s; inspect with 'latexmk files' or use --upload-mode all after reviewing the manifest", message)
+		return nil, nil, fmt.Errorf("%s; inspect with 'rlatexmk files' or use --upload-mode all after reviewing the manifest", message)
 	}
 	warnings := make([]string, 0)
 	for _, diagnostic := range result.Diagnostics {

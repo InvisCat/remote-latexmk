@@ -1,20 +1,20 @@
 # CLI workflow
 
-Use the npm launcher `npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5` for every CLI fallback. Do not run an extra `help` probe during a normal compile workflow.
+Use the npm launcher `npx --yes --ignore-scripts remote-latexmk@0.4.0` for every CLI fallback. Do not run an extra `help` probe during a normal compile workflow.
 
 Run commands from the paper root:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 doctor
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 meta --json
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 entries --json --project-root .
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 files --json --project-root . main.tex
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 compile --detach --json --project-root . main.tex
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 jobs show --json JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 diagnostics --json JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 logs --json --source all --tail 200 --max-bytes 65536 JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 artifacts list --json JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 artifacts get --json --out-dir . JOB_ID ARTIFACT_ID
+npx --yes --ignore-scripts remote-latexmk@0.4.0 doctor
+npx --yes --ignore-scripts remote-latexmk@0.4.0 meta --json
+npx --yes --ignore-scripts remote-latexmk@0.4.0 entries --json --project-root .
+npx --yes --ignore-scripts remote-latexmk@0.4.0 files --json --project-root . main.tex
+npx --yes --ignore-scripts remote-latexmk@0.4.0 compile --detach --json --project-root . main.tex
+npx --yes --ignore-scripts remote-latexmk@0.4.0 jobs show --json JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.4.0 diagnostics --json JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.4.0 logs --json --source all --tail 200 --max-bytes 65536 JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.4.0 artifacts list --json JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.4.0 artifacts get --json --out-dir . JOB_ID ARTIFACT_ID
 ```
 
 Run `entries` only when the entry file is unknown. Use its `selected` path only

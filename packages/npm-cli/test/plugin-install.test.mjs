@@ -187,7 +187,7 @@ test('Codex Plugin installer dry-run and CLI dispatch do not need Codex CLI', as
   await assert.rejects(stat(path.join(home, 'plugins')), /ENOENT/);
 
   const { stdout } = await execFileAsync(process.execPath, [
-    path.join(packageRoot, 'bin', 'remote-latexmk.js'),
+    path.join(packageRoot, 'bin', 'rlatexmk.js'),
     'plugin', 'install', 'codex', '--dry-run', '--no-open',
   ], { env: { ...process.env, HOME: home } });
   assert.ok(stdout.includes(`Plugin source plan: install ${packageJSON.version}\n`));
@@ -201,7 +201,7 @@ test('Codex Plugin installer dry-run and CLI dispatch do not need Codex CLI', as
 
   const cliHome = await mkdtemp(path.join(os.tmpdir(), 'remote-latexmk-codex-cli-'));
   const installed = await execFileAsync(process.execPath, [
-    path.join(packageRoot, 'bin', 'remote-latexmk.js'),
+    path.join(packageRoot, 'bin', 'rlatexmk.js'),
     'plugin', 'install', 'codex', '--no-open',
   ], { env: { ...process.env, HOME: cliHome } });
   assert.ok(installed.stdout.includes(`Plugin source: install ${packageJSON.version}\n`));

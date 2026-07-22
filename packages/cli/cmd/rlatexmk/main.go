@@ -73,7 +73,7 @@ func run(args []string) int {
 	if len(argv) > 0 {
 		switch argv[0] {
 		case "version", "--version", "-version":
-			fmt.Printf("latexmk (remote-latexmk client) %s\ncommit: %s\nbuilt: %s\n", version, commit, buildDate)
+			fmt.Printf("rlatexmk (remote-latexmk client) %s\ncommit: %s\nbuilt: %s\n", version, commit, buildDate)
 			return 0
 		case "help", "--help", "-h":
 			usage()
@@ -174,8 +174,8 @@ func runCompile(args []string, forcedEngine string, listOnly bool) int {
 		if detachedJSON {
 			return failAgentArguments("compile.start", true, err)
 		}
-		fmt.Fprintln(os.Stderr, "latexmk:", err)
-		fmt.Fprintln(os.Stderr, "run 'latexmk help' for usage")
+		fmt.Fprintln(os.Stderr, "rlatexmk:", err)
+		fmt.Fprintln(os.Stderr, "run 'rlatexmk help' for usage")
 		return 2
 	}
 	if opts.entry == "" {
@@ -254,7 +254,7 @@ func runDetachedCompile(c *client.Client, request protocol.CompileRequest, opts 
 		return 0
 	}
 	for _, warning := range out.Warnings {
-		fmt.Fprintln(os.Stderr, "latexmk: warning:", warning)
+		fmt.Fprintln(os.Stderr, "rlatexmk: warning:", warning)
 	}
 	fmt.Printf("job ID: %s\nproject ID: %s\nsnapshot ID: %s\nstatus: %s\n", out.Job.ID, out.Job.ProjectID, out.Job.SnapshotID, out.Job.Status)
 	return 0
@@ -271,7 +271,7 @@ func reportCompile(out client.CompileOutput, err error, opts compileOptions) int
 		return fail(err)
 	}
 	for _, warning := range out.Warnings {
-		fmt.Fprintln(os.Stderr, "latexmk: warning:", warning)
+		fmt.Fprintln(os.Stderr, "rlatexmk: warning:", warning)
 	}
 	if opts.jsonOutput {
 		_ = json.NewEncoder(os.Stdout).Encode(out.Result)
@@ -282,14 +282,14 @@ func reportCompile(out client.CompileOutput, err error, opts compileOptions) int
 		if len(out.Stderr) > 0 {
 			_, _ = os.Stderr.Write(out.Stderr)
 		}
-		fmt.Fprintf(os.Stderr, "latexmk: request=%s server=%s profile=%s engine=%s duration=%dms artifacts=%d\n", out.Result.RequestID, out.Result.ServerVersion, out.Result.ImageProfile, out.Result.Engine, out.Result.DurationMS, len(out.Result.Artifacts))
+		fmt.Fprintf(os.Stderr, "rlatexmk: request=%s server=%s profile=%s engine=%s duration=%dms artifacts=%d\n", out.Result.RequestID, out.Result.ServerVersion, out.Result.ImageProfile, out.Result.Engine, out.Result.DurationMS, len(out.Result.Artifacts))
 		if out.Result.StdoutTruncated || out.Result.StderrTruncated {
-			fmt.Fprintln(os.Stderr, "latexmk: warning: server truncated compiler output")
+			fmt.Fprintln(os.Stderr, "rlatexmk: warning: server truncated compiler output")
 		}
 	}
 	if !out.Result.Success {
 		if out.Result.Error != "" {
-			fmt.Fprintln(os.Stderr, "latexmk:", out.Result.Error)
+			fmt.Fprintln(os.Stderr, "rlatexmk:", out.Result.Error)
 		}
 		if out.Result.TimedOut {
 			return 124
@@ -309,35 +309,35 @@ func runWatch(c *client.Client, request protocol.CompileRequest, opts compileOpt
 	if err != nil {
 		return fail(fmt.Errorf("initialize watch manifest: %w", err))
 	}
-	fmt.Fprintf(os.Stderr, "latexmk: watching %d selected files (interval=%s debounce=%s)\n", len(files), opts.watchInterval, opts.watchDebounce)
+	fmt.Fprintf(os.Stderr, "rlatexmk: watching %d selected files (interval=%s debounce=%s)\n", len(files), opts.watchInterval, opts.watchDebounce)
 	for {
 		refreshed, _, refreshErr := c.Manifest(request.Entry, request.Engine)
 		if refreshErr != nil {
-			fmt.Fprintln(os.Stderr, "latexmk: warning: could not refresh manifest before watch compile:", refreshErr)
+			fmt.Fprintln(os.Stderr, "rlatexmk: warning: could not refresh manifest before watch compile:", refreshErr)
 		} else {
 			files = refreshed
 		}
 		before := files
 		out, compileErr := compileWithTimeout(ctx, c, request, opts)
 		if ctx.Err() != nil {
-			fmt.Fprintln(os.Stderr, "latexmk: watch stopped")
+			fmt.Fprintln(os.Stderr, "rlatexmk: watch stopped")
 			return 0
 		}
 		code := reportCompile(out, compileErr, opts)
 		if code != 0 {
-			fmt.Fprintf(os.Stderr, "latexmk: watch compile failed with status %d; waiting for another change\n", code)
+			fmt.Fprintf(os.Stderr, "rlatexmk: watch compile failed with status %d; waiting for another change\n", code)
 		}
 
 		after, _, manifestErr := c.Manifest(request.Entry, request.Engine)
 		if manifestErr != nil {
-			fmt.Fprintln(os.Stderr, "latexmk: warning: could not refresh watch manifest:", manifestErr)
+			fmt.Fprintln(os.Stderr, "rlatexmk: warning: could not refresh watch manifest:", manifestErr)
 			after = before
 		}
 		if selectedFilesChanged(before, after) {
 			files = after
-			fmt.Fprintln(os.Stderr, "latexmk: selected files changed during compilation; scheduling another immutable compile")
+			fmt.Fprintln(os.Stderr, "rlatexmk: selected files changed during compilation; scheduling another immutable compile")
 			if !waitForContext(ctx, opts.watchDebounce) {
-				fmt.Fprintln(os.Stderr, "latexmk: watch stopped")
+				fmt.Fprintln(os.Stderr, "rlatexmk: watch stopped")
 				return 0
 			}
 			continue
@@ -350,12 +350,12 @@ func runWatch(c *client.Client, request protocol.CompileRequest, opts compileOpt
 		changed, waitErr := tracker.Wait(ctx)
 		if waitErr != nil {
 			if ctx.Err() != nil {
-				fmt.Fprintln(os.Stderr, "latexmk: watch stopped")
+				fmt.Fprintln(os.Stderr, "rlatexmk: watch stopped")
 				return 0
 			}
 			return fail(waitErr)
 		}
-		fmt.Fprintln(os.Stderr, "latexmk: change detected:", strings.Join(changed, ", "))
+		fmt.Fprintln(os.Stderr, "rlatexmk: change detected:", strings.Join(changed, ", "))
 	}
 }
 
@@ -810,7 +810,7 @@ func runEntries(args []string) int {
 		fmt.Printf("%10d  %s  (%s)\n", candidate.Size, candidate.Path, candidate.Reason)
 	}
 	for _, warning := range result.Warnings {
-		fmt.Fprintln(os.Stderr, "latexmk: warning:", warning)
+		fmt.Fprintln(os.Stderr, "rlatexmk: warning:", warning)
 	}
 	return 0
 }
@@ -891,10 +891,10 @@ func printManifest(opts compileOptions) int {
 		fmt.Printf("%10d  %s  %s  (%s)\n", file.Size, file.SHA256, file.Path, file.Reason)
 	}
 	for _, diagnostic := range result.Diagnostics {
-		fmt.Fprintf(os.Stderr, "latexmk: dependency: %s\n", dependency.FormatDiagnostic(diagnostic))
+		fmt.Fprintf(os.Stderr, "rlatexmk: dependency: %s\n", dependency.FormatDiagnostic(diagnostic))
 	}
 	if !result.Resolved {
-		fmt.Fprintln(os.Stderr, "latexmk: dependency discovery has unresolved references; fix them or review --upload-mode all")
+		fmt.Fprintln(os.Stderr, "rlatexmk: dependency discovery has unresolved references; fix them or review --upload-mode all")
 		return 1
 	}
 	return 0
@@ -1025,20 +1025,20 @@ func runInit(args []string) int {
 		return fail(err)
 	}
 	fmt.Println(path)
-	fmt.Fprintln(os.Stderr, "latexmk: recommended: run \"latexmk cache ignore\" to add .latexmk-cache/ to .gitignore")
-	fmt.Fprintln(os.Stderr, "latexmk: warning: \"git clean -fdX\" deletes ignored cache files; the next compile will create a new project ID")
+	fmt.Fprintln(os.Stderr, "rlatexmk: recommended: run \"rlatexmk cache ignore\" to add .latexmk-cache/ to .gitignore")
+	fmt.Fprintln(os.Stderr, "rlatexmk: warning: \"git clean -fdX\" deletes ignored cache files; the next compile will create a new project ID")
 	return 0
 }
 
 func reportDoctorProjectCache(cwd, configuredRoot string, jsonOutput bool) {
 	root, err := resolveCacheRoot(cwd, configuredRoot)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "latexmk: doctor: could not inspect project cache Git policy: %v\n", err)
+		fmt.Fprintf(os.Stderr, "rlatexmk: doctor: could not inspect project cache Git policy: %v\n", err)
 		return
 	}
 	status, err := client.InspectProjectCacheGitIgnore(root)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "latexmk: doctor: could not inspect project cache Git policy: %v\n", err)
+		fmt.Fprintf(os.Stderr, "rlatexmk: doctor: could not inspect project cache Git policy: %v\n", err)
 		return
 	}
 	if !status.InWorkTree {
@@ -1053,7 +1053,7 @@ func reportDoctorProjectCache(cwd, configuredRoot string, jsonOutput bool) {
 		}
 		return
 	}
-	fmt.Fprintln(os.Stderr, "latexmk: doctor: "+client.ProjectCacheGitAdvice)
+	fmt.Fprintln(os.Stderr, "rlatexmk: doctor: "+client.ProjectCacheGitAdvice)
 }
 
 func runClean(args []string) int {
@@ -1309,38 +1309,38 @@ func writeRemoteCleanupReport(report protocol.CleanupReport) {
 }
 
 func usage() {
-	fmt.Print(`latexmk - remote-latexmk client
+	fmt.Print(`rlatexmk - remote-latexmk client
 
 Compile LaTeX on a self-hosted remote TeX Live server. This command is not the
 upstream Perl latexmk program, although the remote server uses that program.
 
 Usage:
-  latexmk compile [options] <main.tex>
-  latexmk watch [options] <main.tex>
-  latexmk [latex-compatible-options] <main.tex>
-  latexmk meta [--json]
-  latexmk doctor
-  latexmk auth login --server HOST_OR_URL
-  latexmk setup --server HOST_OR_URL --token-file FILE [--ca-file FILE] [--yes] [--json]
-  latexmk init [--server URL]
-  latexmk clean [main.tex]
-  latexmk cache inspect [--project-root DIR] [--json]
-  latexmk cache ignore [--project-root DIR] [--json]
-  latexmk cache clean --scope local-generated|local-client-cache [--dry-run] [--json]
-  latexmk cache clean --plan-id PLAN_ID --yes [--json]
-  latexmk remote clean --scope results|snapshot|project [--dry-run] [--json]
-  latexmk remote clean --plan-id PLAN_ID --yes [--json]
-  latexmk jobs list [--limit 50] [--json]
-  latexmk jobs show JOB_ID [--json]
-  latexmk jobs cancel JOB_ID [--json]
-  latexmk logs JOB_ID [--source all|stdout|stderr|compiler] [--tail 200] [--max-bytes 65536] [--json]
-  latexmk diagnostics JOB_ID [--json]
-  latexmk artifacts list JOB_ID [--json]
-  latexmk artifacts get JOB_ID ARTIFACT_ID [--out-dir DIR] [--json]
-  latexmk mcp serve --stdio [--project-root DIR | --root-from-client]
-  latexmk entries [--project-root DIR] [--json]
-  latexmk files [options] <main.tex>
-  latexmk version
+  rlatexmk compile [options] <main.tex>
+  rlatexmk watch [options] <main.tex>
+  rlatexmk [latex-compatible-options] <main.tex>
+  rlatexmk meta [--json]
+  rlatexmk doctor
+  rlatexmk auth login --server HOST_OR_URL
+  rlatexmk setup --server HOST_OR_URL --token-file FILE [--ca-file FILE] [--yes] [--json]
+  rlatexmk init [--server URL]
+  rlatexmk clean [main.tex]
+  rlatexmk cache inspect [--project-root DIR] [--json]
+  rlatexmk cache ignore [--project-root DIR] [--json]
+  rlatexmk cache clean --scope local-generated|local-client-cache [--dry-run] [--json]
+  rlatexmk cache clean --plan-id PLAN_ID --yes [--json]
+  rlatexmk remote clean --scope results|snapshot|project [--dry-run] [--json]
+  rlatexmk remote clean --plan-id PLAN_ID --yes [--json]
+  rlatexmk jobs list [--limit 50] [--json]
+  rlatexmk jobs show JOB_ID [--json]
+  rlatexmk jobs cancel JOB_ID [--json]
+  rlatexmk logs JOB_ID [--source all|stdout|stderr|compiler] [--tail 200] [--max-bytes 65536] [--json]
+  rlatexmk diagnostics JOB_ID [--json]
+  rlatexmk artifacts list JOB_ID [--json]
+  rlatexmk artifacts get JOB_ID ARTIFACT_ID [--out-dir DIR] [--json]
+  rlatexmk mcp serve --stdio [--project-root DIR | --root-from-client]
+  rlatexmk entries [--project-root DIR] [--json]
+  rlatexmk files [options] <main.tex>
+  rlatexmk version
 
 Compile options:
   --server URL                 Remote server URL
@@ -1378,6 +1378,6 @@ the old path-derived ID.
 }
 
 func fail(err error) int {
-	fmt.Fprintln(os.Stderr, "latexmk:", err)
+	fmt.Fprintln(os.Stderr, "rlatexmk:", err)
 	return 2
 }

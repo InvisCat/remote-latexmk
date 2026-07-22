@@ -170,7 +170,7 @@ func runMCP(args []string) int {
 	if opts.rootFromClient {
 		server := newRootDiscoveringMCPServer(os.Stdin, os.Stdout)
 		if err := server.serve(); err != nil {
-			fmt.Fprintln(os.Stderr, "latexmk mcp:", err)
+			fmt.Fprintln(os.Stderr, "rlatexmk mcp:", err)
 			return 1
 		}
 		return 0
@@ -207,7 +207,7 @@ func runMCP(args []string) int {
 	c.IncludeFiles = append([]string(nil), cfg.IncludeFiles...)
 	server := newStdioMCPServer(os.Stdin, os.Stdout, root, c, cfg.Engine, cfg.Timeout)
 	if err := server.serve(); err != nil {
-		fmt.Fprintln(os.Stderr, "latexmk mcp:", err)
+		fmt.Fprintln(os.Stderr, "rlatexmk mcp:", err)
 		return 1
 	}
 	return 0

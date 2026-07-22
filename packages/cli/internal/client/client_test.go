@@ -113,7 +113,7 @@ func TestNewUsesBuildVersionInUserAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.UserAgent != "latexmk-cli/1.2.3-test" {
+	if c.UserAgent != "rlatexmk/1.2.3-test" {
 		t.Fatalf("User-Agent = %q", c.UserAgent)
 	}
 }
@@ -463,7 +463,7 @@ func TestCompileUsesQueuedIncrementalProtocol(t *testing.T) {
 	if !output.Result.Success || string(uploaded) != "hello" || len(planned.Files) != 1 {
 		t.Fatalf("queued compile result=%#v upload=%q plan=%#v", output.Result, uploaded, planned)
 	}
-	if got := strings.Join(output.Warnings, "\n"); !strings.Contains(got, "latexmk cache ignore") || !strings.Contains(got, "git clean -fdX") {
+	if got := strings.Join(output.Warnings, "\n"); !strings.Contains(got, "rlatexmk cache ignore") || !strings.Contains(got, "git clean -fdX") {
 		t.Fatalf("first queued compile warnings = %#v", output.Warnings)
 	}
 	if !planned.Request.RecordInputs {
@@ -515,7 +515,7 @@ func TestStartCompileReturnsImmutableJobWithoutPolling(t *testing.T) {
 	if out.Job.ID != "job_detach" || out.Job.SnapshotID != "snap_detach" || out.Job.Status != "queued" {
 		t.Fatalf("detached job = %#v", out.Job)
 	}
-	if got := strings.Join(out.Warnings, "\n"); !strings.Contains(got, "latexmk cache ignore") || !strings.Contains(got, "git clean -fdX") {
+	if got := strings.Join(out.Warnings, "\n"); !strings.Contains(got, "rlatexmk cache ignore") || !strings.Contains(got, "git clean -fdX") {
 		t.Fatalf("first detached compile warnings = %#v", out.Warnings)
 	}
 	if !planned.Request.RecordInputs || !planned.Request.DetectMissingFiles {

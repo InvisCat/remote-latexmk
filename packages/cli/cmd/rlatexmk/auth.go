@@ -118,7 +118,7 @@ func runAuthLogin(args []string) int {
 	}
 	if oldTokenManaged && oldTokenPath != "" && filepath.Clean(oldTokenPath) != filepath.Clean(tokenPath) {
 		if cleanupErr := config.RemoveManagedUserToken(oldTokenPath); cleanupErr != nil {
-			fmt.Fprintln(os.Stderr, "latexmk: warning:", cleanupErr)
+			fmt.Fprintln(os.Stderr, "rlatexmk: warning:", cleanupErr)
 		}
 	}
 
@@ -169,7 +169,7 @@ func readLoginTokenFromTerminal(prompt string) (string, error) {
 
 func authUsage() {
 	fmt.Print(`Usage:
-  remote-latexmk auth login --server HOST_OR_URL
+  rlatexmk auth login --server HOST_OR_URL
 
 A bare host or an HTTP URL without a port uses http://HOST:8080. Explicit
 HTTPS uses its standard port unless a port is provided. The command verifies

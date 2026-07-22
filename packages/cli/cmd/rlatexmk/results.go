@@ -171,7 +171,7 @@ func runDiagnostics(args []string) int {
 		fmt.Printf("%s\t%s\t%s\t[%s]\n", diagnostic.Severity, position, diagnostic.Message, strings.Join(locations, ", "))
 	}
 	if diagnostics.Incomplete {
-		fmt.Fprintln(os.Stderr, "latexmk: diagnostic index is incomplete; inspect the raw logs")
+		fmt.Fprintln(os.Stderr, "rlatexmk: diagnostic index is incomplete; inspect the raw logs")
 	}
 	return 0
 }

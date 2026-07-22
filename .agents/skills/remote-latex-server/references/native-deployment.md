@@ -23,7 +23,7 @@ the installer asks for the TeX Live profile, enabled engines, listen address,
 port, and service mode. Pressing Enter keeps the recommended choices:
 
 ```sh
-curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.5/install-server.sh | bash -s -- --version v0.3.0-rc.5
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.4.0/install-server.sh | bash -s -- --version v0.4.0
 ```
 
 Use `--non-interactive` with explicit `--profile`, `--engines`, `--listen`,

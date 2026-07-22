@@ -12,12 +12,12 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const repositoryRoot = path.resolve(packageRoot, '../..');
 
 const targets = [
-  { directory: 'darwin-arm64', goos: 'darwin', goarch: 'arm64', binary: 'latexmk' },
-  { directory: 'darwin-x64', goos: 'darwin', goarch: 'amd64', binary: 'latexmk' },
-  { directory: 'linux-arm64', goos: 'linux', goarch: 'arm64', binary: 'latexmk' },
-  { directory: 'linux-x64', goos: 'linux', goarch: 'amd64', binary: 'latexmk' },
-  { directory: 'win32-arm64', goos: 'windows', goarch: 'arm64', binary: 'latexmk.exe' },
-  { directory: 'win32-x64', goos: 'windows', goarch: 'amd64', binary: 'latexmk.exe' },
+  { directory: 'darwin-arm64', goos: 'darwin', goarch: 'arm64', binary: 'rlatexmk' },
+  { directory: 'darwin-x64', goos: 'darwin', goarch: 'amd64', binary: 'rlatexmk' },
+  { directory: 'linux-arm64', goos: 'linux', goarch: 'arm64', binary: 'rlatexmk' },
+  { directory: 'linux-x64', goos: 'linux', goarch: 'amd64', binary: 'rlatexmk' },
+  { directory: 'win32-arm64', goos: 'windows', goarch: 'arm64', binary: 'rlatexmk.exe' },
+  { directory: 'win32-x64', goos: 'windows', goarch: 'amd64', binary: 'rlatexmk.exe' },
 ];
 
 function parseArgs(args) {
@@ -45,22 +45,23 @@ async function writeJSON(target, value) {
   await writeFile(target, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-async function rewriteSkillCommands(directory) {
+async function rewriteSkillCommands(directory, version) {
+  const launcher = `npx --yes --ignore-scripts remote-latexmk@${version}`;
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const target = path.join(directory, entry.name);
-    if (entry.isDirectory()) await rewriteSkillCommands(target);
+    if (entry.isDirectory()) await rewriteSkillCommands(target, version);
     else if (entry.isFile() && entry.name.endsWith('.md')) {
       const content = await readFile(target, 'utf8');
       await writeFile(target, content
         .replace(
-          'Select the repository binary at `packages/cli/dist/latexmk` while developing this repository. Otherwise use the installed client binary. Do not run an extra `help` probe during a normal compile workflow.',
-          'Use the npm launcher command named `remote-latexmk` for CLI fallbacks. Do not run an extra `help` probe during a normal compile workflow.',
+          'Select the repository binary at `packages/cli/dist/rlatexmk` while developing this repository. Otherwise use the installed client binary. Do not run an extra `help` probe during a normal compile workflow.',
+          `Use the npm launcher \`${launcher}\` for CLI fallbacks. Do not run an extra \`help\` probe during a normal compile workflow.`,
         )
         .replace(
-          /Use the remote-latexmk client command named `latexmk`\. Do not invoke the\s+unrelated TeX Live command with the same name\./g,
-          'Use the npm launcher command named `remote-latexmk`. Do not invoke the unrelated TeX Live `latexmk` command.',
+          /Use the remote-latexmk client command named `rlatexmk`\. Do not invoke the\s+unrelated TeX Live `latexmk` command\./g,
+          `Use the npm launcher \`${launcher}\` for CLI fallbacks. Do not invoke the unrelated TeX Live \`latexmk\` command.`,
         )
-        .replace(/\blatexmk(?= (?:auth|setup|doctor|meta|entries|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, 'remote-latexmk'));
+        .replace(/\brlatexmk(?= (?:auth|setup|doctor|meta|entries|files|compile|jobs|diagnostics|logs|artifacts|cache|remote|help)\b)/g, launcher));
     }
   }
 }
@@ -77,7 +78,7 @@ async function stageMain(options) {
   for (const name of ['remote-latex', 'remote-latex-maintenance', 'remote-latex-server', 'remote-latex-setup']) {
     await cp(path.join(repositoryRoot, '.agents', 'skills', name), path.join(target, 'bundled-skills', name), { recursive: true });
   }
-  await rewriteSkillCommands(path.join(target, 'bundled-skills'));
+  await rewriteSkillCommands(path.join(target, 'bundled-skills'), options.version);
   await copyBundledPlugin(
     path.join(repositoryRoot, 'plugins', 'remote-latexmk'),
     path.join(target, 'bundled-plugin'),
@@ -118,7 +119,7 @@ async function stagePlatform(options, target) {
   delete manifest.private;
   manifest.publishConfig = { access: 'public' };
   await writeJSON(path.join(destination, 'package.json'), manifest);
-  const prefix = `latexmk_${options.version}_${target.goos}_${target.goarch}`;
+  const prefix = `rlatexmk_${options.version}_${target.goos}_${target.goarch}`;
   const extension = target.goos === 'windows' ? '.zip' : '.tar.gz';
   const archive = path.join(options.artifacts, `${prefix}${extension}`);
   await extractBinary(archive, prefix, target.binary, path.join(destination, 'bin', target.binary));

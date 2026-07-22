@@ -50,12 +50,12 @@ func captureCommandOutput(t *testing.T, fn func() int) (int, string, string) {
 
 func TestVersionIdentifiesRemoteLatexmkClient(t *testing.T) {
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "version"})
+		return run([]string{"rlatexmk", "version"})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("version result: code=%d stderr=%q", code, stderr)
 	}
-	if !strings.Contains(stdout, "latexmk (remote-latexmk client)") {
+	if !strings.Contains(stdout, "rlatexmk (remote-latexmk client)") {
 		t.Fatalf("version output does not identify remote-latexmk: %q", stdout)
 	}
 }
@@ -73,7 +73,7 @@ func TestEntriesJSONDiscoversEntryWithoutServerAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "entries", "--json", "--project-root", root})
+		return run([]string{"rlatexmk", "entries", "--json", "--project-root", root})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("entries result: code=%d stderr=%q", code, stderr)
@@ -113,7 +113,7 @@ func TestEntriesLoadsPolicyFromExplicitProjectRoot(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(previousDirectory) })
 
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "entries", "--json", "--project-root", root})
+		return run([]string{"rlatexmk", "entries", "--json", "--project-root", root})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("entries result: code=%d stderr=%q", code, stderr)
@@ -145,7 +145,7 @@ func TestEntriesExplicitProjectRootDoesNotLoadParentProjectPolicy(t *testing.T) 
 	}
 
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "entries", "--json", "--project-root", root})
+		return run([]string{"rlatexmk", "entries", "--json", "--project-root", root})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("entries result: code=%d stderr=%q", code, stderr)
@@ -181,7 +181,7 @@ func TestEntriesDoesNotReadProjectTokenFile(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(previousDirectory) })
 
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "entries", "--json"})
+		return run([]string{"rlatexmk", "entries", "--json"})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("entries result: code=%d stderr=%q", code, stderr)
@@ -503,7 +503,7 @@ func TestRemoteCleanPlanBindsPreviewAndConsumesOnSuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	base := []string{"latexmk", "remote", "clean", "--project-root", root, "--project-id", "project-test", "--server", server.URL, "--token", "secret-token", "--json"}
+	base := []string{"rlatexmk", "remote", "clean", "--project-root", root, "--project-id", "project-test", "--server", server.URL, "--token", "secret-token", "--json"}
 	code, stdout, stderr := captureCommandOutput(t, func() int {
 		return run(append(append([]string{}, base...), "--scope", "project"))
 	})
@@ -588,7 +588,7 @@ func TestRemoteCleanPlanRejectsServerStateDrift(t *testing.T) {
 	}))
 	defer server.Close()
 
-	base := []string{"latexmk", "remote", "clean", "--project-root", root, "--project-id", "project-test", "--server", server.URL, "--json"}
+	base := []string{"rlatexmk", "remote", "clean", "--project-root", root, "--project-id", "project-test", "--server", server.URL, "--json"}
 	code, stdout, stderr := captureCommandOutput(t, func() int {
 		return run(append(append([]string{}, base...), "--scope", "results"))
 	})
@@ -625,7 +625,7 @@ func TestJobsListJSONUsesVersionedEnvelope(t *testing.T) {
 	}))
 	defer server.Close()
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "jobs", "list", "--server", server.URL, "--token", "secret-token", "--limit", "2", "--json"})
+		return run([]string{"rlatexmk", "jobs", "list", "--server", server.URL, "--token", "secret-token", "--limit", "2", "--json"})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("code=%d stderr=%q", code, stderr)
@@ -663,7 +663,7 @@ func TestJobsJSONErrorIsStableAndDoesNotExposeToken(t *testing.T) {
 	}))
 	defer server.Close()
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "jobs", "show", "job_missing", "--server", server.URL, "--token", "secret-token", "--json"})
+		return run([]string{"rlatexmk", "jobs", "show", "job_missing", "--server", server.URL, "--token", "secret-token", "--json"})
 	})
 	if code != 1 || stderr != "" {
 		t.Fatalf("code=%d stderr=%q", code, stderr)
@@ -683,7 +683,7 @@ func TestJobsJSONErrorIsStableAndDoesNotExposeToken(t *testing.T) {
 func TestJobsInvalidArgumentsUseJSONError(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "jobs", "list", "--limit", "0", "--json"})
+		return run([]string{"rlatexmk", "jobs", "list", "--limit", "0", "--json"})
 	})
 	if code != 2 || stderr != "" {
 		t.Fatalf("code=%d stderr=%q", code, stderr)

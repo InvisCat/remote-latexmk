@@ -11,15 +11,15 @@ ARG COMMIT=local
 ARG BUILD_DATE=unknown
 RUN CGO_ENABLED=0 go build -trimpath \
     -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE} -X github.com/billstark001/latexmk/packages/cli/internal/client.version=${VERSION}" \
-    -o /out/latexmk ./cmd/latexmk
+    -o /out/rlatexmk ./cmd/rlatexmk
 
 FROM ${CLIENT_BASE_IMAGE}
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
        ca-certificates git \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /out/latexmk /usr/local/bin/latexmk
+COPY --from=builder /out/rlatexmk /usr/local/bin/rlatexmk
 ENV HOME=/tmp
 WORKDIR /workspace
 USER 65532:65532
-ENTRYPOINT ["/usr/local/bin/latexmk"]
+ENTRYPOINT ["/usr/local/bin/rlatexmk"]

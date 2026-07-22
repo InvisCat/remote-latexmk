@@ -14,7 +14,7 @@ Use a release tag that contains `install-server.sh`, two native server
 archives, and `SHA256SUMS`:
 
 ```sh
-curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.5/install-server.sh | bash -s -- --version v0.3.0-rc.5
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.4.0/install-server.sh | bash -s -- --version v0.4.0
 ```
 
 In an interactive terminal, this opens a setup wizard. It asks for the TeX Live

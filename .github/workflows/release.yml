@@ -109,7 +109,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: client-${{ matrix.target.goos }}-${{ matrix.target.goarch }}
-          path: dist/latexmk_*
+          path: dist/rlatexmk_*
           if-no-files-found: error
           retention-days: 14
 
@@ -372,7 +372,7 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          find . -maxdepth 1 -type f \( -name 'latexmk_*' -o -name 'remote-latexmk-server_*' -o -name 'install-server.sh' \) -print0 \
+          find . -maxdepth 1 -type f \( -name 'rlatexmk_*' -o -name 'remote-latexmk-server_*' -o -name 'install-server.sh' \) -print0 \
             | sort -z \
             | xargs -0 sha256sum \
             | sed 's#  \./#  #' > SHA256SUMS

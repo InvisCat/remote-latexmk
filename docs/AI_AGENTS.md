@@ -30,7 +30,7 @@ the Plugin from this repository's marketplace.
 ### Codex Desktop
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 plugin install codex
+npx --yes --ignore-scripts remote-latexmk@0.4.0 plugin install codex
 ```
 
 Select **Install** on the Plugin page opened by the command. If the Plugin does
@@ -53,7 +53,7 @@ claude plugin install remote-latexmk@remote-latexmk
 Save the connection once on the client before starting the Agent:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 auth login --server https://latex.example.edu
+npx --yes --ignore-scripts remote-latexmk@0.4.0 auth login --server https://latex.example.edu
 ```
 
 Paste the remote-latexmk API token at the hidden terminal prompt. The command
@@ -79,16 +79,16 @@ verification setting.
 
 ## 2. Native and Docker alternatives
 
-The command used by the skills is this repository's Go client, also named
-`latexmk`. It is not the unrelated TeX Live command with the same name.
+The command used by the skills is this repository's Go client, named
+`rlatexmk`. The unrelated TeX Live command remains `latexmk`.
 
 Use a tagged native client archive when one has been published for the target
 platform, or build the client from source. A native client needs no TeX Live at
 runtime. Put the resulting binary on `PATH` and verify its build information:
 
 ```sh
-latexmk version
-latexmk doctor
+rlatexmk version
+rlatexmk doctor
 ```
 
 The Docker client is an alternative when a native binary is not installed:
@@ -100,18 +100,18 @@ docker compose run --rm client doctor
 
 The Docker image contains the Go client, Git, and CA certificates, but no TeX
 Live. The paper is bind-mounted at `/workspace`. Agent Skills that invoke a
-plain `latexmk` command are simplest with the native client. An MCP host can
+plain `rlatexmk` command are simplest with the native client. An MCP host can
 launch the Docker client directly as described in [MCP.md](MCP.md).
 
 For a native client, the same interactive login is available as
-`latexmk auth login --server URL`. Protected environment facilities and an
+`rlatexmk auth login --server URL`. Protected environment facilities and an
 existing client-side token file remain available for automation:
 
 ```sh
 export LATEXMK_SERVER=https://latex.example.edu
 export LATEXMK_TOKEN_FILE=/absolute/path/to/latexmk-token
 export LATEXMK_CA_FILE=/absolute/path/to/lab-ca.pem
-latexmk doctor
+rlatexmk doctor
 ```
 
 Do not paste a token into an agent prompt. Do not place it in a file that can be
@@ -124,7 +124,7 @@ single paper, the older installer can add all bundled Skills and a fixed-root MC
 entry to detected Codex, Claude Code, or OpenCode configurations:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 agent install \
+npx --yes --ignore-scripts remote-latexmk@0.4.0 agent install \
   --project-root /absolute/path/to/paper \
   --server https://latex.example.edu \
   --token-file /absolute/path/to/latexmk-token \
@@ -219,7 +219,7 @@ Plugin hosts that implement MCP workspace roots can let the Agent select the
 current root without storing an absolute paper path:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 \
+npx --yes --ignore-scripts remote-latexmk@0.4.0 \
   mcp serve --stdio --root-from-client
 ```
 
@@ -228,7 +228,7 @@ root. For generic clients without that capability, run one local MCP process
 per explicit paper root:
 
 ```sh
-latexmk mcp serve --stdio --project-root /absolute/path/to/paper
+rlatexmk mcp serve --stdio --project-root /absolute/path/to/paper
 ```
 
 Generic MCP configuration uses this command shape:
@@ -237,7 +237,7 @@ Generic MCP configuration uses this command shape:
 {
   "mcpServers": {
     "remote-latexmk": {
-      "command": "/absolute/path/to/latexmk",
+      "command": "/absolute/path/to/rlatexmk",
       "args": [
         "mcp", "serve", "--stdio",
         "--project-root", "/absolute/path/to/paper"
@@ -262,14 +262,14 @@ native and Docker examples and the complete tool list.
 A minimal agent workflow is:
 
 ```sh
-latexmk entries --json --project-root .
-latexmk files --json --project-root . main.tex
-latexmk compile --detach --json --project-root . main.tex
-latexmk jobs show --json JOB_ID
-latexmk diagnostics --json JOB_ID
-latexmk logs --json --tail 200 --max-bytes 65536 JOB_ID
-latexmk artifacts list --json JOB_ID
-latexmk artifacts get --json --out-dir ./build JOB_ID ARTIFACT_ID
+rlatexmk entries --json --project-root .
+rlatexmk files --json --project-root . main.tex
+rlatexmk compile --detach --json --project-root . main.tex
+rlatexmk jobs show --json JOB_ID
+rlatexmk diagnostics --json JOB_ID
+rlatexmk logs --json --tail 200 --max-bytes 65536 JOB_ID
+rlatexmk artifacts list --json JOB_ID
+rlatexmk artifacts get --json --out-dir ./build JOB_ID ARTIFACT_ID
 ```
 
 Run `entries` only when the user has not named an entry. Use its selected path
@@ -295,10 +295,10 @@ codes.
 
 An agent should:
 
-1. run `latexmk doctor` before its first compile;
-2. use `project_entries` or `latexmk entries` only when the entry is unknown,
+1. run `rlatexmk doctor` before its first compile;
+2. use `project_entries` or `rlatexmk entries` only when the entry is unknown,
    and ask the user when its bounded result is ambiguous;
-3. treat `project_manifest` or `latexmk files` as the only upload dependency
+3. treat `project_manifest` or `rlatexmk files` as the only upload dependency
    authority, and stop on unexpected or sensitive returned paths;
 4. never build an entry candidate list or upload set with `find`, `rg`, source
    reads, or model reasoning;

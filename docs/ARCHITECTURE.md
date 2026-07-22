@@ -100,7 +100,7 @@ flowchart LR
 
 ### Client
 
-`packages/cli` builds one Go binary named `latexmk`. It contains no TeX
+`packages/cli` builds one Go binary named `rlatexmk`. It contains no TeX
 distribution. Its main responsibilities are:
 
 - resolve the project root and entry file;
@@ -140,10 +140,9 @@ The launcher forwards normal CLI and MCP arguments to that native binary; it
 does not reimplement dependency discovery, upload policy, archive handling, or
 the HTTP protocol in JavaScript.
 
-The public command is `remote-latexmk`, not `latexmk`, so a global npm install
-does not replace the unrelated Perl program. Skills bundled in the npm package
-use the npm command. The repository's original Skills retain `latexmk` for
-native archive and source-build users.
+The public client command is `rlatexmk`, so a global npm install does not
+replace the unrelated Perl `latexmk` program. The npm package and Plugin use
+the same native command through their versioned launcher.
 
 The repository also contains one Plugin directory shared by the Codex and
 Claude Code marketplace manifests. It bundles the npm-backed MCP command and
@@ -314,7 +313,7 @@ flowchart TD
   History["Previous workspace-local .fls INPUT paths"]
   Explicit["Explicit manifest or include-file entries"]
   Selected["Exact upload set"]
-  Preview["latexmk files preview"]
+  Preview["rlatexmk files preview"]
 
   Tree -->|"path, type, symlink, size,<br/>built-in, denylist, Git-ignore rules"| Manifest
   Manifest --> Static
@@ -334,7 +333,7 @@ current manifest policy again.
 `auto` is the default upload mode. `manifest` selects the entry and explicit
 files. `all` selects all policy-allowed candidates and is an explicit
 compatibility fallback; it does not bypass upload policy. Static discovery is
-not a full TeX interpreter, so users should inspect `latexmk files` for a
+not a full TeX interpreter, so users should inspect `rlatexmk files` for a
 sensitive paper.
 
 ## Authentication and ownership

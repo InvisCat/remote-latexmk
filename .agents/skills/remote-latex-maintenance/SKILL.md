@@ -17,8 +17,8 @@ Otherwise use the CLI fallback below.
 Run from the selected paper root:
 
 ```sh
-latexmk cache inspect --json --project-root .
-latexmk remote clean --json --scope results
+rlatexmk cache inspect --json --project-root .
+rlatexmk remote clean --json --scope results
 ```
 
 The remote command without `--yes` is preview-only. Select only the narrow scope requested by the user.
@@ -31,9 +31,9 @@ guaranteed JSON error envelope. Its preview object contains `planId`,
 
 ## Clean local state
 
-1. Preview one scope: `latexmk cache clean --json --project-root . --scope local-generated` or `local-client-cache`.
+1. Preview one scope: `rlatexmk cache clean --json --project-root . --scope local-generated` or `local-client-cache`.
 2. Show the exact count, bytes, paths, expiry, and `planId` to the user.
-3. Apply only after explicit confirmation: `latexmk cache clean --json --project-root . --plan-id PLAN_ID --yes`.
+3. Apply only after explicit confirmation: `rlatexmk cache clean --json --project-root . --plan-id PLAN_ID --yes`.
 4. If the plan expired or any target changed, preview again. Never construct or edit a plan file.
 
 `local-client-cache` removes dependency-discovery state only. It preserves `.latexmk-cache/project-id`. `local-generated` is limited to known LaTeX output suffixes, including `.idx`, `.ind`, and `.ilg`, and does not follow symlinks.
@@ -46,9 +46,9 @@ reusing the partially consumed plan.
 
 ## Clean remote state
 
-1. Preview with `latexmk remote clean --json --scope results|snapshot|project`.
+1. Preview with `rlatexmk remote clean --json --scope results|snapshot|project`.
 2. Report the returned `report`, `planId`, and `expiresAt`. Explain that `project` is the broadest scope.
-3. Apply only after explicit user confirmation: `latexmk remote clean --json --plan-id PLAN_ID --yes`. Do not pass `--scope` during apply.
+3. Apply only after explicit user confirmation: `rlatexmk remote clean --json --plan-id PLAN_ID --yes`. Do not pass `--scope` during apply.
 4. If the plan expired or the server reports that cleanup targets changed, create a new preview. Do not retry by broadening scope.
 
 The CLI stores the ten-minute plan outside the paper without a token. It binds

@@ -1,12 +1,12 @@
 {
   "name": "remote-latexmk",
-  "version": "0.3.0-rc.5",
+  "version": "0.4.0",
   "private": true,
   "description": "Native remote-latexmk client and MCP launcher for npm and npx.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "remote-latexmk": "bin/remote-latexmk.js"
+    "rlatexmk": "bin/rlatexmk.js"
   },
   "files": [
     "bin/",
@@ -18,7 +18,7 @@
   "scripts": {
     "build": "node scripts/prepare-skills.mjs",
     "test": "node scripts/prepare-skills.mjs && node --test test/*.test.mjs",
-    "lint": "node --check bin/remote-latexmk.js && node --check lib/platform.js && node --check lib/agent-install.js && node --check lib/plugin-install.js",
+    "lint": "node --check bin/rlatexmk.js && node --check lib/platform.js && node --check lib/agent-install.js && node --check lib/plugin-install.js",
     "clean": "node -e \"for (const path of ['bundled-skills','bundled-plugin']) require('fs').rmSync(path,{recursive:true,force:true})\"",
     "prepack": "node scripts/prepare-skills.mjs"
   },

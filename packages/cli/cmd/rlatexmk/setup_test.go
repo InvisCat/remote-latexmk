@@ -27,7 +27,7 @@ func TestSetupPreviewsThenWritesUserConfigWithoutTokenLeak(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	args := []string{"latexmk", "setup", "--server", "https://latex.example", "--token-file", tokenPath, "--json"}
+	args := []string{"rlatexmk", "setup", "--server", "https://latex.example", "--token-file", tokenPath, "--json"}
 	code, stdout, stderr := captureCommandOutput(t, func() int { return run(args) })
 	if code != 0 || stderr != "" {
 		t.Fatalf("preview code=%d stderr=%q stdout=%q", code, stderr, stdout)
@@ -84,7 +84,7 @@ func TestSetupPreviewsThenWritesUserConfigWithoutTokenLeak(t *testing.T) {
 func TestSetupRejectsRawOrBroadlyReadableToken(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	code, _, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "setup", "--server", "https://latex.example", "--token", "secret"})
+		return run([]string{"rlatexmk", "setup", "--server", "https://latex.example", "--token", "secret"})
 	})
 	if code != 2 || !strings.Contains(stderr, "raw tokens are not accepted") {
 		t.Fatalf("raw token code=%d stderr=%q", code, stderr)
@@ -97,7 +97,7 @@ func TestSetupRejectsRawOrBroadlyReadableToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	code, _, stderr = captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "setup", "--server", "https://latex.example", "--token-file", tokenPath})
+		return run([]string{"rlatexmk", "setup", "--server", "https://latex.example", "--token-file", tokenPath})
 	})
 	if code != 2 || !strings.Contains(stderr, "chmod 600") {
 		t.Fatalf("broad token code=%d stderr=%q", code, stderr)
@@ -106,7 +106,7 @@ func TestSetupRejectsRawOrBroadlyReadableToken(t *testing.T) {
 
 func TestSetupRejectsDryRunWithApply(t *testing.T) {
 	code, _, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "setup", "--dry-run", "--yes"})
+		return run([]string{"rlatexmk", "setup", "--dry-run", "--yes"})
 	})
 	if code != 2 || !strings.Contains(stderr, "--dry-run and --yes cannot be combined") {
 		t.Fatalf("dry-run apply code=%d stderr=%q", code, stderr)
@@ -124,7 +124,7 @@ func TestSetupNormalizesServerShorthand(t *testing.T) {
 	}
 
 	code, stdout, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "setup", "--server", "conoha", "--token-file", tokenPath, "--yes", "--json"})
+		return run([]string{"rlatexmk", "setup", "--server", "conoha", "--token-file", tokenPath, "--yes", "--json"})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("setup code=%d stderr=%q stdout=%q", code, stderr, stdout)
@@ -164,7 +164,7 @@ func TestSetupMarksExplicitTokenFileAsUserManaged(t *testing.T) {
 		t.Fatal(err)
 	}
 	code, _, stderr := captureCommandOutput(t, func() int {
-		return run([]string{"latexmk", "setup", "--server", "new.example", "--token-file", custom, "--yes"})
+		return run([]string{"rlatexmk", "setup", "--server", "new.example", "--token-file", custom, "--yes"})
 	})
 	if code != 0 || stderr != "" {
 		t.Fatalf("setup code=%d stderr=%q", code, stderr)

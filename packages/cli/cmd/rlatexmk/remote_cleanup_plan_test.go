@@ -30,7 +30,7 @@ func TestRemoteCleanApplyValidatesServerProjectAndTTLBeforeNetwork(t *testing.T)
 		t.Fatal(err)
 	}
 
-	base := []string{"latexmk", "remote", "clean", "--project-root", root, "--plan-id", plan.ID, "--yes"}
+	base := []string{"rlatexmk", "remote", "clean", "--project-root", root, "--plan-id", plan.ID, "--yes"}
 	code, _, stderr := captureCommandOutput(t, func() int {
 		return run(append(append([]string{}, base...), "--project-id", "project-b", "--server", server.URL))
 	})
@@ -58,7 +58,7 @@ func TestRemoteCleanApplyValidatesServerProjectAndTTLBeforeNetwork(t *testing.T)
 		t.Fatal(err)
 	}
 	code, _, stderr = captureCommandOutput(t, func() int {
-		args := []string{"latexmk", "remote", "clean", "--project-root", root, "--project-id", "project-a", "--server", server.URL, "--plan-id", expired.ID, "--yes"}
+		args := []string{"rlatexmk", "remote", "clean", "--project-root", root, "--project-id", "project-a", "--server", server.URL, "--plan-id", expired.ID, "--yes"}
 		return run(args)
 	})
 	if code == 0 || !strings.Contains(stderr, "has expired") {

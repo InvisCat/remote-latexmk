@@ -2,7 +2,6 @@
   <img src="docs/assets/remote-latexmk-hero.svg" alt="remote-latexmk connects CLI and local MCP coding-agent clients to a private TeX server and returns PDFs and diagnostics" width="100%">
 </p>
 
-![Status: pre-release](https://img.shields.io/badge/status-pre--release-e69f00)
 ![License: MIT](https://img.shields.io/badge/license-MIT-2f81f7)
 
 **Compile on a private LaTeX server you control.** Connect from laptops,
@@ -21,7 +20,7 @@ The native installer puts the service and TeX Live under
 `~/.remote-latexmk`. It uses no sudo, Docker, or system-wide TeX installation.
 
 ```sh
-curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.3.0-rc.5/install-server.sh | bash -s -- --version v0.3.0-rc.5
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.4.0/install-server.sh | bash -s -- --version v0.4.0
 ```
 
 In a terminal, the installer opens a numbered setup for the TeX Live profile,
@@ -55,7 +54,7 @@ not install TeX Live.
 #### Codex Desktop
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 plugin install codex
+npx --yes --ignore-scripts remote-latexmk@0.4.0 plugin install codex
 ```
 
 The command opens the Plugin page in Codex. Select **Install** or **Update**,
@@ -80,7 +79,7 @@ Save the connection once on the client. Replace `SERVER_HOST` with the
 reachable host, or the local endpoint when using the tunnel above:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 auth login --server SERVER_HOST
+npx --yes --ignore-scripts remote-latexmk@0.4.0 auth login --server SERVER_HOST
 ```
 
 A bare host or an HTTP URL without a port uses `http://HOST:8080`; explicit
@@ -100,9 +99,9 @@ diagnostics and logs, and download the PDF through the local MCP server.
 The saved login also configures direct CLI use:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 entries --json --project-root .
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 files main.tex
-npx --yes --ignore-scripts remote-latexmk@0.3.0-rc.5 main.tex
+npx --yes --ignore-scripts remote-latexmk@0.4.0 entries --json --project-root .
+npx --yes --ignore-scripts remote-latexmk@0.4.0 files main.tex
+npx --yes --ignore-scripts remote-latexmk@0.4.0 main.tex
 ```
 
 For OpenCode and other Agent hosts, see [AI coding agents](docs/AI_AGENTS.md).
@@ -130,6 +129,10 @@ curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/vX.Y.Z/i
 For Codex Desktop, rerun the versioned `plugin install codex` command from
 Quick Start, select **Install** or **Update** on the opened page, restart if
 asked, and start a new task. The saved server login is kept.
+
+Clients before 0.4.0 used `latexmk` as the native binary name. After installing
+`rlatexmk`, remove only the old remote-client file you placed on `PATH`; do not
+remove the upstream TeX Live `latexmk` command.
 
 ## Alternative Installation and Usage Paths
 
@@ -185,13 +188,14 @@ network, firewall, VPN, or TLS reverse proxy.
 The npm launcher used above selects the same tagged native client through npm
 platform packages. It has no install script that fetches or executes a binary
 from another URL. Install a native client when you do not want Node.js or a
-client container.
+client container. The npm package remains `remote-latexmk`, while the installed
+client command and native binary are both `rlatexmk`.
 
 Choose either a release binary or a source build, then configure the client.
 
 #### Download a Release Binary
 
-The [`v0.3.0-rc.5` prerelease](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.3.0-rc.5)
+The [`v0.4.0` release](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.4.0)
 provides client archives for Linux, macOS, and Windows on amd64 and arm64.
 Verify downloads with the attached `SHA256SUMS`. See
 [Publishing](docs/PUBLISHING.md) for the release process.
@@ -203,10 +207,10 @@ need Go or TeX Live at runtime; it needs Git when Git-aware selection is active:
 
 ```sh
 mkdir -p "$HOME/.local/bin"
-go build -trimpath -o "$HOME/.local/bin/latexmk" \
-  ./packages/cli/cmd/latexmk
+go build -trimpath -o "$HOME/.local/bin/rlatexmk" \
+  ./packages/cli/cmd/rlatexmk
 export PATH="$HOME/.local/bin:$PATH"
-latexmk version
+rlatexmk version
 ```
 
 Add `$HOME/.local/bin` to the shell's startup configuration if it is not
@@ -218,14 +222,14 @@ HTTPS.
 Save the server connection once, then compile a paper:
 
 ```sh
-latexmk auth login --server http://127.0.0.1:8080
+rlatexmk auth login --server http://127.0.0.1:8080
 cd /absolute/path/to/paper
-latexmk cache ignore
-latexmk files main.tex
-latexmk main.tex
+rlatexmk cache ignore
+rlatexmk files main.tex
+rlatexmk main.tex
 ```
 
-`latexmk cache ignore` is explicit. It appends `.latexmk-cache/` to the project
+`rlatexmk cache ignore` is explicit. It appends `.latexmk-cache/` to the project
 `.gitignore` only when needed. `git clean -fdX` deletes ignored cache files and
 therefore resets the local project identity.
 
@@ -263,7 +267,7 @@ path are documented in [AI coding agents](docs/AI_AGENTS.md).
 The same client binary exposes strict STDIO MCP tools:
 
 ```sh
-latexmk mcp serve --stdio --project-root /absolute/path/to/paper
+rlatexmk mcp serve --stdio --project-root /absolute/path/to/paper
 ```
 
 For a Docker-based MCP host, first set `LATEXMK_PROJECT_DIR` in the repository
@@ -306,9 +310,9 @@ Before any upload, the client applies:
 Inspect the content-addressed manifest without contacting the server:
 
 ```sh
-latexmk files main.tex
-latexmk files --json main.tex
-latexmk --dry-run main.tex
+rlatexmk files main.tex
+rlatexmk files --json main.tex
+rlatexmk --dry-run main.tex
 ```
 
 Static discovery cannot prove that every custom macro or package reference is
@@ -328,8 +332,8 @@ all three server policy values. Then use the base and GHCR Compose files shown
 under [Prebuilt images](#prebuilt-images-and-digest-pinning):
 
 ```dotenv
-LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server-full:0.3.0-rc.5
-LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client:0.3.0-rc.5
+LATEXMK_GHCR_SERVER_IMAGE=ghcr.io/inviscat/remote-latexmk-server-full:0.4.0
+LATEXMK_GHCR_CLIENT_IMAGE=ghcr.io/inviscat/remote-latexmk-client:0.4.0
 LATEXMK_IMAGE_PROFILE=texlive-full
 LATEXMK_ENGINES=xelatex,lualatex,pdflatex
 ```
@@ -358,28 +362,28 @@ only the temporary resources it creates.
 
 ```sh
 # Compile once or watch selected dependencies.
-latexmk main.tex
-latexmk watch main.tex
+rlatexmk main.tex
+rlatexmk watch main.tex
 
 # Inspect server capabilities and local policy health.
-latexmk meta
-latexmk doctor
+rlatexmk meta
+rlatexmk doctor
 
 # Work with immutable queued jobs and bounded diagnostics.
-latexmk compile --detach --json main.tex
-latexmk jobs list --limit 50 --json
-latexmk diagnostics JOB_ID --json
-latexmk logs JOB_ID --tail 200 --max-bytes 65536 --json
-latexmk artifacts list JOB_ID --json
+rlatexmk compile --detach --json main.tex
+rlatexmk jobs list --limit 50 --json
+rlatexmk diagnostics JOB_ID --json
+rlatexmk logs JOB_ID --tail 200 --max-bytes 65536 --json
+rlatexmk artifacts list JOB_ID --json
 ```
 
 Local and remote deletion are preview-first:
 
 ```sh
-latexmk cache inspect --project-root . --json
-latexmk cache clean --project-root . --scope local-generated --json
-latexmk remote clean --scope results
-latexmk remote clean --plan-id PLAN_ID --yes
+rlatexmk cache inspect --project-root . --json
+rlatexmk cache clean --project-root . --scope local-generated --json
+rlatexmk remote clean --scope results
+rlatexmk remote clean --plan-id PLAN_ID --yes
 ```
 
 Both cleanup paths return a ten-minute plan ID. Remote apply accepts only that
@@ -425,15 +429,15 @@ isolation. Read [Security](docs/SECURITY.md) before exposing the service.
 
 ## Prebuilt Images and Digest Pinning
 
-The current public release candidate is
-[`v0.3.0-rc.5`](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.3.0-rc.5).
+The current release is
+[`v0.4.0`](https://github.com/InvisCat/remote-latexmk/releases/tag/v0.4.0).
 The copied `.env` selects the release pinned in `compose.ghcr.yaml` for bare
 `docker compose` commands. The commands below list both files explicitly. To
 select an exact version, set:
 
 ```dotenv
 LATEXMK_GHCR_NAMESPACE=inviscat
-LATEXMK_GHCR_VERSION=0.3.0-rc.5
+LATEXMK_GHCR_VERSION=0.4.0
 ```
 
 ```sh
@@ -501,6 +505,12 @@ Implementation details and selection reasons live in
 [Architecture](docs/ARCHITECTURE.md).
 
 ## Changelog
+
+### remote-latexmk 0.4.0
+
+- Renamed the client command and release binary from `latexmk` to `rlatexmk`
+  so it no longer shadows the upstream TeX Live command. No `latexmk`
+  compatibility alias is installed.
 
 ### remote-latexmk 0.3.0-rc.5
 
@@ -597,11 +607,6 @@ on 2026-07-17.
 
 This roadmap describes intended directions and does not promise release dates.
 
-- To avoid conflicts and confusion with the standard local Perl `latexmk`
-  command, adopt a distinct remote-client command such as **`rlatexmk`**, keep
-  `latexmk` as an optional compatibility alias during a documented transition,
-  and update Docker examples, MCP configurations, Agent Skills, and release
-  packages together.
 - To support Japanese journal and conference submissions that depend on
   pLaTeX, validate and add **pLaTeX and upLaTeX workflows** with `dvipdfmx`,
   including representative Japanese document classes, dependency discovery,
