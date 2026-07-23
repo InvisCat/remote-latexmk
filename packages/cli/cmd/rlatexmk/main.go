@@ -1337,7 +1337,7 @@ Usage:
   rlatexmk diagnostics JOB_ID [--json]
   rlatexmk artifacts list JOB_ID [--json]
   rlatexmk artifacts get JOB_ID ARTIFACT_ID [--out-dir DIR] [--json]
-  rlatexmk mcp serve --stdio [--project-root DIR | --root-from-client]
+  rlatexmk mcp serve --stdio [--project-root DIR | --root-from-client [--fallback-workspace-root DIR]]
   rlatexmk entries [--project-root DIR] [--json]
   rlatexmk files [options] <main.tex>
   rlatexmk version

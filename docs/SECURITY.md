@@ -64,10 +64,12 @@ at the application and deployment layers.
 ## Agent and MCP boundary
 
 The local STDIO MCP server resolves one project root at startup. Plugin mode
-requests the current roots from the Agent host, requires exactly one local
-`file://` root, and does not read a parent project configuration. A project
-configuration cannot move the effective root outside that workspace or
-override user-level connection, credential, CA, or TLS verification settings.
+prefers exactly one local `file://` root from the Agent host. When the host does
+not advertise roots, the bundled Plugin uses the task workspace inherited as
+the MCP process working directory. Invalid or ambiguous advertised roots never
+downgrade to that fallback. Neither path reads a parent project configuration;
+project configuration cannot move outside the workspace or override user-level
+connection, credential, CA, or TLS verification settings.
 Tools cannot replace the fixed root, supply an absolute download directory,
 request an arbitrary URL or server file, pass a compiler argument list, enable
 shell escape, or read the token. Manifest IDs are random, short-lived, one-use,

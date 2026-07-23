@@ -9,7 +9,9 @@
         "mcp",
         "serve",
         "--stdio",
-        "--root-from-client"
+        "--root-from-client",
+        "--fallback-workspace-root",
+        "."
       ]
     }
   }

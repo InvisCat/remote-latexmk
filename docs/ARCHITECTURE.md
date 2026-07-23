@@ -116,11 +116,12 @@ distribution. Its main responsibilities are:
 - watch the selected dependency and policy files for continuous compilation;
 - expose strict JSON commands and a project-root-bound STDIO MCP server.
 
-The Codex and Claude Code Plugin starts MCP in root-discovery mode. MCP asks the
-host for its workspace roots, accepts exactly one canonical local root, and
-does not search above it for project configuration. User-level server,
-credential, CA, and TLS verification settings cannot be replaced by project
-configuration in this mode.
+The Codex and Claude Code Plugin starts MCP in roots-first mode. MCP accepts one
+canonical local root from a capable host; when roots are not advertised, the
+Plugin uses the task workspace inherited as the MCP process working directory.
+It does not search above that boundary for project configuration. User-level
+server, credential, CA, and TLS verification settings cannot be replaced by
+project configuration in this mode.
 
 The default project root is the entry file's directory. A parent Git root is
 used only when the user selects that root mode or supplies a project root. This

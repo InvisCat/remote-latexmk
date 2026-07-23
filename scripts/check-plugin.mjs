@@ -26,6 +26,10 @@ assert.equal(mcpConfig?.command, 'npx');
 assert.ok(mcpConfig.args.includes(`remote-latexmk@${codexManifest.version}`));
 assert.ok(mcpConfig.args.includes('--root-from-client'));
 assert.ok(!mcpConfig.args.includes('--project-root'));
+assert.deepEqual(
+  mcpConfig.args.slice(mcpConfig.args.indexOf('--fallback-workspace-root')),
+  ['--fallback-workspace-root', '.'],
+);
 assert.equal(mcpConfig.env, undefined);
 
 for (const file of [

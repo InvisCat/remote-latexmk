@@ -8,7 +8,7 @@ script. npm selects a platform package through `optionalDependencies`.
 npm exec --yes --ignore-scripts --package=remote-latexmk@VERSION -- \
   rlatexmk version
 npm exec --yes --ignore-scripts --package=remote-latexmk@VERSION -- \
-  rlatexmk mcp serve --stdio --root-from-client
+  rlatexmk mcp serve --stdio --root-from-client --fallback-workspace-root .
 ```
 
 Codex Desktop users can install the versioned Plugin without Codex CLI:

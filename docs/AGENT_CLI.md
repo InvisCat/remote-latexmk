@@ -271,7 +271,9 @@ envelope.
 
 `rlatexmk mcp serve --stdio` exposes the same client operations as strict MCP
 tools. `--project-root` fixes an explicit root; `--root-from-client` requests
-one local workspace root from a Plugin host and fixes that root for the
-process. MCP success and error results contain structured JSON plus an
+one local workspace root from a Plugin host. A paired
+`--fallback-workspace-root` can use a trusted launcher working directory only
+when the host does not advertise roots. Either root is fixed for the process.
+MCP success and error results contain structured JSON plus an
 equivalent text content item for older hosts. See [MCP.md](MCP.md) for tool
 schemas, manifest lifetime, cleanup plans, and native/Docker configuration.

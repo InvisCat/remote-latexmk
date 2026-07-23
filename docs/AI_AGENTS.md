@@ -70,12 +70,12 @@ the interactive command locally and never asks for the token in chat. The
 older preview/apply setup path remains available for a user-managed token file
 or private CA.
 
-The Plugin starts the local MCP server with `--root-from-client`. After MCP
-initialization, the server asks the Agent host for its workspace roots and
-requires exactly one local `file://` root. That canonical root is fixed for the
-MCP process. Project configuration cannot move the root outside the Agent
-workspace or redirect the user-configured server, token, CA file, or TLS
-verification setting.
+The Plugin starts the local MCP server in roots-first mode. It uses one
+canonical local root supplied through MCP when supported. For hosts such as
+Codex Desktop that do not advertise roots, it uses the task workspace inherited
+as the MCP process working directory. That boundary is fixed for the process.
+Project configuration cannot move outside it or redirect the user-configured
+server, token, CA file, or TLS verification setting.
 
 ## 2. Native and Docker alternatives
 
@@ -224,8 +224,9 @@ npx --yes --ignore-scripts remote-latexmk@0.4.1 \
 ```
 
 The host must advertise the MCP `roots` capability and return exactly one local
-root. For generic clients without that capability, run one local MCP process
-per explicit paper root:
+root. A host that instead guarantees the MCP process starts in the task
+workspace can add `--fallback-workspace-root .`; otherwise run one local MCP
+process per explicit paper root:
 
 ```sh
 rlatexmk mcp serve --stdio --project-root /absolute/path/to/paper
