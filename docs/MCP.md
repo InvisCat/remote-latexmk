@@ -6,16 +6,19 @@ explicit project root or a root supplied by the Agent host:
 ```sh
 rlatexmk mcp serve --stdio --project-root /absolute/path/to/paper
 rlatexmk mcp serve --stdio --root-from-client
+rlatexmk mcp serve --stdio --root-from-client --fallback-workspace-root .
 ```
 
 It does not contain TeX Live. It reads the local paper through the same project-root, Git-ignore, denylist, dependency, token-file, CA, and HTTPS policies as the CLI, then calls the configured remote compiler. The project root is resolved once at startup and cannot be changed by a tool call.
 
-`--root-from-client` is the Plugin mode. After initialization, the server calls
-MCP `roots/list`, accepts exactly one local `file://` root, resolves symlinks,
-and fixes that boundary for the process. A project `.latexmk.json` may choose a
-subdirectory inside the workspace, but it cannot move outside the workspace or
-override the user-configured server, token, CA file, or TLS verification
-setting. Hosts without MCP roots support must use `--project-root`.
+`--root-from-client` asks MCP `roots/list`, accepts exactly one local `file://`
+root, resolves symlinks, and fixes that boundary for the process. The bundled
+Plugin also supplies `--fallback-workspace-root .` for hosts such as Codex
+Desktop that start the MCP process in the task workspace but do not advertise
+MCP roots. The fallback is used only when the roots capability is absent; a
+rejected, invalid, or ambiguous roots response still fails closed. Both paths
+use bounded project configuration, so `.latexmk.json` cannot move outside the
+workspace or override the user-configured server, token, CA, or TLS setting.
 
 The server supports MCP protocol versions `2025-11-25`, `2025-06-18`, and `2025-03-26`. STDIO is newline-delimited UTF-8 JSON-RPC. stdout contains protocol messages only; diagnostics are written to stderr. Messages are limited to 4 MiB.
 
@@ -50,7 +53,7 @@ global install:
 npm exec --yes --ignore-scripts \
   --package=remote-latexmk@0.4.1 -- \
   rlatexmk mcp serve --stdio \
-  --root-from-client
+  --root-from-client --fallback-workspace-root .
 ```
 
 The npm package selects a platform binary through `optionalDependencies`; it

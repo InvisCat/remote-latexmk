@@ -231,7 +231,7 @@ func TestMCPDiscoversAndFixesOneClientWorkspaceRoot(t *testing.T) {
 	t.Setenv("LATEXMK_TOKEN", "")
 	t.Setenv("LATEXMK_TOKEN_FILE", "")
 	root := t.TempDir()
-	resolvedRoot, err := filepath.EvalSymlinks(root)
+	resolvedRoot, err := resolveMCPRoot("", root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestMCPDiscoversAndFixesOneClientWorkspaceRoot(t *testing.T) {
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"project_manifest","arguments":{"entry":"main.tex"}}}`,
 	}, "\n") + "\n"
 	var stdout bytes.Buffer
-	server := newRootDiscoveringMCPServer(strings.NewReader(input), &stdout)
+	server := newRootDiscoveringMCPServer(strings.NewReader(input), &stdout, "")
 	if err := server.serve(); err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +284,7 @@ func TestMCPRootDiscoveryFailsClosedWithoutOneRoot(t *testing.T) {
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"server_status","arguments":{}}}`,
 	}, "\n") + "\n"
 	var stdout bytes.Buffer
-	server := newRootDiscoveringMCPServer(strings.NewReader(input), &stdout)
+	server := newRootDiscoveringMCPServer(strings.NewReader(input), &stdout, rootA)
 	if err := server.serve(); err != nil {
 		t.Fatal(err)
 	}
@@ -315,12 +315,56 @@ func TestMCPRootDiscoveryRejectsProjectRootOutsideWorkspace(t *testing.T) {
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"server_status","arguments":{}}}`,
 	}, "\n") + "\n"
 	var stdout bytes.Buffer
-	server := newRootDiscoveringMCPServer(strings.NewReader(input), &stdout)
+	server := newRootDiscoveringMCPServer(strings.NewReader(input), &stdout, "")
 	if err := server.serve(); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(stdout.String(), "configured project root is outside the MCP workspace") {
 		t.Fatalf("outside-root error missing: %s", stdout.String())
+	}
+}
+
+func TestMCPUsesBoundedFallbackWhenClientDoesNotAdvertiseRoots(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LATEXMK_SERVER", "")
+	t.Setenv("LATEXMK_TOKEN", "")
+	t.Setenv("LATEXMK_TOKEN_FILE", "")
+	root := t.TempDir()
+	resolvedRoot, err := resolveMCPRoot("", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "main.tex"), []byte("\\documentclass{article}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	input := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"codex","version":"desktop"}}}`,
+		`{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"project_manifest","arguments":{"entry":"main.tex"}}}`,
+	}, "\n") + "\n"
+	var stdout bytes.Buffer
+	server := newRootDiscoveringMCPServer(strings.NewReader(input), &stdout, resolvedRoot)
+	if err := server.serve(); err != nil {
+		t.Fatal(err)
+	}
+	if !server.runtimeReady || server.root != resolvedRoot || server.client == nil {
+		t.Fatalf("fallback runtime ready=%t root=%q client=%v", server.runtimeReady, server.root, server.client)
+	}
+	if strings.Contains(stdout.String(), resolvedRoot) {
+		t.Fatalf("MCP stdout leaked absolute fallback root: %s", stdout.String())
+	}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 2 || strings.Contains(stdout.String(), `"method":"roots/list"`) {
+		t.Fatalf("fallback transcript: %s", stdout.String())
+	}
+	var result struct {
+		Result mcpToolResult `json:"result"`
+	}
+	if err := json.Unmarshal([]byte(lines[1]), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Result.IsError {
+		t.Fatalf("manifest failed with Codex cwd fallback: %s", lines[1])
 	}
 }
 

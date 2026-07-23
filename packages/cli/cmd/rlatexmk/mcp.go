@@ -39,9 +39,10 @@ var mcpSupportedProtocols = map[string]bool{
 }
 
 type mcpOptions struct {
-	projectRoot    string
-	rootFromClient bool
-	stdio          bool
+	projectRoot           string
+	rootFromClient        bool
+	fallbackWorkspaceRoot string
+	stdio                 bool
 }
 
 type mcpRequest struct {
@@ -114,22 +115,23 @@ type mcpManifestFile struct {
 }
 
 type stdioMCPServer struct {
-	in                  io.Reader
-	out                 io.Writer
-	root                string
-	client              *client.Client
-	engine              string
-	timeout             time.Duration
-	now                 func() time.Time
-	initialized         bool
-	manifests           map[string]mcpManifest
-	remotePlans         map[string]mcpRemoteCleanupPlan
-	runtimeReady        bool
-	rootFromClient      bool
-	clientSupportsRoots bool
-	rootRequestPending  bool
-	rootRequestID       json.RawMessage
-	rootErr             error
+	in                    io.Reader
+	out                   io.Writer
+	root                  string
+	client                *client.Client
+	engine                string
+	timeout               time.Duration
+	now                   func() time.Time
+	initialized           bool
+	manifests             map[string]mcpManifest
+	remotePlans           map[string]mcpRemoteCleanupPlan
+	runtimeReady          bool
+	rootFromClient        bool
+	clientSupportsRoots   bool
+	rootRequestPending    bool
+	rootRequestID         json.RawMessage
+	rootErr               error
+	fallbackWorkspaceRoot string
 }
 
 func runMCP(args []string) int {
@@ -144,6 +146,15 @@ func runMCP(args []string) int {
 			opts.stdio = true
 		case a == "--root-from-client":
 			opts.rootFromClient = true
+		case a == "--fallback-workspace-root" || strings.HasPrefix(a, "--fallback-workspace-root="):
+			if strings.Contains(a, "=") {
+				opts.fallbackWorkspaceRoot = strings.SplitN(a, "=", 2)[1]
+			} else if i+1 < len(args) {
+				i++
+				opts.fallbackWorkspaceRoot = args[i]
+			} else {
+				return fail(errors.New("--fallback-workspace-root requires a value"))
+			}
 		case a == "--project-root" || strings.HasPrefix(a, "--project-root="):
 			if strings.Contains(a, "=") {
 				opts.projectRoot = strings.SplitN(a, "=", 2)[1]
@@ -163,12 +174,22 @@ func runMCP(args []string) int {
 	if opts.rootFromClient && opts.projectRoot != "" {
 		return fail(errors.New("--root-from-client and --project-root cannot be combined"))
 	}
+	if opts.fallbackWorkspaceRoot != "" && !opts.rootFromClient {
+		return fail(errors.New("--fallback-workspace-root requires --root-from-client"))
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fail(err)
 	}
 	if opts.rootFromClient {
-		server := newRootDiscoveringMCPServer(os.Stdin, os.Stdout)
+		fallbackRoot := ""
+		if opts.fallbackWorkspaceRoot != "" {
+			fallbackRoot, err = resolveMCPRoot(cwd, opts.fallbackWorkspaceRoot)
+			if err != nil {
+				return fail(err)
+			}
+		}
+		server := newRootDiscoveringMCPServer(os.Stdin, os.Stdout, fallbackRoot)
 		if err := server.serve(); err != nil {
 			fmt.Fprintln(os.Stderr, "rlatexmk mcp:", err)
 			return 1
@@ -246,10 +267,11 @@ func newStdioMCPServer(in io.Reader, out io.Writer, root string, c *client.Clien
 	}
 }
 
-func newRootDiscoveringMCPServer(in io.Reader, out io.Writer) *stdioMCPServer {
+func newRootDiscoveringMCPServer(in io.Reader, out io.Writer, fallbackWorkspaceRoot string) *stdioMCPServer {
 	return &stdioMCPServer{
 		in: in, out: out, rootFromClient: true, now: time.Now,
 		manifests: make(map[string]mcpManifest), remotePlans: make(map[string]mcpRemoteCleanupPlan),
+		fallbackWorkspaceRoot: fallbackWorkspaceRoot,
 	}
 }
 
@@ -371,6 +393,12 @@ func (s *stdioMCPServer) requestClientRoots() error {
 		return nil
 	}
 	if !s.clientSupportsRoots {
+		if s.fallbackWorkspaceRoot != "" {
+			if err := s.configureDiscoveredRoot(s.fallbackWorkspaceRoot); err != nil {
+				s.rootErr = fmt.Errorf("configure fallback workspace root: %w", err)
+			}
+			return nil
+		}
 		s.rootErr = errors.New("the MCP client did not advertise workspace roots; configure an explicit project root instead")
 		return nil
 	}

@@ -57,6 +57,13 @@ test('bundled Codex Plugin pins its manifest, MCP launcher, and Skills to the np
   const skill = await readFile(path.join(destination, 'skills', 'remote-latex', 'SKILL.md'), 'utf8');
   assert.equal(manifest.version, version);
   assert.ok(mcp.mcpServers['remote-latexmk'].args.includes(`remote-latexmk@${version}`));
+  assert.ok(mcp.mcpServers['remote-latexmk'].args.includes('--root-from-client'));
+  assert.deepEqual(
+    mcp.mcpServers['remote-latexmk'].args.slice(
+      mcp.mcpServers['remote-latexmk'].args.indexOf('--fallback-workspace-root'),
+    ),
+    ['--fallback-workspace-root', '.'],
+  );
   assert.match(skill, new RegExp(`remote-latexmk@${version.replaceAll('.', '\\.')}`));
   assert.doesNotMatch(skill, /remote-latexmk@0\.3\.0-rc\.2/);
 });
