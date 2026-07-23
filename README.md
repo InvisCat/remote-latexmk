@@ -547,21 +547,23 @@ Implementation details and selection reasons live in
   retries, and delayed the public GitHub Release until npm and GHCR publication
   pass.
 
-### Upstream 0.1.0 Baseline
+### remote-latexmk 0.3.0-rc.2
 
-remote-latexmk started as a fork of
-[`billstark001/latexmk`](https://github.com/billstark001/latexmk) at commit
-[`a338808`](https://github.com/billstark001/latexmk/commit/a338808)
-on 2026-07-17.
+- Added a one-command Codex Desktop Plugin installer that registers a
+  versioned personal marketplace without requiring Codex CLI.
+- Added a GitHub Actions release-recovery workflow and fixed image digest
+  verification under `pipefail`.
 
-- The upstream version provided a **Go CLI and Go compilation server** with
-  shared-token and PostgreSQL authentication.
-- It supported **content-addressed incremental uploads and queued jobs**,
-  retention limits, result downloads, and a development dashboard.
-- It compiled each request in a **disposable workspace** with `latexmk -norc`,
-  shell escape disabled by default, path validation, and bounded resources.
-- Its deployment bundler targeted **PaaS and research-group deployments**, and
-  it included an initial Agent Skill.
+### remote-latexmk 0.3.0-rc.1
+
+- Added a **version-pinned, non-root Linux server installer** with checksum
+  verification, a private TeX Live tree, loopback-only defaults, and user-level
+  status, upgrade, and uninstall commands.
+- Added **version-pinned npm launcher and platform packages** for the existing
+  Go client, without postinstall downloads or a local Go/TeX Live requirement.
+- Added installable **Codex and Claude Code Plugins** that bundle the Skills and
+  local MCP launcher, discover the current Agent workspace root, and reuse one
+  verified user-level login across paper projects.
 
 ### remote-latexmk 0.2.0-rc.1
 
@@ -596,23 +598,21 @@ on 2026-07-17.
   checksums, provenance, attestations, and executable paper examples so
   published clients and images are easier to verify before deployment.
 
-### remote-latexmk 0.3.0-rc.2
+### Upstream 0.1.0 Baseline
 
-- Added a one-command Codex Desktop Plugin installer that registers a
-  versioned personal marketplace without requiring Codex CLI.
-- Added a GitHub Actions release-recovery workflow and fixed image digest
-  verification under `pipefail`.
+remote-latexmk started as a fork of
+[`billstark001/latexmk`](https://github.com/billstark001/latexmk) at commit
+[`a338808`](https://github.com/billstark001/latexmk/commit/a338808)
+on 2026-07-17.
 
-### remote-latexmk 0.3.0-rc.1
-
-- Added a **version-pinned, non-root Linux server installer** with checksum
-  verification, a private TeX Live tree, loopback-only defaults, and user-level
-  status, upgrade, and uninstall commands.
-- Added **version-pinned npm launcher and platform packages** for the existing
-  Go client, without postinstall downloads or a local Go/TeX Live requirement.
-- Added installable **Codex and Claude Code Plugins** that bundle the Skills and
-  local MCP launcher, discover the current Agent workspace root, and reuse one
-  verified user-level login across paper projects.
+- The upstream version provided a **Go CLI and Go compilation server** with
+  shared-token and PostgreSQL authentication.
+- It supported **content-addressed incremental uploads and queued jobs**,
+  retention limits, result downloads, and a development dashboard.
+- It compiled each request in a **disposable workspace** with `latexmk -norc`,
+  shell escape disabled by default, path validation, and bounded resources.
+- Its deployment bundler targeted **PaaS and research-group deployments**, and
+  it included an initial Agent Skill.
 
 ## Roadmap
 
