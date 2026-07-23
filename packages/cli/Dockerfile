@@ -7,7 +7,7 @@ WORKDIR /src
 COPY packages/cli/go.mod packages/cli/go.sum ./
 RUN go mod download
 COPY packages/cli/ ./
-ARG VERSION=0.4.1
+ARG VERSION=0.4.2
 ARG COMMIT=local
 ARG BUILD_DATE=unknown
 RUN CGO_ENABLED=0 go build -trimpath \

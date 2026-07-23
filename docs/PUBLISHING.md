@@ -90,8 +90,8 @@ Create a release branch from the current `main`, then let the version tool
 update every derived reference:
 
 ```sh
-git switch -c release/v0.4.1
-pnpm release:prepare 0.4.1
+git switch -c release/v0.4.2
+pnpm release:prepare 0.4.2
 pnpm test
 ```
 
