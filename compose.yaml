@@ -7,7 +7,7 @@ x-client-service: &client-service
     args:
       GO_IMAGE: ${GO_IMAGE:-golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651}
       CLIENT_BASE_IMAGE: ${LATEXMK_CLIENT_BASE_IMAGE:-debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818}
-      VERSION: ${LATEXMK_VERSION:-0.4.1}
+      VERSION: ${LATEXMK_VERSION:-0.4.2}
       COMMIT: ${LATEXMK_COMMIT:-local}
       BUILD_DATE: ${LATEXMK_BUILD_DATE:-unknown}
   image: ${LATEXMK_CLIENT_IMAGE:-latexmk-client:local}
@@ -44,7 +44,7 @@ services:
         DEPLOY_ASSETS: packages/deploy/templates
         GO_IMAGE: ${GO_IMAGE:-golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651}
         TEXLIVE_IMAGE: ${TEXLIVE_IMAGE:-texlive/texlive:latest-basic@sha256:eaf1c8098d8600f89a63c2c8b30364bdef2dedffe9ea93065fa8e6f4edcea52b}
-        VERSION: ${LATEXMK_VERSION:-0.4.1}
+        VERSION: ${LATEXMK_VERSION:-0.4.2}
         COMMIT: ${LATEXMK_COMMIT:-local}
         BUILD_DATE: ${LATEXMK_BUILD_DATE:-unknown}
     image: ${LATEXMK_SERVER_IMAGE:-latexmk-server:local}

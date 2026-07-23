@@ -1,6 +1,6 @@
 {
   "name": "@rlatexmk/rlatexmk-win32-x64",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "description": "remote-latexmk native client for Windows x64.",
   "license": "MIT",
