@@ -78,6 +78,7 @@ test('temporary release recovery workflow is removed', async () => {
 
 test('CI installs pinned pnpm before setup-node enables pnpm caching', async () => {
   const workflow = await readFile(path.join(root, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(workflow, /^on:\n  push:\n    branches:\n      - main\n  pull_request:\n/m);
   const pnpmSetup = workflow.indexOf('pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271');
   const nodeSetup = workflow.indexOf('actions/setup-node@');
   assert.ok(pnpmSetup >= 0, 'missing pinned pnpm setup action');
