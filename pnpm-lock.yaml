@@ -368,7 +368,7 @@ packages:
   '@prefresh/vite@2.4.12':
     resolution: {integrity: sha512-FY1fzXpUjiuosznMV0YM7XAOPZjB5FIdWS0W24+XnlxYkt9hNAwwsiKYn+cuTEoMtD/ZVazS5QVssBr9YhpCQA==}
     peerDependencies:
-      preact: ^10.4.4 || ^11.0.0-0
+      preact: ^10.4.5 || ^11.0.0-0
       vite: '>=2.0.0'
 
   '@rollup/pluginutils@4.2.1':

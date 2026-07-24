@@ -84,7 +84,7 @@ const (
 	maxNeedsFileBytes  = 64 << 20
 )
 
-var version = "0.4.4"
+var version = "0.4.5"
 
 func New(baseURL, token string, timeout time.Duration, insecure bool, caFile string) (*Client, error) {
 	baseURL, err := serverurl.Normalize(baseURL)

@@ -314,15 +314,16 @@ export function renderConnectionSetupCallout(version, options = {}) {
   const inverse = options.style ? '\u001b[7m' : '';
   const reset = options.style ? '\u001b[0m' : '';
   const line = (value = '') => `│ ${value.padEnd(contentWidth)} │`;
+  const highlightedLine = (value = '') => `│${inverse} ${value.padEnd(contentWidth)} ${reset}│`;
   const commandLines = wrapText(command, contentWidth);
   return [
     '',
     `┌${border}┐`,
-    line('CONNECTION SETUP'),
-    ...wrapText(explanation, contentWidth).map(line),
-    ...wrapText('The remote-latexmk API token is read at a hidden prompt.', contentWidth).map(line),
+    highlightedLine('CONNECTION SETUP'),
+    ...wrapText(explanation, contentWidth).map(highlightedLine),
+    ...wrapText('The remote-latexmk API token is read at a hidden prompt.', contentWidth).map(highlightedLine),
     `├${border}┤`,
-    ...commandLines.map((value) => `│${inverse} ${value.padEnd(contentWidth)} ${reset}│`),
+    ...commandLines.map(line),
     `└${border}┘`,
   ].join('\n');
 }

@@ -30,7 +30,7 @@ the Plugin from this repository's marketplace.
 ### Codex Desktop
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.4.4 plugin install codex
+npx --yes --ignore-scripts remote-latexmk@0.4.5 plugin install codex
 ```
 
 Select **Install** on the Plugin page opened by the command. If the Plugin does
@@ -53,7 +53,7 @@ claude plugin install remote-latexmk@remote-latexmk
 Save the connection once on the client before starting the Agent:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.4.4 auth login --server https://latex.example.edu
+npx --yes --ignore-scripts remote-latexmk@0.4.5 auth login --server https://latex.example.edu
 ```
 
 Paste the remote-latexmk API token at the hidden terminal prompt. The command
@@ -124,7 +124,7 @@ single paper, the older installer can add all bundled Skills and a fixed-root MC
 entry to detected Codex, Claude Code, or OpenCode configurations:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.4.4 agent install \
+npx --yes --ignore-scripts remote-latexmk@0.4.5 agent install \
   --project-root /absolute/path/to/paper \
   --server https://latex.example.edu \
   --token-file /absolute/path/to/latexmk-token \
@@ -219,7 +219,7 @@ Plugin hosts that implement MCP workspace roots can let the Agent select the
 current root without storing an absolute paper path:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.4.4 \
+npx --yes --ignore-scripts remote-latexmk@0.4.5 \
   mcp serve --stdio --root-from-client
 ```
 
