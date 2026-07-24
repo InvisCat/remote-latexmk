@@ -54,7 +54,11 @@ test('connection setup callout is boxed, width-aware, and optionally highlighted
   assert.ok(plain.split('\n').every((line) => line.length <= 58));
 
   const styled = renderConnectionSetupCallout('1.2.3', { columns: 58, style: true });
-  assert.match(styled, /\u001b\[7m/);
+  assert.match(styled, /\u001b\[7m CONNECTION SETUP/);
+  assert.match(styled, /\u001b\[7m Run this once/);
+  assert.match(styled, /\u001b\[7m The remote-latexmk API token/);
+  assert.doesNotMatch(styled, /\u001b\[7m npx/);
+  assert.doesNotMatch(styled, /\u001b\[7m --server SERVER_HOST/);
   assert.match(styled, /\u001b\[0m/);
 
   const narrow = renderConnectionSetupCallout('1.2.3', { columns: 32 });
@@ -77,8 +81,10 @@ test('Plugin installation highlights setup only on a capable terminal', async ()
     .replace(/[│\n]/g, ' ')
     .replace(/\s+/g, ' ');
   const escapedVersion = packageJSON.version.replaceAll('.', '\\.');
-  assert.match(styledOutput, new RegExp(`\u001b\\[7m npx .*remote-latexmk@${escapedVersion}`));
-  assert.match(styledOutput, /\u001b\[7m --server SERVER_HOST/);
+  assert.match(styledOutput, /\u001b\[7m CONNECTION SETUP/);
+  assert.match(styledOutput, /\u001b\[7m After installation/);
+  assert.doesNotMatch(styledOutput, /\u001b\[7m npx/);
+  assert.doesNotMatch(styledOutput, /\u001b\[7m --server SERVER_HOST/);
   assert.match(
     normalizedStyled,
     new RegExp(`remote-latexmk@${escapedVersion} auth login --server SERVER_HOST`),

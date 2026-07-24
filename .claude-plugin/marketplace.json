@@ -7,14 +7,14 @@
   },
   "metadata": {
     "description": "Remote LaTeX compilation plugins.",
-    "version": "0.4.4"
+    "version": "0.4.5"
   },
   "plugins": [
     {
       "name": "remote-latexmk",
       "source": "./plugins/remote-latexmk",
       "description": "Compile LaTeX projects on a private remote TeX Live server.",
-      "version": "0.4.4",
+      "version": "0.4.5",
       "author": {
         "name": "InvisCat"
       },
