@@ -319,7 +319,7 @@ test('interactive installer supports arrow-key menus with inverse selection', as
     REMOTE_LATEXMK_TEST_INPUT_FILE: input,
     REMOTE_LATEXMK_TEST_INTERFACES: 'eth0|192.168.50.20',
     REMOTE_LATEXMK_TEST_TUI: 'true',
-    REMOTE_LATEXMK_TEST_COLUMNS: '72',
+    REMOTE_LATEXMK_TEST_COLUMNS: '20',
     TERM: 'xterm-256color',
   };
   delete env.NO_COLOR;
@@ -330,8 +330,20 @@ test('interactive installer supports arrow-key menus with inverse selection', as
   const config = await readFile(path.join(installRoot, 'config/server.env'), 'utf8');
   assert.match(stdout, /Use ↑\/↓ and Enter for choices/);
   assert.match(stdout, /↑\/↓ move\s+•\s+Enter select/);
-  assert.match(stdout, /\u001b\[7m❯ full — broad package set/);
-  assert.match(stdout, /\u001b\[7m❯ slim — smaller package set/);
+  assert.match(stdout, /\u001b\[7m❯ full — broad/);
+  assert.match(stdout, /\u001b\[7m❯ slim — small…/);
+  assert.doesNotMatch(stdout, /❯ full — broad package set/);
+  const renderedOptionWidths = stdout.split('\n').flatMap((line) => {
+    const clear = '\r\u001b[2K';
+    const offset = line.lastIndexOf(clear);
+    if (offset < 0) return [];
+    const visible = line.slice(offset + clear.length)
+      .replace(/\u001b\[[0-9;]*[A-Za-z]/g, '')
+      .replaceAll('\r', '');
+    return visible ? [[...visible].length] : [];
+  });
+  assert.ok(renderedOptionWidths.length > 0);
+  assert.ok(renderedOptionWidths.every((width) => width <= 20));
   assert.match(stdout, /profile:\s+slim/);
   assert.match(stdout, /engines:\s+pdflatex/);
   assert.match(stdout, /listen:\s+http:\/\/192\.168\.50\.20:8080/);

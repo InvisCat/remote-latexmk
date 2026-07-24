@@ -287,7 +287,7 @@ render_tui_options() {
   shift 2
   local options=("$@") index label limit inverse="" reset=""
   limit=$((width - 7))
-  (( limit < 24 )) && limit=24
+  (( limit < 1 )) && limit=1
   if [[ -z "${NO_COLOR+x}" ]]; then
     inverse=$'\033[7m'
     reset=$'\033[0m'

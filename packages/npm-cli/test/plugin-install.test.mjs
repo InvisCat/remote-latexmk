@@ -39,19 +39,21 @@ test('Codex Plugin installer parses bounded non-secret options', () => {
 
 test('connection setup callout is boxed, width-aware, and optionally highlighted', () => {
   const plain = renderConnectionSetupCallout('1.2.3', { columns: 58 });
+  const normalized = plain.replace(/[│\n]/g, ' ').replace(/\s+/g, ' ');
   assert.match(plain, /┌─+┐/);
   assert.match(plain, /CONNECTION SETUP/);
   assert.match(plain, /remote-latexmk@1\.2\.3/);
-  assert.match(plain, /auth login --server SERVER_HOST/);
+  assert.match(normalized, /auth login --server SERVER_HOST/);
   assert.doesNotMatch(plain, /\u001b\[/);
-  assert.ok(plain.split('\n').filter((line) => line.includes('│')).every((line) => line.length <= 58));
+  assert.ok(plain.split('\n').every((line) => line.length <= 58));
 
   const styled = renderConnectionSetupCallout('1.2.3', { columns: 58, style: true });
   assert.match(styled, /\u001b\[7m/);
   assert.match(styled, /\u001b\[0m/);
 
   const narrow = renderConnectionSetupCallout('1.2.3', { columns: 32 });
-  assert.ok(narrow.split('\n').filter((line) => line.includes('│')).every((line) => line.length <= 32));
+  assert.ok(narrow.split('\n').every((line) => line.length <= 32));
+  assert.ok(narrow.split('\n').filter((line) => line.includes('remote-latexmk@') || line.includes('auth login')).every((line) => line.startsWith('│ ') && line.endsWith(' │')));
 });
 
 test('Plugin installation highlights setup only on a capable terminal', async () => {
@@ -63,7 +65,14 @@ test('Plugin installation highlights setup only on a capable terminal', async ()
     output: { isTTY: true, columns: 64 },
     env: { TERM: 'xterm-256color' },
   });
-  assert.match(styledLogs.join('\n'), /\u001b\[7mnpx .* auth login --server SERVER_HOST\u001b\[0m/);
+  const styledOutput = styledLogs.join('\n');
+  const normalizedStyled = styledOutput
+    .replace(/\u001b\[[0-9;]*m/g, '')
+    .replace(/[│\n]/g, ' ')
+    .replace(/\s+/g, ' ');
+  assert.match(styledOutput, /\u001b\[7m npx .*remote-latexmk@0\.4\.3/);
+  assert.match(styledOutput, /\u001b\[7m --server SERVER_HOST/);
+  assert.match(normalizedStyled, /remote-latexmk@0\.4\.3 auth login --server SERVER_HOST/);
 
   const plainLogs = [];
   await installCodexPlugin(['--dry-run'], {
@@ -251,7 +260,7 @@ test('Codex Plugin installer dry-run and CLI dispatch do not need Codex CLI', as
   assert.match(stdout, /does not edit Codex's private Plugin cache/);
   assert.match(stdout, /Next after applying: select Install or Update/);
   assert.match(stdout, /Existing remote-latexmk login: preserved if present/);
-  assert.match(stdout, /remote-latexmk@[^\s│]+ auth login --server SERVER_HOST/);
+  assert.match(stdout.replace(/[│\n]/g, ' ').replace(/\s+/g, ' '), /remote-latexmk@[^\s]+ auth login --server SERVER_HOST/);
 
   const cliHome = await mkdtemp(path.join(os.tmpdir(), 'remote-latexmk-codex-cli-'));
   const installed = await execFileAsync(process.execPath, [
@@ -263,7 +272,7 @@ test('Codex Plugin installer dry-run and CLI dispatch do not need Codex CLI', as
   assert.match(installed.stdout, /select Install or Update/);
   assert.match(installed.stdout, /start a new task/);
   assert.match(installed.stdout, /Existing remote-latexmk login: preserved if present/);
-  assert.match(installed.stdout, /remote-latexmk@[^\s│]+ auth login --server SERVER_HOST/);
+  assert.match(installed.stdout.replace(/[│\n]/g, ' ').replace(/\s+/g, ' '), /remote-latexmk@[^\s]+ auth login --server SERVER_HOST/);
   assert.equal(
     JSON.parse(await readFile(path.join(cliHome, 'plugins', 'remote-latexmk', '.codex-plugin', 'plugin.json'), 'utf8')).name,
     'remote-latexmk',
