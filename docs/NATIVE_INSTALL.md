@@ -14,14 +14,14 @@ Use a release tag that contains `install-server.sh`, two native server
 archives, and `SHA256SUMS`:
 
 ```sh
-curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.4.2/install-server.sh | bash -s -- --version v0.4.2
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.4.3/install-server.sh | bash -s -- --version v0.4.3
 ```
 
-In an interactive terminal, this opens a setup wizard. It asks for the TeX Live
-profile, enabled engines, listen address, port, and service mode, then shows one
-install plan for confirmation. Press Enter at each choice to keep the safe
-defaults: full TeX Live, XeLaTeX plus PDFLaTeX, `127.0.0.1:8080`, and automatic
-systemd user-service selection.
+In an interactive terminal, this opens a setup wizard. Use ↑/↓ and Enter for
+the TeX Live profile, enabled engines, listen address, and service mode. The
+port remains a text prompt. The installer then shows one install plan for
+confirmation. Press Enter to keep the safe defaults: full TeX Live, XeLaTeX
+plus PDFLaTeX, `127.0.0.1:8080`, and automatic systemd user-service selection.
 
 For automation, disable prompts and provide the choices explicitly:
 

@@ -118,10 +118,10 @@ docker build \
   --build-arg SERVER_SOURCE=packages/server \
   --build-arg DEPLOY_ASSETS=packages/deploy/templates \
   --build-arg TEXLIVE_IMAGE='texlive/texlive:TAG@sha256:DIGEST' \
-  --build-arg VERSION='0.4.2' \
+  --build-arg VERSION='0.4.3' \
   --build-arg COMMIT="$(git rev-parse HEAD)" \
   --build-arg BUILD_DATE="$(date -u +%FT%TZ)" \
-  -t registry.example.edu/remote-latexmk-server:0.4.2 .
+  -t registry.example.edu/remote-latexmk-server:0.4.3 .
 ```
 
 Use `rlatexmk meta` to verify the remote toolchain actually running the image.

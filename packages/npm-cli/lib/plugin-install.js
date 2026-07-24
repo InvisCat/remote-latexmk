@@ -274,6 +274,59 @@ export function codexPluginURL(marketplacePath) {
   return `codex://plugins/${pluginName}?marketplacePath=${encodeURIComponent(marketplacePath)}`;
 }
 
+function wrapText(text, width) {
+  const words = text.trim().split(/\s+/);
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    if (word.length > width) {
+      if (line) {
+        lines.push(line);
+        line = '';
+      }
+      for (let offset = 0; offset < word.length; offset += width) {
+        lines.push(word.slice(offset, offset + width));
+      }
+      continue;
+    }
+    if (!line) {
+      line = word;
+    } else if (line.length + 1 + word.length <= width) {
+      line += ` ${word}`;
+    } else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+export function renderConnectionSetupCallout(version, options = {}) {
+  const columns = Number.isFinite(options.columns) ? options.columns : 80;
+  const innerWidth = Math.max(18, Math.min(92, Math.floor(columns) - 4));
+  const contentWidth = innerWidth - 2;
+  const command = `npx --yes --ignore-scripts remote-latexmk@${version} auth login --server SERVER_HOST`;
+  const explanation = options.dryRun
+    ? 'After installation, run this once or after a server change.'
+    : 'Run this once after the first install or a server change.';
+  const border = '─'.repeat(innerWidth);
+  const inverse = options.style ? '\u001b[7m' : '';
+  const reset = options.style ? '\u001b[0m' : '';
+  const line = (value = '') => `│ ${value.padEnd(contentWidth)} │`;
+  const commandLines = wrapText(command, contentWidth);
+  return [
+    '',
+    `┌${border}┐`,
+    line('CONNECTION SETUP'),
+    ...wrapText(explanation, contentWidth).map(line),
+    ...wrapText('The remote-latexmk API token is read at a hidden prompt.', contentWidth).map(line),
+    `├${border}┤`,
+    ...commandLines.map((value) => `│${inverse} ${value.padEnd(contentWidth)} ${reset}│`),
+    `└${border}┘`,
+  ].join('\n');
+}
+
 function openCodex(url) {
   let result;
   if (process.platform === 'darwin') {
@@ -289,6 +342,8 @@ function openCodex(url) {
 export async function installCodexPlugin(args, dependencies = {}) {
   const options = parsePluginInstallArgs(args);
   const log = dependencies.log ?? console.log;
+  const output = dependencies.output ?? process.stdout;
+  const environment = dependencies.env ?? process.env;
   if (options.help) {
     log(usage());
     return { help: true };
@@ -334,8 +389,11 @@ export async function installCodexPlugin(args, dependencies = {}) {
     log('Next: select Install or Update on the Plugin page, restart Codex if it is running, then start a new task from your paper directory.');
   }
   log('Existing remote-latexmk login: preserved if present; the server URL and API token are unchanged.');
-  log(`Connection setup (first install or server change): npx --yes --ignore-scripts remote-latexmk@${packageJSON.version} auth login --server SERVER_HOST`);
-  log('The login command checks the service, then reads the remote-latexmk API token at a hidden prompt.');
+  log(renderConnectionSetupCallout(packageJSON.version, {
+    columns: output?.columns,
+    dryRun: options.dryRun,
+    style: Boolean(output?.isTTY && environment.TERM !== 'dumb' && !Object.hasOwn(environment, 'NO_COLOR')),
+  }));
   return {
     destination,
     marketplacePath,

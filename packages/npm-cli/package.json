@@ -1,6 +1,6 @@
 {
   "name": "remote-latexmk",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": true,
   "description": "Native remote-latexmk client and MCP launcher for npm and npx.",
   "license": "MIT",

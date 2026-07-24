@@ -5,7 +5,7 @@
       "args": [
         "--yes",
         "--ignore-scripts",
-        "remote-latexmk@0.4.2",
+        "remote-latexmk@0.4.3",
         "mcp",
         "serve",
         "--stdio",
