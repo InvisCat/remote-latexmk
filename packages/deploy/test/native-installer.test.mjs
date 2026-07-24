@@ -280,6 +280,7 @@ test('interactive installer lists interfaces, keeps safe defaults, and selects a
     },
   });
   const config = await readFile(path.join(installRoot, 'config/server.env'), 'utf8');
+  assert.match(stdout, /Enter a number for choices/);
   assert.match(stdout, /127\.0\.0\.1 — local machine or SSH tunnel \(recommended\)/);
   assert.match(stdout, /tailscale0 \(VPN interface\) — 100\.64\.10\.4/);
   assert.match(stdout, /eth1 — 2001:db8::20 \(may be public\)/);
@@ -296,6 +297,47 @@ test('interactive installer lists interfaces, keeps safe defaults, and selects a
   assert.match(config, /LATEXMK_ADDR="100\.64\.10\.4:9090"/);
   assert.match(config, /LATEXMK_ENGINES="xelatex,pdflatex,lualatex"/);
   assert.match(config, /REMOTE_LATEXMK_SERVICE_MODE="fallback"/);
+});
+
+test('interactive installer supports arrow-key menus with inverse selection', async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'remote-latexmk-tui-'));
+  await createNativeRelease(temp, '1.2.3');
+  const texBin = await createFakeTexBin(temp);
+  const installRoot = path.join(temp, 'home', '.remote-latexmk');
+  const input = path.join(temp, 'keys');
+  // slim, PDFLaTeX only, discovered private address, default port, fallback service, confirm
+  await writeFile(input, [
+    '\u001b[A\n',
+    '\u001b[B\u001b[B\n',
+    '\u001b[B\n',
+    '\n',
+    '\u001b[B\u001b[B\n',
+    '\n',
+  ].join(''));
+  const env = {
+    ...nativeEnv(temp, texBin),
+    REMOTE_LATEXMK_TEST_INPUT_FILE: input,
+    REMOTE_LATEXMK_TEST_INTERFACES: 'eth0|192.168.50.20',
+    REMOTE_LATEXMK_TEST_TUI: 'true',
+    REMOTE_LATEXMK_TEST_COLUMNS: '72',
+    TERM: 'xterm-256color',
+  };
+  delete env.NO_COLOR;
+  const { stdout } = await execFileAsync('bash', [path.join(root, 'scripts/install-server.sh'),
+    '--version', 'v1.2.3', '--install-dir', installRoot, '--interactive', '--no-start'], {
+    env,
+  });
+  const config = await readFile(path.join(installRoot, 'config/server.env'), 'utf8');
+  assert.match(stdout, /Use ↑\/↓ and Enter for choices/);
+  assert.match(stdout, /↑\/↓ move\s+•\s+Enter select/);
+  assert.match(stdout, /\u001b\[7m❯ full — broad package set/);
+  assert.match(stdout, /\u001b\[7m❯ slim — smaller package set/);
+  assert.match(stdout, /profile:\s+slim/);
+  assert.match(stdout, /engines:\s+pdflatex/);
+  assert.match(stdout, /listen:\s+http:\/\/192\.168\.50\.20:8080/);
+  assert.match(stdout, /service:\s+none/);
+  assert.match(config, /LATEXMK_ADDR="192\.168\.50\.20:8080"/);
+  assert.match(config, /LATEXMK_ENGINES="pdflatex"/);
 });
 
 test('wildcard listener is last, needs confirmation, and is never printed as a client URL', async () => {

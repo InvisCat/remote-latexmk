@@ -232,6 +232,126 @@ prompt_index() {
   done
 }
 
+terminal_columns() {
+  local size
+  if [[ "${REMOTE_LATEXMK_TEST_COLUMNS:-}" =~ ^[0-9]+$ ]]; then
+    printf '%s' "${REMOTE_LATEXMK_TEST_COLUMNS}"
+    return
+  fi
+  if [[ "${COLUMNS:-}" =~ ^[0-9]+$ ]]; then
+    printf '%s' "${COLUMNS}"
+    return
+  fi
+  size="$(stty size <&3 2>/dev/null || true)"
+  if [[ "${size}" =~ ^[0-9]+[[:space:]]+([0-9]+)$ ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  else
+    printf '80'
+  fi
+}
+
+prompt_tui_key() {
+  local key next
+  IFS= read -rsn1 -u 3 key || return 1
+  if [[ -z "${key}" ]]; then
+    PROMPT_KEY=enter
+    return
+  fi
+  if [[ "${key}" == $'\033' ]]; then
+    if [[ -t 3 ]]; then
+      IFS= read -rsn1 -t 0.1 -u 3 next || { PROMPT_KEY=escape; return; }
+    else
+      IFS= read -rsn1 -u 3 next || { PROMPT_KEY=escape; return; }
+    fi
+    if [[ "${next}" == "[" ]]; then
+      if [[ -t 3 ]]; then
+        IFS= read -rsn1 -t 0.1 -u 3 next || { PROMPT_KEY=escape; return; }
+      else
+        IFS= read -rsn1 -u 3 next || { PROMPT_KEY=escape; return; }
+      fi
+      case "${next}" in
+        A) PROMPT_KEY=up ;;
+        B) PROMPT_KEY=down ;;
+        *) PROMPT_KEY=escape ;;
+      esac
+      return
+    fi
+    PROMPT_KEY=escape
+    return
+  fi
+  PROMPT_KEY="${key}"
+}
+
+render_tui_options() {
+  local selected="$1" width="$2"
+  shift 2
+  local options=("$@") index label limit inverse="" reset=""
+  limit=$((width - 7))
+  (( limit < 24 )) && limit=24
+  if [[ -z "${NO_COLOR+x}" ]]; then
+    inverse=$'\033[7m'
+    reset=$'\033[0m'
+  fi
+  for index in "${!options[@]}"; do
+    label="${options[index]}"
+    if (( ${#label} > limit )); then label="${label:0:limit-1}…"; fi
+    printf '\r\033[2K'
+    if (( index == selected )); then
+      printf '  %b❯ %s %b\n' "${inverse}" "${label}" "${reset}"
+    else
+      printf '    %s\n' "${label}"
+    fi
+  done
+}
+
+prompt_tui() {
+  local title="$1" default_index="$2"
+  shift 2
+  local options=("$@") selected width key index
+  selected=$((default_index - 1))
+  width="$(terminal_columns)"
+  printf '\n%s\n\n' "${title}"
+  render_tui_options "${selected}" "${width}" "${options[@]}"
+  printf '  ↑/↓ move  •  Enter select'
+  while prompt_tui_key; do
+    key="${PROMPT_KEY}"
+    case "${key}" in
+      up|k)
+        (( selected > 0 )) && selected=$((selected - 1)) || selected=$((${#options[@]} - 1))
+        ;;
+      down|j)
+        (( selected + 1 < ${#options[@]} )) && selected=$((selected + 1)) || selected=0
+        ;;
+      enter)
+        printf '\r\033[2K\n'
+        PROMPT_INDEX=$((selected + 1))
+        return
+        ;;
+      [1-9])
+        index=$((10#${key} - 1))
+        (( index < ${#options[@]} )) && selected="${index}"
+        ;;
+      *) continue ;;
+    esac
+    printf '\r\033[2K\033[%dA' "${#options[@]}"
+    render_tui_options "${selected}" "${width}" "${options[@]}"
+    printf '  ↑/↓ move  •  Enter select'
+  done
+  die "interactive input ended before installation was confirmed"
+}
+
+prompt_has_tui() {
+  [[ -t 3 && -t 1 && "${TERM:-dumb}" != dumb ]] || [[ "${REMOTE_LATEXMK_TEST_TUI:-}" == true ]]
+}
+
+prompt_select() {
+  if prompt_has_tui; then
+    prompt_tui "$@"
+  else
+    prompt_index "$@"
+  fi
+}
+
 run_interactive_wizard() {
   local prompt_file="${REMOTE_LATEXMK_TEST_INPUT_FILE:-}"
   local index summary_listen tex_action
@@ -243,12 +363,16 @@ run_interactive_wizard() {
 
   echo
   echo "remote-latexmk server setup"
-  echo "Press Enter to keep the value shown in brackets."
+  if prompt_has_tui; then
+    echo "Use ↑/↓ and Enter for choices. Press Enter to keep text-prompt defaults."
+  else
+    echo "Enter a number for choices. Press Enter to keep the value in brackets."
+  fi
 
   if [[ "${profile_set}" != true ]]; then
     local profile_default=1
     [[ "${profile}" == slim ]] && profile_default=2
-    prompt_index "TeX Live profile" "${profile_default}" "full — broad package set (recommended)" "slim — smaller package set"
+    prompt_select "TeX Live profile" "${profile_default}" "full — broad package set (recommended)" "slim — smaller package set"
     [[ "${PROMPT_INDEX}" == 1 ]] && profile=full || profile=slim
   fi
 
@@ -265,7 +389,7 @@ run_interactive_wizard() {
     for index in "${!engine_values[@]}"; do
       [[ "${engine_values[index]}" == "${engines}" ]] && engine_default=$((index + 1))
     done
-    prompt_index "Enabled engines" "${engine_default}" "${engine_options[@]}"
+    prompt_select "Enabled engines" "${engine_default}" "${engine_options[@]}"
     engines="${engine_values[PROMPT_INDEX - 1]}"
     if [[ "${engines}" == __custom__ ]]; then
       prompt_read "Engines [xelatex,pdflatex]: " "xelatex,pdflatex"
@@ -305,7 +429,7 @@ run_interactive_wizard() {
         [[ "${address_values[index]}" == "${current_host}" ]] && address_default=$((index + 1))
       done
     fi
-    prompt_index "Listen address" "${address_default}" "${address_options[@]}"
+    prompt_select "Listen address" "${address_default}" "${address_options[@]}"
     current_host="${address_values[PROMPT_INDEX - 1]}"
     if [[ "${current_host}" == __custom__ ]]; then
       prompt_read "Host or IP [${listen_host}]: " "${listen_host}"
@@ -330,7 +454,7 @@ run_interactive_wizard() {
   if [[ "${service_set}" != true ]]; then
     local service_default=1
     case "${service_mode}" in systemd) service_default=2 ;; none) service_default=3 ;; esac
-    prompt_index "Service mode" "${service_default}" "auto (systemd when available)" "systemd user service" "PID-file fallback (weaker isolation)"
+    prompt_select "Service mode" "${service_default}" "auto (systemd when available)" "systemd user service" "PID-file fallback (weaker isolation)"
     case "${PROMPT_INDEX}" in 1) service_mode=auto ;; 2) service_mode=systemd ;; 3) service_mode=none ;; esac
   fi
 

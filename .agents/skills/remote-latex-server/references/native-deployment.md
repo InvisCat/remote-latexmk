@@ -19,11 +19,12 @@ Docker, or shell-startup edits.
 ## Install
 
 Give the user this command with the chosen release. In an interactive terminal,
-the installer asks for the TeX Live profile, enabled engines, listen address,
-port, and service mode. Pressing Enter keeps the recommended choices:
+the installer uses ↑/↓ and Enter for the TeX Live profile, enabled engines,
+listen address, and service mode. The port remains a text prompt. Pressing
+Enter keeps the recommended choices:
 
 ```sh
-curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.4.2/install-server.sh | bash -s -- --version v0.4.2
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.4.3/install-server.sh | bash -s -- --version v0.4.3
 ```
 
 Use `--non-interactive` with explicit `--profile`, `--engines`, `--listen`,
