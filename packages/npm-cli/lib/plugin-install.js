@@ -339,6 +339,65 @@ function openCodex(url) {
   return !result.error && result.status === 0;
 }
 
+function codexCommandCandidates(home, dependencies = {}) {
+  if (dependencies.codexCommand) return [dependencies.codexCommand];
+
+  const env = dependencies.env ?? process.env;
+  const candidates = ['codex'];
+  if (process.platform === 'darwin') {
+    candidates.push(
+      '/Applications/ChatGPT.app/Contents/Resources/codex',
+      path.join(home, 'Applications', 'ChatGPT.app', 'Contents', 'Resources', 'codex'),
+      '/Applications/Codex.app/Contents/Resources/codex',
+      path.join(home, 'Applications', 'Codex.app', 'Contents', 'Resources', 'codex'),
+    );
+  } else if (process.platform === 'win32' && env.LOCALAPPDATA) {
+    candidates.push(
+      path.join(env.LOCALAPPDATA, 'Programs', 'ChatGPT', 'resources', 'codex.exe'),
+    );
+  }
+  return [...new Set(candidates)];
+}
+
+export function installCodexCopy(home, dependencies = {}) {
+  const spawn = dependencies.spawnSync ?? spawnSync;
+  let lastFailure = null;
+  for (const command of codexCommandCandidates(home, dependencies)) {
+    const result = spawn(command, ['plugin', 'add', `${pluginName}@personal`, '--json'], {
+      encoding: 'utf8',
+      env: dependencies.env ?? process.env,
+      windowsHide: true,
+    });
+    if (result.error?.code === 'ENOENT') continue;
+    if (result.error) {
+      lastFailure = result.error.message;
+      continue;
+    }
+    if (result.status !== 0) {
+      lastFailure = String(result.stderr || result.stdout || `exit status ${result.status}`).trim();
+      continue;
+    }
+    try {
+      const installed = JSON.parse(result.stdout);
+      if (installed?.version !== packageJSON.version) {
+        lastFailure = `Codex reported installed version ${installed?.version ?? 'unknown'} instead of ${packageJSON.version}`;
+        continue;
+      }
+      return {
+        status: 'installed',
+        command,
+        version: installed.version,
+        installedPath: installed.installedPath ?? null,
+      };
+    } catch {
+      lastFailure = 'Codex installed the Plugin but returned invalid JSON';
+    }
+  }
+  return lastFailure
+    ? { status: 'failed', message: lastFailure }
+    : { status: 'unavailable' };
+}
+
 export async function installCodexPlugin(args, dependencies = {}) {
   const options = parsePluginInstallArgs(args);
   const log = dependencies.log ?? console.log;
@@ -376,16 +435,23 @@ export async function installCodexPlugin(args, dependencies = {}) {
     if (marketplaceBackup) log(`backed up marketplace: ${marketplaceBackup}`);
   }
 
+  const installedCopy = options.dryRun
+    ? { status: 'planned' }
+    : await (dependencies.installCodexCopy ?? installCodexCopy)(home, dependencies);
   const url = codexPluginURL(marketplacePath);
   log(`Codex Plugin page: ${url}`);
   if (!options.dryRun && options.open) {
     const opened = await (dependencies.openURL ?? openCodex)(url);
     if (!opened) log('Could not open Codex automatically. Open the Plugin page above.');
   }
-  log("Codex installed copy: separate from this marketplace source; this command does not edit Codex's private Plugin cache.");
   if (options.dryRun) {
-    log('Next after applying: select Install or Update on the Plugin page, restart Codex if it is running, then start a new task.');
+    log(`Codex installed copy plan: install or update ${packageJSON.version} through Codex CLI when available.`);
+    log('Next after applying: restart Codex if it is running, then start a new task.');
+  } else if (installedCopy.status === 'installed') {
+    log(`Codex installed copy: ${installedCopy.version}${installedCopy.installedPath ? ` at ${installedCopy.installedPath}` : ''}`);
+    log('Next: restart Codex if it is running, then start a new task from your paper directory.');
   } else {
+    log(`Codex installed copy: not updated automatically${installedCopy.message ? ` (${installedCopy.message})` : ''}.`);
     log('Next: select Install or Update on the Plugin page, restart Codex if it is running, then start a new task from your paper directory.');
   }
   log('Existing remote-latexmk login: preserved if present; the server URL and API token are unchanged.');
@@ -403,5 +469,6 @@ export async function installCodexPlugin(args, dependencies = {}) {
     targetVersion: pluginPlan.targetVersion,
     marketplaceAction,
     marketplaceChanged: marketplacePlan.changed,
+    installedCopy,
   };
 }

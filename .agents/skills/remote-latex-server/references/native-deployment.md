@@ -24,7 +24,7 @@ listen address, and service mode. The port remains a text prompt. Pressing
 Enter keeps the recommended choices:
 
 ```sh
-curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.4.3/install-server.sh | bash -s -- --version v0.4.3
+curl -fsSL https://github.com/InvisCat/remote-latexmk/releases/download/v0.4.4/install-server.sh | bash -s -- --version v0.4.4
 ```
 
 Use `--non-interactive` with explicit `--profile`, `--engines`, `--listen`,
