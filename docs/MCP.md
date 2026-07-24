@@ -51,7 +51,7 @@ global install:
 
 ```sh
 npm exec --yes --ignore-scripts \
-  --package=remote-latexmk@0.4.3 -- \
+  --package=remote-latexmk@0.4.4 -- \
   rlatexmk mcp serve --stdio \
   --root-from-client --fallback-workspace-root .
 ```
@@ -61,7 +61,7 @@ does not reimplement MCP or upload policy in JavaScript. Codex Desktop can
 install the Plugin without Codex CLI:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.4.3 plugin install codex
+npx --yes --ignore-scripts remote-latexmk@0.4.4 plugin install codex
 ```
 
 Codex CLI and Claude Code can install it from the repository marketplace:
@@ -78,7 +78,7 @@ The Plugin contains no token. Before starting the Agent, save the client login
 through a hidden terminal prompt:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.4.3 auth login --server https://latex.example.edu
+npx --yes --ignore-scripts remote-latexmk@0.4.4 auth login --server https://latex.example.edu
 ```
 
 The MCP process reads the resulting user-level server URL and token-file path.
@@ -89,7 +89,7 @@ For OpenCode or a host without native Plugin support, the project-bound Agent
 installer remains available:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.4.3 agent install \
+npx --yes --ignore-scripts remote-latexmk@0.4.4 agent install \
   --project-root /absolute/path/to/paper \
   --server https://latex.example.edu \
   --token-file /absolute/path/to/latexmk-token \

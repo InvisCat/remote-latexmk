@@ -1,20 +1,20 @@
 # CLI workflow
 
-Use the npm launcher `npx --yes --ignore-scripts remote-latexmk@0.4.3` for every CLI fallback. Do not run an extra `help` probe during a normal compile workflow.
+Use the npm launcher `npx --yes --ignore-scripts remote-latexmk@0.4.4` for every CLI fallback. Do not run an extra `help` probe during a normal compile workflow.
 
 Run commands from the paper root:
 
 ```sh
-npx --yes --ignore-scripts remote-latexmk@0.4.3 doctor
-npx --yes --ignore-scripts remote-latexmk@0.4.3 meta --json
-npx --yes --ignore-scripts remote-latexmk@0.4.3 entries --json --project-root .
-npx --yes --ignore-scripts remote-latexmk@0.4.3 files --json --project-root . main.tex
-npx --yes --ignore-scripts remote-latexmk@0.4.3 compile --detach --json --project-root . main.tex
-npx --yes --ignore-scripts remote-latexmk@0.4.3 jobs show --json JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.4.3 diagnostics --json JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.4.3 logs --json --source all --tail 200 --max-bytes 65536 JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.4.3 artifacts list --json JOB_ID
-npx --yes --ignore-scripts remote-latexmk@0.4.3 artifacts get --json --out-dir . JOB_ID ARTIFACT_ID
+npx --yes --ignore-scripts remote-latexmk@0.4.4 doctor
+npx --yes --ignore-scripts remote-latexmk@0.4.4 meta --json
+npx --yes --ignore-scripts remote-latexmk@0.4.4 entries --json --project-root .
+npx --yes --ignore-scripts remote-latexmk@0.4.4 files --json --project-root . main.tex
+npx --yes --ignore-scripts remote-latexmk@0.4.4 compile --detach --json --project-root . main.tex
+npx --yes --ignore-scripts remote-latexmk@0.4.4 jobs show --json JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.4.4 diagnostics --json JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.4.4 logs --json --source all --tail 200 --max-bytes 65536 JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.4.4 artifacts list --json JOB_ID
+npx --yes --ignore-scripts remote-latexmk@0.4.4 artifacts get --json --out-dir . JOB_ID ARTIFACT_ID
 ```
 
 Run `entries` only when the entry file is unknown. Use its `selected` path only

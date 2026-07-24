@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'jsonc-parser';
 import {
   codexPluginURL,
+  installCodexCopy,
   installCodexPlugin,
   parsePluginInstallArgs,
   renderConnectionSetupCallout,
@@ -17,6 +18,11 @@ import {
 const execFileAsync = promisify(execFile);
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const packageJSON = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
+const unavailableCodexCopy = async () => ({ status: 'unavailable' });
+
+function testDependencies(values) {
+  return { installCodexCopy: unavailableCodexCopy, ...values };
+}
 
 test('Codex Plugin installer help names the installed rlatexmk command', async () => {
   const { stdout } = await execFileAsync(process.execPath, [
@@ -70,9 +76,13 @@ test('Plugin installation highlights setup only on a capable terminal', async ()
     .replace(/\u001b\[[0-9;]*m/g, '')
     .replace(/[│\n]/g, ' ')
     .replace(/\s+/g, ' ');
-  assert.match(styledOutput, /\u001b\[7m npx .*remote-latexmk@0\.4\.3/);
+  const escapedVersion = packageJSON.version.replaceAll('.', '\\.');
+  assert.match(styledOutput, new RegExp(`\u001b\\[7m npx .*remote-latexmk@${escapedVersion}`));
   assert.match(styledOutput, /\u001b\[7m --server SERVER_HOST/);
-  assert.match(normalizedStyled, /remote-latexmk@0\.4\.3 auth login --server SERVER_HOST/);
+  assert.match(
+    normalizedStyled,
+    new RegExp(`remote-latexmk@${escapedVersion} auth login --server SERVER_HOST`),
+  );
 
   const plainLogs = [];
   await installCodexPlugin(['--dry-run'], {
@@ -107,11 +117,11 @@ test('Codex Plugin installer preserves a personal marketplace and is idempotent'
 `);
   let opened = '';
   const logs = [];
-  const first = await installCodexPlugin([], {
+  const first = await installCodexPlugin([], testDependencies({
     home,
     log: (line) => logs.push(line),
     openURL: async (url) => { opened = url; return true; },
-  });
+  }));
 
   const destination = path.join(home, 'plugins', 'remote-latexmk');
   assert.equal(first.destination, destination);
@@ -142,7 +152,7 @@ test('Codex Plugin installer preserves a personal marketplace and is idempotent'
   assert.equal(await readFile(cacheSentinel, 'utf8'), 'keep private cache untouched\n');
   assert.ok(logs.includes(`Plugin source: install ${packageJSON.version}`));
   assert.ok(logs.includes('Personal marketplace: update'));
-  assert.ok(logs.some((line) => line.includes("does not edit Codex's private Plugin cache")));
+  assert.ok(logs.some((line) => line.includes('Codex installed copy: not updated automatically')));
   assert.ok(logs.some((line) => line.includes('select Install or Update')));
   assert.ok(logs.some((line) => line.includes('start a new task')));
   assert.ok(logs.some((line) => line.includes('Existing remote-latexmk login: preserved if present')));
@@ -152,7 +162,10 @@ test('Codex Plugin installer preserves a personal marketplace and is idempotent'
   );
 
   const secondLogs = [];
-  const second = await installCodexPlugin(['--no-open'], { home, log: (line) => secondLogs.push(line) });
+  const second = await installCodexPlugin(
+    ['--no-open'],
+    testDependencies({ home, log: (line) => secondLogs.push(line) }),
+  );
   assert.equal(second.pluginAction, 'unchanged');
   assert.equal(second.previousVersion, packageJSON.version);
   assert.equal(second.targetVersion, packageJSON.version);
@@ -171,7 +184,10 @@ test('Codex Plugin installer reports a managed source update with both versions'
   const oldMcpPath = path.join(oldSource, '.mcp.json');
   await writeFile(oldMcpPath, `${await readFile(oldMcpPath, 'utf8')}\n`);
 
-  await installCodexPlugin(['--no-open'], { home, source: oldSource, log: () => {} });
+  await installCodexPlugin(
+    ['--no-open'],
+    testDependencies({ home, source: oldSource, log: () => {} }),
+  );
   const destination = path.join(home, 'plugins', 'remote-latexmk');
   const markerPath = path.join(destination, '.remote-latexmk-managed.json');
   const marker = JSON.parse(await readFile(markerPath, 'utf8'));
@@ -179,7 +195,10 @@ test('Codex Plugin installer reports a managed source update with both versions'
   await writeFile(markerPath, `${JSON.stringify(marker, null, 2)}\n`);
 
   const logs = [];
-  const updated = await installCodexPlugin(['--no-open'], { home, log: (line) => logs.push(line) });
+  const updated = await installCodexPlugin(
+    ['--no-open'],
+    testDependencies({ home, log: (line) => logs.push(line) }),
+  );
   assert.equal(updated.pluginAction, 'update');
   assert.equal(updated.previousVersion, '0.2.0');
   assert.equal(updated.targetVersion, packageJSON.version);
@@ -210,7 +229,7 @@ test('Codex Plugin installer plans all conflicts before writing', async () => {
 `);
 
   await assert.rejects(
-    installCodexPlugin(['--no-open'], { home, log: () => {} }),
+    installCodexPlugin(['--no-open'], testDependencies({ home, log: () => {} })),
     /conflicting remote-latexmk entry/,
   );
   await assert.rejects(stat(path.join(home, 'plugins', 'remote-latexmk')), /ENOENT/);
@@ -218,17 +237,20 @@ test('Codex Plugin installer plans all conflicts before writing', async () => {
 
 test('Codex Plugin installer protects edits and backs up forced replacements', async () => {
   const home = await mkdtemp(path.join(os.tmpdir(), 'remote-latexmk-codex-force-'));
-  await installCodexPlugin(['--no-open'], { home, log: () => {} });
+  await installCodexPlugin(['--no-open'], testDependencies({ home, log: () => {} }));
   const destination = path.join(home, 'plugins', 'remote-latexmk');
   const manifestPath = path.join(destination, '.codex-plugin', 'plugin.json');
   await writeFile(manifestPath, `${await readFile(manifestPath, 'utf8')}\n`);
 
   await assert.rejects(
-    installCodexPlugin(['--no-open'], { home, log: () => {} }),
+    installCodexPlugin(['--no-open'], testDependencies({ home, log: () => {} })),
     /unmanaged changes/,
   );
   const logs = [];
-  const forced = await installCodexPlugin(['--force', '--no-open'], { home, log: (line) => logs.push(line) });
+  const forced = await installCodexPlugin(
+    ['--force', '--no-open'],
+    testDependencies({ home, log: (line) => logs.push(line) }),
+  );
   assert.equal(forced.pluginAction, 'replace');
   assert.equal(forced.previousVersion, packageJSON.version);
   assert.equal(forced.targetVersion, packageJSON.version);
@@ -240,11 +262,11 @@ test('Codex Plugin installer protects edits and backs up forced replacements', a
 test('Codex Plugin installer dry-run and CLI dispatch do not need Codex CLI', async () => {
   const home = await mkdtemp(path.join(os.tmpdir(), 'remote-latexmk-codex-dry-run-'));
   let opened = false;
-  await installCodexPlugin(['--dry-run'], {
+  await installCodexPlugin(['--dry-run'], testDependencies({
     home,
     log: () => {},
     openURL: async () => { opened = true; return true; },
-  });
+  }));
   assert.equal(opened, false);
   await assert.rejects(stat(path.join(home, '.agents')), /ENOENT/);
   await assert.rejects(stat(path.join(home, 'plugins')), /ENOENT/);
@@ -257,8 +279,8 @@ test('Codex Plugin installer dry-run and CLI dispatch do not need Codex CLI', as
   assert.match(stdout, /Plugin source path: .*plugins\/remote-latexmk/);
   assert.match(stdout, /Personal marketplace plan: create/);
   assert.match(stdout, /Codex Plugin page: codex:\/\/plugins\/remote-latexmk/);
-  assert.match(stdout, /does not edit Codex's private Plugin cache/);
-  assert.match(stdout, /Next after applying: select Install or Update/);
+  assert.match(stdout, /Codex installed copy plan: install or update/);
+  assert.match(stdout, /Next after applying: restart Codex/);
   assert.match(stdout, /Existing remote-latexmk login: preserved if present/);
   assert.match(stdout.replace(/[│\n]/g, ' ').replace(/\s+/g, ' '), /remote-latexmk@[^\s]+ auth login --server SERVER_HOST/);
 
@@ -269,7 +291,7 @@ test('Codex Plugin installer dry-run and CLI dispatch do not need Codex CLI', as
   ], { env: { ...process.env, HOME: cliHome } });
   assert.ok(installed.stdout.includes(`Plugin source: install ${packageJSON.version}\n`));
   assert.match(installed.stdout, /Personal marketplace: create/);
-  assert.match(installed.stdout, /select Install or Update/);
+  assert.match(installed.stdout, /Codex installed copy: (?:[0-9]|not updated automatically)/);
   assert.match(installed.stdout, /start a new task/);
   assert.match(installed.stdout, /Existing remote-latexmk login: preserved if present/);
   assert.match(installed.stdout.replace(/[│\n]/g, ' ').replace(/\s+/g, ' '), /remote-latexmk@[^\s]+ auth login --server SERVER_HOST/);
@@ -281,4 +303,75 @@ test('Codex Plugin installer dry-run and CLI dispatch do not need Codex CLI', as
     parse(await readFile(path.join(cliHome, '.agents', 'plugins', 'marketplace.json'), 'utf8')).plugins[0].name,
     'remote-latexmk',
   );
+});
+
+test('Codex Plugin installer updates the installed copy through Codex CLI', async () => {
+  const home = await mkdtemp(path.join(os.tmpdir(), 'remote-latexmk-codex-copy-'));
+  const calls = [];
+  const installed = installCodexCopy(home, {
+    codexCommand: '/test/codex',
+    spawnSync: (command, args, options) => {
+      calls.push({ command, args, options });
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          version: packageJSON.version,
+          installedPath: path.join(home, '.codex', 'plugins', 'cache', 'personal', 'remote-latexmk', packageJSON.version),
+        }),
+        stderr: '',
+      };
+    },
+  });
+
+  assert.equal(installed.status, 'installed');
+  assert.equal(installed.version, packageJSON.version);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, '/test/codex');
+  assert.deepEqual(calls[0].args, ['plugin', 'add', 'remote-latexmk@personal', '--json']);
+  assert.equal(calls[0].options.windowsHide, true);
+});
+
+test('Codex Plugin installation reports a verified installed copy without the manual fallback', async () => {
+  const home = await mkdtemp(path.join(os.tmpdir(), 'remote-latexmk-codex-installed-'));
+  const installedPath = path.join(
+    home,
+    '.codex',
+    'plugins',
+    'cache',
+    'personal',
+    'remote-latexmk',
+    packageJSON.version,
+  );
+  const logs = [];
+  const result = await installCodexPlugin(['--no-open'], {
+    home,
+    log: (line) => logs.push(line),
+    installCodexCopy: async () => ({
+      status: 'installed',
+      version: packageJSON.version,
+      installedPath,
+    }),
+  });
+
+  assert.deepEqual(result.installedCopy, {
+    status: 'installed',
+    version: packageJSON.version,
+    installedPath,
+  });
+  assert.ok(logs.includes(`Codex installed copy: ${packageJSON.version} at ${installedPath}`));
+  assert.ok(logs.some((line) => line.includes('restart Codex')));
+  assert.ok(!logs.some((line) => line.includes('select Install or Update')));
+});
+
+test('Codex Plugin installer reports an installed-copy version mismatch', () => {
+  const result = installCodexCopy('/test/home', {
+    codexCommand: '/test/codex',
+    spawnSync: () => ({
+      status: 0,
+      stdout: JSON.stringify({ version: '0.0.0' }),
+      stderr: '',
+    }),
+  });
+  assert.equal(result.status, 'failed');
+  assert.match(result.message, /reported installed version 0\.0\.0/);
 });

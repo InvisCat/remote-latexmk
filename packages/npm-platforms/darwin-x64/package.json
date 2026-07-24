@@ -1,6 +1,6 @@
 {
   "name": "@rlatexmk/rlatexmk-darwin-x64",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": true,
   "description": "remote-latexmk native client for macOS x64.",
   "license": "MIT",
